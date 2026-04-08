@@ -1,0 +1,64 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1"]
+
+[node name="HUD" type="HBoxContainer"]
+script = ExtResource("1")
+theme_override_constants/separation = 40
+
+[node name="CreditsPanel" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CreditsTitle" type="Label" parent="CreditsPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7)
+horizontal_alignment = 1
+text = "CREDITS"
+
+[node name="CreditsValue" type="Label" parent="CreditsPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(0.3, 1.0, 0.3)
+horizontal_alignment = 1
+text = "1000"
+
+[node name="BetPanel" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BetTitle" type="Label" parent="BetPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7)
+horizontal_alignment = 1
+text = "BET"
+
+[node name="BetValue" type="Label" parent="BetPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(1.0, 1.0, 0.3)
+horizontal_alignment = 1
+text = "1"
+
+[node name="WinPanel" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="WinTitle" type="Label" parent="WinPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7)
+horizontal_alignment = 1
+text = "WIN"
+
+[node name="WinValue" type="Label" parent="WinPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(1.0, 0.85, 0.0)
+horizontal_alignment = 1
+text = "0"
