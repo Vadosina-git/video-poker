@@ -43,7 +43,7 @@ func _ready() -> void:
 
 	_bet_one_btn.pressed.connect(_game_manager.bet_one)
 	_bet_max_btn.pressed.connect(_game_manager.bet_max)
-	_deal_draw_btn.pressed.connect(_game_manager.deal_or_draw)
+	_deal_draw_btn.pressed.connect(_on_deal_draw_pressed)
 	_back_button.pressed.connect(func() -> void: back_to_lobby.emit())
 
 	_paytable_display.setup(_variant.paytable)
@@ -127,6 +127,17 @@ func _on_cards_dealt(dealt_hand: Array[CardData]) -> void:
 		if i < 4:
 			await get_tree().create_timer(_deal_speed_ms / 1000.0).timeout
 	_game_manager.on_deal_animation_complete()
+
+
+func _on_deal_draw_pressed() -> void:
+	if _game_manager.state == GameManager.State.HOLDING:
+		# Handle draw with animation timing
+		_game_manager.draw()
+		# Wait for draw animations, then evaluate
+		await get_tree().create_timer(_draw_speed_ms / 1000.0 * 2).timeout
+		_game_manager.on_draw_animation_complete()
+	else:
+		_game_manager.deal_or_draw()
 
 
 func _on_card_replaced(index: int, new_card: CardData) -> void:
