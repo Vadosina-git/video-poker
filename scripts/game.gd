@@ -47,6 +47,7 @@ func _ready() -> void:
 	_deal_draw_btn.pressed.connect(_on_deal_draw_pressed)
 	_back_button.pressed.connect(func() -> void: back_to_lobby.emit())
 
+	_apply_theme()
 	_paytable_display.setup(_variant.paytable)
 	_game_title.text = _variant.paytable.name.to_upper()
 
@@ -56,6 +57,36 @@ func _ready() -> void:
 	_hud.update_bet(_game_manager.bet)
 	_hud.clear_win()
 	_message_label.text = "PLACE YOUR BET"
+
+
+func _apply_theme() -> void:
+	# VBoxContainer
+	$VBoxContainer.add_theme_constant_override("separation", 20)
+	# Top bar
+	$VBoxContainer/TopBar.add_theme_constant_override("separation", 12)
+	_back_button.add_theme_font_size_override("font_size", 20)
+	_game_title.add_theme_font_size_override("font_size", 22)
+	_game_title.add_theme_color_override("font_color", Color(0.9, 0.85, 0.6))
+	# Paytable margin
+	$VBoxContainer/PaytableMargin.add_theme_constant_override("margin_left", 24)
+	$VBoxContainer/PaytableMargin.add_theme_constant_override("margin_right", 24)
+	# Message
+	_message_label.add_theme_font_size_override("font_size", 28)
+	_message_label.add_theme_color_override("font_color", Color(1, 1, 0.6, 1))
+	# Cards
+	_cards_container.add_theme_constant_override("separation", 12)
+	# HUD/Buttons margins
+	$VBoxContainer/HUDMargin.add_theme_constant_override("margin_left", 40)
+	$VBoxContainer/HUDMargin.add_theme_constant_override("margin_right", 40)
+	$VBoxContainer/ButtonsMargin.add_theme_constant_override("margin_left", 40)
+	$VBoxContainer/ButtonsMargin.add_theme_constant_override("margin_right", 40)
+	# Button font sizes
+	_bet_one_btn.add_theme_font_size_override("font_size", 24)
+	_bet_max_btn.add_theme_font_size_override("font_size", 24)
+	_deal_draw_btn.add_theme_font_size_override("font_size", 28)
+	# Buttons container separation
+	var buttons_container := $VBoxContainer/ButtonsMargin/Buttons as HBoxContainer
+	buttons_container.add_theme_constant_override("separation", 20)
 
 
 func _load_config() -> void:

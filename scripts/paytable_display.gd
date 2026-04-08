@@ -8,7 +8,16 @@ var _winning_row := -1
 
 
 func setup(paytable: Paytable) -> void:
+	# Apply margins and grid spacing
+	var margin := $MarginContainer as MarginContainer
+	margin.add_theme_constant_override("margin_left", 12)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_right", 12)
+	margin.add_theme_constant_override("margin_bottom", 8)
+
 	var grid: GridContainer = %PaytableGrid
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 4)
 	for child in grid.get_children():
 		child.queue_free()
 	_labels.clear()

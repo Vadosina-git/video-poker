@@ -34,6 +34,21 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(180, 252)
 	mouse_default_cursor_shape = Control.CURSOR_ARROW
 	gui_input.connect(_on_gui_input)
+
+	# Apply theme overrides removed from .tscn
+	var margin := $MarginContainer as MarginContainer
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
+
+	_rank_top.add_theme_font_size_override("font_size", 28)
+	_suit_center.add_theme_font_size_override("font_size", 64)
+	_rank_bottom.add_theme_font_size_override("font_size", 28)
+	_held_label.add_theme_font_size_override("font_size", 22)
+	_held_label.add_theme_color_override("font_color", Color(1, 0.85, 0, 1))
+	_card_back.color = Color(0.15, 0.2, 0.55, 1)
+
 	show_back()
 
 

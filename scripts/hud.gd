@@ -7,6 +7,25 @@ extends HBoxContainer
 var _displayed_credits: int = 0
 
 
+func _ready() -> void:
+	add_theme_constant_override("separation", 40)
+	# Credits
+	$CreditsPanel/CreditsTitle.add_theme_font_size_override("font_size", 18)
+	$CreditsPanel/CreditsTitle.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	_credits_label.add_theme_font_size_override("font_size", 32)
+	_credits_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+	# Bet
+	$BetPanel/BetTitle.add_theme_font_size_override("font_size", 18)
+	$BetPanel/BetTitle.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	_bet_label.add_theme_font_size_override("font_size", 32)
+	_bet_label.add_theme_color_override("font_color", Color(1.0, 1.0, 0.3))
+	# Win
+	$WinPanel/WinTitle.add_theme_font_size_override("font_size", 18)
+	$WinPanel/WinTitle.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	_win_label.add_theme_font_size_override("font_size", 32)
+	_win_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.0))
+
+
 func update_credits(amount: int, animate: bool = true) -> void:
 	if animate and _displayed_credits != amount:
 		_animate_counter(_credits_label, _displayed_credits, amount)

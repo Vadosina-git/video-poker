@@ -96,8 +96,25 @@ var _paytables: Dictionary = {}
 func _ready() -> void:
 	MachineCardScene = load("res://scenes/lobby/machine_card.tscn")
 	_paytables = Paytable.load_all()
+	_apply_theme()
 	_credits_label.text = "CREDITS: %d" % SaveManager.credits
 	_build_carousel()
+
+
+func _apply_theme() -> void:
+	$VBoxContainer.add_theme_constant_override("separation", 20)
+	var top_bar := $VBoxContainer/TopBar as MarginContainer
+	top_bar.add_theme_constant_override("margin_left", 24)
+	top_bar.add_theme_constant_override("margin_right", 24)
+	var title := %LobbyTitle as Label
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", Color(0.85, 0.7, 0.2))
+	_credits_label.add_theme_font_size_override("font_size", 24)
+	_credits_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.3))
+	var select_label := $VBoxContainer/SelectLabel as Label
+	select_label.add_theme_font_size_override("font_size", 22)
+	select_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	_carousel.add_theme_constant_override("separation", 24)
 
 
 func _build_carousel() -> void:

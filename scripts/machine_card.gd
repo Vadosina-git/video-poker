@@ -24,6 +24,23 @@ func setup(p_variant_id: String, p_name: String, p_color: Color, _p_accent: Colo
 
 
 func _apply_setup(p_name: String, p_color: Color, rtp: float, mini_info: String, p_locked: bool) -> void:
+	# Apply theme overrides
+	var margin := $VBoxContainer/MarginContainer as MarginContainer
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	var content := $VBoxContainer/MarginContainer/Content as VBoxContainer
+	content.add_theme_constant_override("separation", 12)
+
+	_name_label.add_theme_font_size_override("font_size", 22)
+	_name_label.add_theme_color_override("font_color", Color.WHITE)
+	_mini_paytable.add_theme_font_size_override("font_size", 14)
+	_mini_paytable.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	_rtp_label.add_theme_font_size_override("font_size", 16)
+	_rtp_label.add_theme_color_override("font_color", Color(0.6, 0.9, 0.6))
+	_play_button.add_theme_font_size_override("font_size", 22)
+
 	_name_label.text = p_name
 	_rtp_label.text = "RTP: %.2f%%" % rtp
 	_color_bar.color = p_color
