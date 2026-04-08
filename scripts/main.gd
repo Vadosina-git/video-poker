@@ -23,12 +23,13 @@ func _show_lobby() -> void:
 func _on_machine_selected(variant_id: String) -> void:
 	_clear_current()
 	var game: Control = GameScene.instantiate()
-	add_child(game)
-	_current_scene = game
 
 	var paytable: Paytable = _paytables[variant_id]
 	var variant := JacksOrBetter.new(paytable)
 	game.setup(variant)
+
+	add_child(game)
+	_current_scene = game
 	game.back_to_lobby.connect(_show_lobby)
 
 
