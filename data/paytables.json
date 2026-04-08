@@ -1,0 +1,211 @@
+{
+  "jacks_or_better": {
+    "name": "Jacks or Better",
+    "deck_size": 52,
+    "wild_cards": [],
+    "min_hand": "jacks_or_better",
+    "rtp": 99.54,
+    "variance": "low",
+    "paytable": {
+      "royal_flush":    [250, 500, 750, 1000, 4000],
+      "straight_flush": [50, 100, 150, 200, 250],
+      "four_of_a_kind": [25, 50, 75, 100, 125],
+      "full_house":     [9, 18, 27, 36, 45],
+      "flush":          [6, 12, 18, 24, 30],
+      "straight":       [4, 8, 12, 16, 20],
+      "three_of_a_kind":[3, 6, 9, 12, 15],
+      "two_pair":       [2, 4, 6, 8, 10],
+      "jacks_or_better":[1, 2, 3, 4, 5]
+    }
+  },
+  "bonus_poker": {
+    "name": "Bonus Poker",
+    "deck_size": 52,
+    "wild_cards": [],
+    "min_hand": "jacks_or_better",
+    "rtp": 99.17,
+    "variance": "low",
+    "paytable": {
+      "royal_flush":         [250, 500, 750, 1000, 4000],
+      "straight_flush":      [50, 100, 150, 200, 250],
+      "four_aces":           [80, 160, 240, 320, 400],
+      "four_twos_threes_fours": [40, 80, 120, 160, 200],
+      "four_fives_kings":    [25, 50, 75, 100, 125],
+      "full_house":          [8, 16, 24, 32, 40],
+      "flush":               [5, 10, 15, 20, 25],
+      "straight":            [4, 8, 12, 16, 20],
+      "three_of_a_kind":     [3, 6, 9, 12, 15],
+      "two_pair":            [2, 4, 6, 8, 10],
+      "jacks_or_better":     [1, 2, 3, 4, 5]
+    }
+  },
+  "bonus_poker_deluxe": {
+    "name": "Bonus Poker Deluxe",
+    "deck_size": 52,
+    "wild_cards": [],
+    "min_hand": "jacks_or_better",
+    "rtp": 99.64,
+    "variance": "medium",
+    "paytable": {
+      "royal_flush":    [250, 500, 750, 1000, 4000],
+      "straight_flush": [50, 100, 150, 200, 250],
+      "four_of_a_kind": [80, 160, 240, 320, 400],
+      "full_house":     [9, 18, 27, 36, 45],
+      "flush":          [6, 12, 18, 24, 30],
+      "straight":       [4, 8, 12, 16, 20],
+      "three_of_a_kind":[3, 6, 9, 12, 15],
+      "two_pair":       [1, 2, 3, 4, 5],
+      "jacks_or_better":[1, 2, 3, 4, 5]
+    }
+  },
+  "double_bonus": {
+    "name": "Double Bonus Poker",
+    "deck_size": 52,
+    "wild_cards": [],
+    "min_hand": "jacks_or_better",
+    "rtp": 100.17,
+    "variance": "medium_high",
+    "paytable": {
+      "royal_flush":         [250, 500, 750, 1000, 4000],
+      "straight_flush":      [50, 100, 150, 200, 250],
+      "four_aces":           [160, 320, 480, 640, 800],
+      "four_twos_threes_fours": [80, 160, 240, 320, 400],
+      "four_fives_kings":    [50, 100, 150, 200, 250],
+      "full_house":          [10, 20, 30, 40, 50],
+      "flush":               [7, 14, 21, 28, 35],
+      "straight":            [5, 10, 15, 20, 25],
+      "three_of_a_kind":     [3, 6, 9, 12, 15],
+      "two_pair":            [1, 2, 3, 4, 5],
+      "jacks_or_better":     [1, 2, 3, 4, 5]
+    }
+  },
+  "double_double_bonus": {
+    "name": "Double Double Bonus Poker",
+    "deck_size": 52,
+    "wild_cards": [],
+    "min_hand": "jacks_or_better",
+    "rtp": 100.07,
+    "variance": "high",
+    "paytable": {
+      "royal_flush":                      [250, 500, 750, 1000, 4000],
+      "straight_flush":                   [50, 100, 150, 200, 250],
+      "four_aces_with_234_kicker":        [400, 800, 1200, 1600, 2000],
+      "four_aces":                        [160, 320, 480, 640, 800],
+      "four_234_with_a234_kicker":        [160, 320, 480, 640, 800],
+      "four_twos_threes_fours":           [80, 160, 240, 320, 400],
+      "four_fives_kings":                 [50, 100, 150, 200, 250],
+      "full_house":                       [9, 18, 27, 36, 45],
+      "flush":                            [6, 12, 18, 24, 30],
+      "straight":                         [4, 8, 12, 16, 20],
+      "three_of_a_kind":                  [3, 6, 9, 12, 15],
+      "two_pair":                         [1, 2, 3, 4, 5],
+      "jacks_or_better":                  [1, 2, 3, 4, 5]
+    }
+  },
+  "triple_double_bonus": {
+    "name": "Triple Double Bonus Poker",
+    "deck_size": 52,
+    "wild_cards": [],
+    "min_hand": "jacks_or_better",
+    "rtp": 99.58,
+    "variance": "very_high",
+    "paytable": {
+      "royal_flush":                      [250, 500, 750, 1000, 4000],
+      "straight_flush":                   [50, 100, 150, 200, 250],
+      "four_aces_with_234_kicker":        [800, 1600, 2400, 3200, 4000],
+      "four_aces":                        [160, 320, 480, 640, 800],
+      "four_234_with_a234_kicker":        [400, 800, 1200, 1600, 2000],
+      "four_twos_threes_fours":           [80, 160, 240, 320, 400],
+      "four_fives_kings":                 [50, 100, 150, 200, 250],
+      "full_house":                       [9, 18, 27, 36, 45],
+      "flush":                            [7, 14, 21, 28, 35],
+      "straight":                         [4, 8, 12, 16, 20],
+      "three_of_a_kind":                  [2, 4, 6, 8, 10],
+      "two_pair":                         [1, 2, 3, 4, 5],
+      "jacks_or_better":                  [1, 2, 3, 4, 5]
+    }
+  },
+  "aces_and_faces": {
+    "name": "Aces and Faces",
+    "deck_size": 52,
+    "wild_cards": [],
+    "min_hand": "jacks_or_better",
+    "rtp": 99.26,
+    "variance": "low_medium",
+    "paytable": {
+      "royal_flush":         [250, 500, 750, 1000, 4000],
+      "straight_flush":      [50, 100, 150, 200, 250],
+      "four_aces":           [80, 160, 240, 320, 400],
+      "four_jqk":            [40, 80, 120, 160, 200],
+      "four_twos_tens":      [25, 50, 75, 100, 125],
+      "full_house":          [8, 16, 24, 32, 40],
+      "flush":               [5, 10, 15, 20, 25],
+      "straight":            [4, 8, 12, 16, 20],
+      "three_of_a_kind":     [3, 6, 9, 12, 15],
+      "two_pair":            [2, 4, 6, 8, 10],
+      "jacks_or_better":     [1, 2, 3, 4, 5]
+    }
+  },
+  "deuces_wild": {
+    "name": "Deuces Wild",
+    "deck_size": 52,
+    "wild_cards": [2],
+    "min_hand": "three_of_a_kind",
+    "rtp": 99.73,
+    "variance": "low",
+    "paytable": {
+      "natural_royal_flush": [250, 500, 750, 1000, 4000],
+      "four_deuces":         [200, 400, 600, 800, 1000],
+      "wild_royal_flush":    [25, 50, 75, 100, 125],
+      "five_of_a_kind":      [15, 30, 45, 60, 75],
+      "straight_flush":      [9, 18, 27, 36, 45],
+      "four_of_a_kind":      [4, 8, 12, 16, 20],
+      "full_house":          [4, 8, 12, 16, 20],
+      "flush":               [3, 6, 9, 12, 15],
+      "straight":            [2, 4, 6, 8, 10],
+      "three_of_a_kind":     [1, 2, 3, 4, 5]
+    }
+  },
+  "joker_poker": {
+    "name": "Joker Poker",
+    "deck_size": 53,
+    "wild_cards": ["joker"],
+    "min_hand": "kings_or_better",
+    "rtp": 100.65,
+    "variance": "low_medium",
+    "paytable": {
+      "natural_royal_flush": [250, 500, 750, 1000, 4000],
+      "five_of_a_kind":      [200, 400, 600, 800, 1000],
+      "wild_royal_flush":    [100, 200, 300, 400, 500],
+      "straight_flush":      [50, 100, 150, 200, 250],
+      "four_of_a_kind":      [20, 40, 60, 80, 100],
+      "full_house":          [7, 14, 21, 28, 35],
+      "flush":               [5, 10, 15, 20, 25],
+      "straight":            [3, 6, 9, 12, 15],
+      "three_of_a_kind":     [2, 4, 6, 8, 10],
+      "two_pair":            [1, 2, 3, 4, 5],
+      "kings_or_better":     [1, 2, 3, 4, 5]
+    }
+  },
+  "deuces_and_joker": {
+    "name": "Deuces and Joker Wild",
+    "deck_size": 53,
+    "wild_cards": [2, "joker"],
+    "min_hand": "three_of_a_kind",
+    "rtp": 99.07,
+    "variance": "medium_high",
+    "paytable": {
+      "four_deuces_joker":   [0, 0, 0, 0, 10000],
+      "natural_royal_flush": [250, 500, 750, 1000, 4000],
+      "four_deuces":         [25, 50, 75, 100, 125],
+      "wild_royal_flush":    [12, 24, 36, 48, 60],
+      "five_of_a_kind":      [9, 18, 27, 36, 45],
+      "straight_flush":      [6, 12, 18, 24, 30],
+      "four_of_a_kind":      [3, 6, 9, 12, 15],
+      "full_house":          [3, 6, 9, 12, 15],
+      "flush":               [3, 6, 9, 12, 15],
+      "straight":            [2, 4, 6, 8, 10],
+      "three_of_a_kind":     [1, 2, 3, 4, 5]
+    }
+  }
+}

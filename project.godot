@@ -10,14 +10,19 @@ config_version=5
 
 [application]
 
-config/name="Новый игровой проект"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/name="Video Poker — Classic Edition"
+config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
+run/main_scene="res://scenes/main.tscn"
 
-[physics]
+[display]
 
-3d/physics_engine="Jolt Physics"
+window/size/viewport_width=1080
+window/size/viewport_height=1920
+window/handheld/orientation=1
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep_height"
 
 [rendering]
 
-rendering_device/driver.windows="d3d12"
+renderer/rendering_method="mobile"

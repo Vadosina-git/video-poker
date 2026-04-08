@@ -1,0 +1,13 @@
+{
+  "starting_credits": 1000,
+  "free_credits_amount": 500,
+  "free_credits_interval_hours": 2,
+  "deal_speed_ms": 100,
+  "draw_speed_ms": 150,
+  "win_counter_speed": 0.02,
+  "denominations": [1, 5, 25, 100, 500],
+  "default_denomination": 1,
+  "enabled_variants": ["jacks_or_better"],
+  "auto_hold": false,
+  "speed_mode": false
+}

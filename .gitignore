@@ -1,11 +1,27 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+/ios/
 
 # Godot exports
 *.export.cfg
 export_presets.cfg
+*.pck
+*.exe
+*.x86_64
+*.apk
+*.aab
+*.ipa
 
 # macOS
 .DS_Store
+
+# Editors
 *.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
