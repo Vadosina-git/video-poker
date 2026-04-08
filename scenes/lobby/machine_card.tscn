@@ -44,9 +44,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.8, 0.8, 0.8)
-text = "Royal Flush: 4000
-Full House: 9
-Flush: 6"
+text = "Royal Flush: 4000\nFull House: 9\nFlush: 6"
 
 [node name="Spacer" type="Control" parent="VBoxContainer/MarginContainer/Content"]
 layout_mode = 2

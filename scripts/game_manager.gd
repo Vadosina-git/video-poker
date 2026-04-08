@@ -79,9 +79,9 @@ func deal() -> void:
 
 
 func on_deal_animation_complete() -> void:
-	# Auto-hold Royal Flush pat hand
+	# Auto-hold all cards if dealt hand is already a winning combination
 	var hand_rank := variant.evaluate(hand)
-	if hand_rank == HandEvaluator.HandRank.ROYAL_FLUSH:
+	if hand_rank != HandEvaluator.HandRank.NOTHING:
 		held = [true, true, true, true, true]
 
 	state = State.HOLDING
