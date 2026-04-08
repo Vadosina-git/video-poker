@@ -2,7 +2,7 @@ extends Control
 
 signal back_to_lobby
 
-const CardScene := preload("res://scenes/card.tscn")
+var CardScene: PackedScene
 
 @onready var _paytable_display: PanelContainer = %PaytableDisplay
 @onready var _cards_container: HBoxContainer = %CardsContainer
@@ -28,6 +28,7 @@ func setup(variant: BaseVariant) -> void:
 func _ready() -> void:
 	if _variant == null:
 		return
+	CardScene = load("res://scenes/card.tscn")
 	_load_config()
 
 	_game_manager = GameManager.new()

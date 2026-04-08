@@ -1,13 +1,15 @@
 extends Control
 
-const LobbyScene := preload("res://scenes/lobby/lobby.tscn")
-const GameScene := preload("res://scenes/game.tscn")
+var LobbyScene: PackedScene
+var GameScene: PackedScene
 
 var _current_scene: Control = null
 var _paytables: Dictionary = {}
 
 
 func _ready() -> void:
+	LobbyScene = load("res://scenes/lobby/lobby.tscn")
+	GameScene = load("res://scenes/game.tscn")
 	_paytables = Paytable.load_all()
 	_show_lobby()
 

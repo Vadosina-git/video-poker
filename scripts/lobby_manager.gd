@@ -2,7 +2,7 @@ extends Control
 
 signal machine_selected(variant_id: String)
 
-const MachineCardScene := preload("res://scenes/lobby/machine_card.tscn")
+var MachineCardScene: PackedScene = null
 
 const MACHINE_CONFIG := [
 	{
@@ -94,6 +94,7 @@ var _paytables: Dictionary = {}
 
 
 func _ready() -> void:
+	MachineCardScene = load("res://scenes/lobby/machine_card.tscn")
 	_paytables = Paytable.load_all()
 	_credits_label.text = "CREDITS: %d" % SaveManager.credits
 	_build_carousel()
