@@ -1,0 +1,68 @@
+class_name BonusPoker
+extends BaseVariant
+
+var _last_hand: Array[CardData] = []
+
+
+func _init(p_paytable: Paytable) -> void:
+	super._init("bonus_poker", p_paytable)
+
+
+func evaluate(hand: Array[CardData]) -> HandEvaluator.HandRank:
+	_last_hand = hand
+	return HandEvaluator.evaluate(hand)
+
+
+func get_payout(hand_rank: HandEvaluator.HandRank, bet: int) -> int:
+	if hand_rank == HandEvaluator.HandRank.FOUR_OF_A_KIND:
+		var quad_rank := _get_quad_rank(_last_hand)
+		var key := ""
+		if quad_rank == CardData.Rank.ACE:
+			key = "four_aces"
+		elif quad_rank >= CardData.Rank.TWO and quad_rank <= CardData.Rank.FOUR:
+			key = "four_twos_threes_fours"
+		else:
+			key = "four_fives_kings"
+		return _lookup_payout(key, bet)
+	return paytable.get_payout(hand_rank, bet)
+
+
+func get_paytable_key(hand_rank: HandEvaluator.HandRank) -> String:
+	if hand_rank == HandEvaluator.HandRank.FOUR_OF_A_KIND:
+		var quad_rank := _get_quad_rank(_last_hand)
+		if quad_rank == CardData.Rank.ACE:
+			return "four_aces"
+		elif quad_rank >= CardData.Rank.TWO and quad_rank <= CardData.Rank.FOUR:
+			return "four_twos_threes_fours"
+		return "four_fives_kings"
+	return Paytable.STANDARD_HAND_KEYS.get(hand_rank, "")
+
+
+func get_hand_name(hand_rank: HandEvaluator.HandRank) -> String:
+	if hand_rank == HandEvaluator.HandRank.FOUR_OF_A_KIND:
+		var quad_rank := _get_quad_rank(_last_hand)
+		if quad_rank == CardData.Rank.ACE:
+			return "FOUR ACES"
+		elif quad_rank >= CardData.Rank.TWO and quad_rank <= CardData.Rank.FOUR:
+			return "FOUR 2s/3s/4s"
+		return "FOUR 5s-Ks"
+	return HandEvaluator.HAND_NAMES.get(hand_rank, "")
+
+
+func _get_quad_rank(hand: Array[CardData]) -> int:
+	var counts := {}
+	for card in hand:
+		var r := card.rank as int
+		counts[r] = counts.get(r, 0) + 1
+	for r in counts:
+		if counts[r] == 4:
+			return r
+	return 0
+
+
+func _lookup_payout(key: String, bet: int) -> int:
+	var row: Array = paytable._payout_data.get(key, [])
+	if row.is_empty():
+		return 0
+	var idx := clampi(bet - 1, 0, 4)
+	return int(row[idx])

@@ -77,6 +77,61 @@ static func evaluate(hand: Array[CardData]) -> HandRank:
 	return HandRank.NOTHING
 
 
+# Returns which cards to auto-hold for a given hand rank.
+# Only holds cards that are part of the winning combination.
+static func get_hold_mask(hand: Array[CardData], hand_rank: HandRank) -> Array[bool]:
+	var mask: Array[bool] = [false, false, false, false, false]
+
+	match hand_rank:
+		HandRank.NOTHING:
+			return mask
+
+		HandRank.ROYAL_FLUSH, HandRank.STRAIGHT_FLUSH, HandRank.STRAIGHT, HandRank.FLUSH, HandRank.FULL_HOUSE:
+			return [true, true, true, true, true]
+
+		HandRank.FOUR_OF_A_KIND:
+			var counts := _rank_counts_from_hand(hand)
+			for i in 5:
+				var r := hand[i].rank as int
+				if counts[r] == 4:
+					mask[i] = true
+			return mask
+
+		HandRank.THREE_OF_A_KIND:
+			var counts := _rank_counts_from_hand(hand)
+			for i in 5:
+				var r := hand[i].rank as int
+				if counts[r] == 3:
+					mask[i] = true
+			return mask
+
+		HandRank.TWO_PAIR:
+			var counts := _rank_counts_from_hand(hand)
+			for i in 5:
+				var r := hand[i].rank as int
+				if counts[r] == 2:
+					mask[i] = true
+			return mask
+
+		HandRank.JACKS_OR_BETTER:
+			var counts := _rank_counts_from_hand(hand)
+			for i in 5:
+				var r := hand[i].rank as int
+				if counts[r] == 2 and r >= CardData.Rank.JACK:
+					mask[i] = true
+			return mask
+
+	return mask
+
+
+static func _rank_counts_from_hand(hand: Array[CardData]) -> Dictionary:
+	var counts := {}
+	for card in hand:
+		var r := card.rank as int
+		counts[r] = counts.get(r, 0) + 1
+	return counts
+
+
 static func _check_flush(suits: Array[int]) -> bool:
 	for i in range(1, suits.size()):
 		if suits[i] != suits[0]:

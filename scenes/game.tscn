@@ -1,12 +1,9 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/game.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/paytable_display.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="3"]
-[ext_resource type="PackedScene" path="res://scenes/ui/buttons.tscn" id="4"]
 
 [node name="Game" type="Control"]
-layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -15,92 +12,123 @@ grow_vertical = 2
 script = ExtResource("1")
 
 [node name="Background" type="ColorRect" parent="."]
-layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.02, 0.05, 0.12, 1)
+color = Color(0.0, 0.0, 0.53, 1)
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
-layout_mode = 1
-anchors_preset = 15
+[node name="TopSection" type="VBoxContainer" parent="."]
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 1.0
 grow_horizontal = 2
-grow_vertical = 2
 
-[node name="TopMargin" type="Control" parent="VBoxContainer"]
+[node name="TopBar" type="HBoxContainer" parent="TopSection"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 10)
+custom_minimum_size = Vector2(0, 32)
 
-[node name="TopBar" type="HBoxContainer" parent="VBoxContainer"]
-layout_mode = 2
-
-[node name="LeftMargin" type="Control" parent="VBoxContainer/TopBar"]
-layout_mode = 2
-custom_minimum_size = Vector2(16, 0)
-
-[node name="BackButton" type="Button" parent="VBoxContainer/TopBar"]
+[node name="BackButton" type="Button" parent="TopSection/TopBar"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(100, 50)
-text = "◄ BACK"
+text = "◄"
 
-[node name="TopSpacer" type="Control" parent="VBoxContainer/TopBar"]
+[node name="GameTitle" type="Label" parent="TopSection/TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-
-[node name="GameTitle" type="Label" parent="VBoxContainer/TopBar"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "JACKS OR BETTER"
+horizontal_alignment = 1
 vertical_alignment = 1
+text = "JACKS OR BETTER"
 
-[node name="TopSpacer2" type="Control" parent="VBoxContainer/TopBar"]
+[node name="PaytableMargin" type="MarginContainer" parent="TopSection"]
+layout_mode = 2
+
+[node name="PaytableDisplay" parent="TopSection/PaytableMargin" instance=ExtResource("2")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="InfoBarMargin" type="MarginContainer" parent="TopSection"]
+layout_mode = 2
+
+[node name="InfoBar" type="HBoxContainer" parent="TopSection/InfoBarMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BalanceLabel" type="Label" parent="TopSection/InfoBarMargin/InfoBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BALANCE: 1000"
+
+[node name="TopUpButton" type="Button" parent="TopSection/InfoBarMargin/InfoBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+"
+
+[node name="LastWinLabel" type="Label" parent="TopSection/InfoBarMargin/InfoBar"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-
-[node name="PaytableMargin" type="MarginContainer" parent="VBoxContainer"]
-layout_mode = 2
-
-[node name="PaytableDisplay" parent="VBoxContainer/PaytableMargin" instance=ExtResource("2")]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="Spacer1" type="Control" parent="VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="MessageLabel" type="Label" parent="VBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
 horizontal_alignment = 1
 text = "PLACE YOUR BET"
 
-[node name="CardsContainer" type="HBoxContainer" parent="VBoxContainer"]
+[node name="BottomSection" type="VBoxContainer" parent="."]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="TotalBetLabel" type="Label" parent="BottomSection"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 4
+horizontal_alignment = 1
+text = "TOTAL BET: 5"
 
-[node name="Spacer2" type="Control" parent="VBoxContainer"]
+[node name="BottomBarMargin" type="MarginContainer" parent="BottomSection"]
+layout_mode = 2
+
+[node name="BottomBar" type="HBoxContainer" parent="BottomSection/BottomBarMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SpeedButton" type="Button" parent="BottomSection/BottomBarMargin/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "SPEED"
+
+[node name="BetOneButton" type="Button" parent="BottomSection/BottomBarMargin/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BET ONE"
+
+[node name="BetAmountButton" type="Button" parent="BottomSection/BottomBarMargin/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "$1K"
+
+[node name="BetMaxButton" type="Button" parent="BottomSection/BottomBarMargin/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "MAX BET"
+
+[node name="DealDrawButton" type="Button" parent="BottomSection/BottomBarMargin/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "DEAL"
+
+[node name="BottomPad" type="Control" parent="BottomSection"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 16)
+
+[node name="MiddleSection" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+anchor_right = 1.0
+
+[node name="CardsContainer" type="HBoxContainer" parent="MiddleSection"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-
-[node name="HUDMargin" type="MarginContainer" parent="VBoxContainer"]
-layout_mode = 2
-
-[node name="HUD" parent="VBoxContainer/HUDMargin" instance=ExtResource("3")]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="ButtonsMargin" type="MarginContainer" parent="VBoxContainer"]
-layout_mode = 2
-
-[node name="Buttons" parent="VBoxContainer/ButtonsMargin" instance=ExtResource("4")]
-layout_mode = 2
-
-[node name="BottomMargin" type="Control" parent="VBoxContainer"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 20)
+size_flags_horizontal = 4
+alignment = 1

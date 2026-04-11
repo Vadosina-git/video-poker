@@ -3,7 +3,7 @@ extends Node
 var _enabled: bool = true
 
 
-func play(sound_name: String) -> void:
+func play(_sound_name: String) -> void:
 	if not _enabled:
 		return
 	# Stub — will be implemented when audio assets are added

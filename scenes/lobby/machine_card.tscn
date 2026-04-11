@@ -3,55 +3,20 @@
 [ext_resource type="Script" path="res://scripts/machine_card.gd" id="1"]
 
 [node name="MachineCard" type="PanelContainer"]
-custom_minimum_size = Vector2(300, 400)
+custom_minimum_size = Vector2(400, 240)
+size_flags_horizontal = 3
+size_flags_vertical = 3
 script = ExtResource("1")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="CenterContainer" type="CenterContainer" parent="."]
 layout_mode = 2
 
-[node name="ColorBar" type="ColorRect" parent="VBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-custom_minimum_size = Vector2(0, 8)
-color = Color(0.2, 0.3, 0.8, 1)
-
-[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="Content" type="VBoxContainer" parent="VBoxContainer/MarginContainer"]
-layout_mode = 2
-
-[node name="MachineName" type="Label" parent="VBoxContainer/MarginContainer/Content"]
+[node name="MachineName" type="Label" parent="CenterContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 text = "JACKS OR BETTER"
 autowrap_mode = 2
-
-[node name="Separator" type="HSeparator" parent="VBoxContainer/MarginContainer/Content"]
-layout_mode = 2
-
-[node name="MiniPaytable" type="Label" parent="VBoxContainer/MarginContainer/Content"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Royal Flush: 4000\nFull House: 9\nFlush: 6"
-
-[node name="Spacer" type="Control" parent="VBoxContainer/MarginContainer/Content"]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="RTPLabel" type="Label" parent="VBoxContainer/MarginContainer/Content"]
-unique_name_in_owner = true
-layout_mode = 2
-horizontal_alignment = 1
-text = "RTP: 99.54%"
-
-[node name="PlayButton" type="Button" parent="VBoxContainer/MarginContainer/Content"]
-unique_name_in_owner = true
-layout_mode = 2
-custom_minimum_size = Vector2(0, 60)
-text = "PLAY"
 
 [node name="LockOverlay" type="ColorRect" parent="."]
 unique_name_in_owner = true

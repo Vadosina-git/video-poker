@@ -917,4 +917,121 @@ card_joker.png
 ---
 
 *Документ создан: 2026-04-08*
-*Версия: 1.0*
+*Обновлён: 2026-04-10*
+*Версия: 2.0*
+
+---
+
+## 19. Актуальная архитектура кода
+
+### Структура проекта
+
+```
+res://
+├── project.godot                  # Godot 4.6, Mobile renderer
+├── CLAUDE.md                      # Этот документ
+├── scenes/
+│   ├── main.tscn                  # Точка входа, переключение lobby↔game
+│   ├── game.tscn                  # Single-hand игровой экран
+│   ├── multi_hand_game.tscn       # Multi-hand игровой экран
+│   ├── card.tscn                  # TextureRect карты с PNG-спрайтами
+│   ├── mini_hand.tscn             # Мини-рука (5 маленьких карт)
+│   ├── paytable_display.tscn      # Компонент таблицы выплат
+│   ├── lobby/
+│   │   ├── lobby.tscn             # Game King лобби с sidebar + grid
+│   │   └── machine_card.tscn      # Красная плашка автомата
+│   └── ui/
+│       ├── hud.tscn               # (legacy, не используется)
+│       └── buttons.tscn           # (legacy, не используется)
+├── scripts/
+│   ├── main.gd                    # Загрузка lobby/game, создание variant по ID
+│   ├── game.gd                    # UI single-hand: FSM, анимации, overlay'и
+│   ├── multi_hand_game.gd         # UI multi-hand: N рук, мини-грид
+│   ├── game_manager.gd            # FSM single-hand: deal→hold→draw→evaluate
+│   ├── multi_hand_manager.gd      # FSM multi-hand: N колод, суммарный payout
+│   ├── card_data.gd               # Suit/Rank enum'ы, JOKER поддержка
+│   ├── card_visual.gd             # TextureRect с PNG, flip анимации, HELD
+│   ├── mini_hand_display.gd       # 5 мини-карт в ряд для multi-hand
+│   ├── deck.gd                    # 52/53 карты, Fisher-Yates, multihand draws
+│   ├── hand_evaluator.gd          # Стандартные покерные комбинации, hold mask
+│   ├── paytable.gd                # Загрузка JSON, lookup по hand_rank
+│   ├── paytable_display.gd        # GridContainer с ячейками, подсветка строк
+│   ├── lobby_manager.gd           # Grid машин, sidebar режимов, drag-скролл
+│   ├── machine_card.gd            # Красная плашка, (i) кнопка, click → play
+│   ├── save_manager.gd            # Autoload: credits, denomination, hand_count
+│   ├── sound_manager.gd           # Autoload: stub для звуков
+│   └── variants/
+│       ├── base_variant.gd        # Базовый класс: deal, draw, evaluate, payout
+│       ├── jacks_or_better.gd     # Стандартный evaluator
+│       ├── bonus_poker.gd         # 3 уровня четвёрок (Aces/2-4/5-K)
+│       ├── bonus_poker_deluxe.gd  # Все четвёрки = 80
+│       ├── double_bonus.gd        # Удвоенные четвёрки
+│       ├── double_double_bonus.gd # Четвёрки + кикер
+│       ├── triple_double_bonus.gd # Экстремальный кикер
+│       ├── aces_and_faces.gd      # Четвёрки: Aces/JQK/2-10
+│       ├── deuces_wild.gd         # Wild evaluator (двойки wild)
+│       ├── joker_poker.gd         # Wild evaluator (Joker wild, 53 карты)
+│       └── deuces_and_joker.gd    # 5 wild карт (двойки + Joker)
+├── assets/
+│   ├── cards/                     # PNG спрайты: card_vp_{rank}{suit}.png
+│   ├── textures/                  # SVG кнопки, HELD, MessegBar
+│   ├── sounds/                    # (пусто — stub)
+│   └── fonts/                     # (пусто — системный шрифт)
+└── data/
+    ├── paytables.json             # Все 10 таблиц выплат
+    └── config.json                # Начальные настройки
+```
+
+### Ключевые паттерны
+
+**Variant system:** Каждый вариант покера — отдельный класс, наследующий `BaseVariant`. Переопределяет `evaluate()`, `get_payout()`, `get_hand_name()`. Bonus-варианты различают четвёрки по рангу. Kicker-варианты проверяют 5-ю карту. Wild-варианты имеют полный evaluator с подстановкой wild-карт.
+
+**Paytable-driven payouts:** Все выплаты хранятся в `data/paytables.json`. Variant-скрипты используют строковые ключи (например `"four_aces_with_234_kicker"`) для lookup в paytable, минуя ограничения HandRank enum.
+
+**Scene structure (game screen):**
+```
+TopSection (VBox, anchor top) — title, paytable, balance/status
+MiddleSection (dynamic anchors) — карты (+ мини-руки в multi-hand)
+BottomSection (VBox, anchor bottom) — total bet, кнопки, padding
+```
+MiddleSection позиционируется между Top и Bottom через `_layout_middle()`.
+
+**Multi-hand:** `MultiHandManager` создаёт N-1 дополнительных `Deck` экземпляров. При draw каждая extra рука получает те же held-карты но уникальные replacements из своей колоды.
+
+**Card rendering:** Карты — `TextureRect` с PNG-спрайтами из Figma. Путь: `res://assets/cards/card_vp_{rank}{suit}.png`. Joker: `card_vp_joker_red.png`. Рубашка: `card_back.png`.
+
+**Styling:** Все `theme_override` свойства применяются из GDScript (не из .tscn). Цвета из Figma: фон #000086, текст #FFEC00, кнопки SVG-текстуры.
+
+**Lobby:** Game King стиль — красная top bar, grid 5×2 машин, sidebar с режимами (SINGLE/TRIPLE/FIVE/TEN/12/25 PLAY). Горизонтальный drag-скролл. Каждая машина — PanelContainer с (i) кнопкой для info popup.
+
+### Autoloads
+
+- `SaveManager` — credits, denomination, hand_count, last_variant, settings. Сохраняет в `user://save.json`
+- `SoundManager` — stub, методы `play()` / `set_enabled()`
+
+### Как добавить новый вариант покера
+
+1. Создать `scripts/variants/new_variant.gd` — `class_name NewVariant extends BaseVariant`
+2. Добавить paytable в `data/paytables.json` с уникальным ID
+3. Добавить `match` ветку в `main.gd → _create_variant()`
+4. Добавить конфиг в `lobby_manager.gd → MACHINE_CONFIG`
+
+### Как работает multi-hand
+
+1. Игрок выбирает режим в sidebar лобби (3/5/10/12/25 рук)
+2. `SaveManager.hand_count` сохраняется
+3. `main.gd` загружает `multi_hand_game.tscn` вместо `game.tscn`
+4. `MultiHandManager.setup(variant, num_hands)` создаёт N-1 доп. колод
+5. Bet = bet × num_hands × denomination
+6. Deal: primary hand раздаётся, мини-руки показывают рубашки
+7. Hold: игрок выбирает на primary hand
+8. Draw: primary рука тянет из своей колоды, каждая extra — из своей
+9. Evaluate: все руки оценены, total payout = сумма
+
+### Правила для Claude Code
+
+- **Не коммитить без явного одобрения пользователя**
+- Все стили — в GDScript, не в .tscn (Godot 4.6 парсер отвергает `theme_override_`)
+- Использовать `load()` вместо `preload()` для сцен (избежать circular dependencies)
+- Корневые ноды сцен: `anchors_preset = 15` без `layout_mode`
+- Карты: `TextureRect` с `EXPAND_IGNORE_SIZE` + `STRETCH_KEEP_ASPECT_CENTERED`

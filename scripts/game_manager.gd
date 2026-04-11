@@ -29,6 +29,7 @@ var last_win: int = 0
 
 func setup(p_variant: BaseVariant) -> void:
 	variant = p_variant
+	bet = clampi(SaveManager.bet_level, 1, MAX_BET)
 
 
 func bet_one() -> void:
@@ -42,6 +43,8 @@ func bet_one() -> void:
 	else:
 		bet += 1
 	SoundManager.play("bet")
+	SaveManager.bet_level = bet
+	SaveManager.save_game()
 	bet_changed.emit(bet)
 
 
@@ -51,6 +54,8 @@ func bet_max() -> void:
 	if state == State.WIN_DISPLAY:
 		_to_idle()
 	bet = MAX_BET
+	SaveManager.bet_level = bet
+	SaveManager.save_game()
 	bet_changed.emit(bet)
 	SoundManager.play("bet")
 	deal()
@@ -82,7 +87,11 @@ func on_deal_animation_complete() -> void:
 	# Auto-hold all cards if dealt hand is already a winning combination
 	var hand_rank := variant.evaluate(hand)
 	if hand_rank != HandEvaluator.HandRank.NOTHING:
-		held = [true, true, true, true, true]
+		held = variant.get_hold_mask(hand, hand_rank)
+	# Always auto-hold wild cards
+	for i in 5:
+		if variant.is_wild_card(hand[i]):
+			held[i] = true
 
 	state = State.HOLDING
 	state_changed.emit(state)

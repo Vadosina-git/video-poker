@@ -1,11 +1,12 @@
 class_name CardData
 extends RefCounted
 
-enum Suit { HEARTS, DIAMONDS, CLUBS, SPADES }
+enum Suit { HEARTS, DIAMONDS, CLUBS, SPADES, JOKER_SUIT }
 enum Rank {
 	TWO = 2, THREE = 3, FOUR = 4, FIVE = 5, SIX = 6,
 	SEVEN = 7, EIGHT = 8, NINE = 9, TEN = 10,
-	JACK = 11, QUEEN = 12, KING = 13, ACE = 14
+	JACK = 11, QUEEN = 12, KING = 13, ACE = 14,
+	JOKER = 15
 }
 
 const SUIT_SYMBOLS := {
@@ -22,8 +23,8 @@ const RANK_SYMBOLS := {
 	Rank.ACE: "A",
 }
 
-var suit: Suit
-var rank: Rank
+var suit: Suit = Suit.HEARTS
+var rank: Rank = Rank.TWO
 var index: int  # 0–51 unique id
 
 
@@ -45,5 +46,11 @@ func is_red() -> bool:
 	return suit == Suit.HEARTS or suit == Suit.DIAMONDS
 
 
+func is_joker() -> bool:
+	return rank == Rank.JOKER
+
+
 func get_display_name() -> String:
+	if is_joker():
+		return "JOKER"
 	return get_rank_symbol() + get_suit_symbol()
