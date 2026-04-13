@@ -172,7 +172,7 @@
       "game.hold_cards_then_draw": "ВЫБЕРИТЕ КАРТЫ И ЖМИТЕ ЗАМЕНА",
       "game.win_label": "ВЫИГРЫШ:",
       "game.no_win": "НЕТ ВЫИГРЫША",
-      "game.total_bet": "ВСЕГО СТАВКА:",
+      "game.total_bet": "ОБЩАЯ СТАВКА:",
       "game.balance": "БАЛАНС:",
       "game.games": "ИГР:",
       "game.last_win_fmt": "ПОСЛ. ВЫИГРЫШ: %s",
