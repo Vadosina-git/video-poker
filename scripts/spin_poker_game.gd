@@ -1236,50 +1236,164 @@ func _show_bet_picker() -> void:
 
 # ─── PAYTABLE POPUP ──────────────────────────────────────────────────
 
+var _paytable_overlay: Control = null
+
 func _show_paytable() -> void:
-	var overlay := Control.new()
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(overlay)
+	if _paytable_overlay:
+		_paytable_overlay.queue_free()
+	_paytable_overlay = Control.new()
+	_paytable_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_paytable_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_paytable_overlay)
 
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.7)
-	dim.gui_input.connect(func(ev: InputEvent) -> void:
-		if ev is InputEventMouseButton and ev.pressed:
-			overlay.queue_free()
-	)
-	overlay.add_child(dim)
+	dim.color = Color(0, 0, 0, 0.85)
+	_paytable_overlay.add_child(dim)
 
-	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = 40
-	scroll.offset_right = -40
-	scroll.offset_top = 40
-	scroll.offset_bottom = -40
-	overlay.add_child(scroll)
+	# Main HBox: paytable left, line list right
+	var main_hbox := HBoxContainer.new()
+	main_hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	main_hbox.offset_left = 30
+	main_hbox.offset_right = -30
+	main_hbox.offset_top = 20
+	main_hbox.offset_bottom = -20
+	main_hbox.add_theme_constant_override("separation", 16)
+	_paytable_overlay.add_child(main_hbox)
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(vbox)
+	# ── LEFT: Paytable
+	var left_vbox := VBoxContainer.new()
+	left_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_vbox.add_theme_constant_override("separation", 4)
+	main_hbox.add_child(left_vbox)
+
+	var bold := SystemFont.new()
+	bold.font_weight = 700
 
 	var title := Label.new()
 	title.text = _variant.paytable.name.to_upper()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", COL_YELLOW)
-	vbox.add_child(title)
+	title.add_theme_font_override("font", bold)
+	left_vbox.add_child(title)
 
-	var hand_order := _variant.paytable.get_hand_order()
-	for key in hand_order:
-		var row := _variant.paytable.get_payout_row(key)
-		if row == null:
-			continue
-		var display_name: String = key.replace("_", " ").to_upper()
-		var pay5: int = row[4] if row.size() > 4 else row[0]
+	# Paytable grid: columns = Hand | 1 | 2 | 3 | 4 | 5
+	var pt_scroll := ScrollContainer.new()
+	pt_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_vbox.add_child(pt_scroll)
+
+	var pt_grid := GridContainer.new()
+	pt_grid.columns = 6
+	pt_grid.add_theme_constant_override("h_separation", 2)
+	pt_grid.add_theme_constant_override("v_separation", 1)
+	pt_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pt_scroll.add_child(pt_grid)
+
+	# Header row
+	var headers := ["", "1", "2", "3", "4", "5"]
+	for h in headers:
 		var lbl := Label.new()
-		lbl.text = "%s — %d" % [display_name, pay5]
-		lbl.add_theme_font_size_override("font_size", 16)
-		lbl.add_theme_color_override("font_color", Color.WHITE)
-		vbox.add_child(lbl)
+		lbl.text = h
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", COL_YELLOW)
+		lbl.add_theme_font_override("font", bold)
+		if h != "":
+			lbl.custom_minimum_size.x = 50
+		else:
+			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pt_grid.add_child(lbl)
+
+	# Data rows
+	var hand_order := _variant.paytable.get_hand_order()
+	for i in hand_order.size():
+		var key: String = hand_order[i]
+		var pays := _variant.paytable.get_payout_row(key)
+		if pays == null:
+			continue
+		var display_name: String = _variant.paytable.get_hand_display_name(key)
+		var row_bg := Color(0.12, 0.12, 0.3) if i % 2 == 0 else Color(0.08, 0.08, 0.22)
+		# Hand name
+		var name_lbl := Label.new()
+		name_lbl.text = display_name
+		name_lbl.add_theme_font_size_override("font_size", 13)
+		name_lbl.add_theme_color_override("font_color", Color.WHITE if i > 0 else Color("FF6666"))
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pt_grid.add_child(name_lbl)
+		# Pay values
+		for p_idx in 5:
+			var val: int = pays[p_idx] if p_idx < pays.size() else 0
+			var pay_lbl := Label.new()
+			pay_lbl.text = str(val)
+			pay_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			pay_lbl.add_theme_font_size_override("font_size", 13)
+			pay_lbl.add_theme_color_override("font_color", Color(0.9, 0.9, 0.7))
+			pay_lbl.custom_minimum_size.x = 50
+			pt_grid.add_child(pay_lbl)
+
+	# ── RIGHT: Line numbers list
+	var right_vbox := VBoxContainer.new()
+	right_vbox.custom_minimum_size.x = 100
+	right_vbox.add_theme_constant_override("separation", 4)
+	main_hbox.add_child(right_vbox)
+
+	var lines_title := Label.new()
+	lines_title.text = "20 LINES"
+	lines_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lines_title.add_theme_font_size_override("font_size", 16)
+	lines_title.add_theme_color_override("font_color", COL_YELLOW)
+	lines_title.add_theme_font_override("font", bold)
+	right_vbox.add_child(lines_title)
+
+	var line_scroll := ScrollContainer.new()
+	line_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_vbox.add_child(line_scroll)
+
+	var line_list := VBoxContainer.new()
+	line_list.add_theme_constant_override("separation", 2)
+	line_scroll.add_child(line_list)
+
+	for li in 20:
+		var line_btn := Button.new()
+		line_btn.text = "LINE %d" % (li + 1)
+		line_btn.custom_minimum_size = Vector2(90, 28)
+		var ls := StyleBoxFlat.new()
+		ls.bg_color = SpinPokerManager.LINE_COLORS[li].darkened(0.4)
+		ls.set_border_width_all(2)
+		ls.border_color = SpinPokerManager.LINE_COLORS[li]
+		ls.set_corner_radius_all(4)
+		line_btn.add_theme_stylebox_override("normal", ls)
+		var lh := ls.duplicate()
+		lh.bg_color = SpinPokerManager.LINE_COLORS[li].darkened(0.2)
+		line_btn.add_theme_stylebox_override("hover", lh)
+		line_btn.add_theme_font_size_override("font_size", 11)
+		line_btn.add_theme_color_override("font_color", Color.WHITE)
+		var idx := li
+		line_btn.pressed.connect(func() -> void: _highlight_line_in_overlay(idx))
+		line_list.add_child(line_btn)
+
+	# X close button (top-right)
+	var close_btn := Button.new()
+	close_btn.text = "X"
+	close_btn.custom_minimum_size = Vector2(40, 40)
+	var cs := StyleBoxFlat.new()
+	cs.bg_color = Color(0.5, 0.1, 0.1)
+	cs.set_corner_radius_all(20)
+	close_btn.add_theme_stylebox_override("normal", cs)
+	close_btn.add_theme_font_size_override("font_size", 20)
+	close_btn.add_theme_color_override("font_color", Color.WHITE)
+	close_btn.pressed.connect(func() -> void:
+		_paytable_overlay.queue_free()
+		_paytable_overlay = null
+		_clear_line_display()
+	)
+	_paytable_overlay.add_child(close_btn)
+	close_btn.position = Vector2(size.x - 60, 10)
+
+
+func _highlight_line_in_overlay(line_idx: int) -> void:
+	# Show this line on the grid behind the overlay
+	_winning_lines = [{"line_idx": line_idx, "hand_name": "", "payout": 0}]
+	_current_win_cycle = 0
+	_line_draw_node.queue_redraw()
