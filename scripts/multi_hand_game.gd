@@ -39,6 +39,7 @@ var _balance_show_depth: bool = false
 var _depth_tooltip: Control = null
 var _bet_cd: Dictionary
 var _win_cd: Dictionary
+var _hold_hint_label: Label = null
 
 # Primary hand (bottom row, interactive)
 var _primary_cards: Array = []  # Array of card_visual TextureRect
@@ -927,6 +928,7 @@ func _on_state_changed(new_state: int) -> void:
 			_start_idle_blink_timer()
 
 		MultiHandManager.State.DEALING:
+			_hide_hold_hint()
 			_stop_idle_blink()
 			_deal_draw_btn.disabled = true
 			_bet_btn.disabled = true
@@ -939,7 +941,8 @@ func _on_state_changed(new_state: int) -> void:
 		MultiHandManager.State.HOLDING:
 			_deal_draw_btn.text = Translations.tr_key("game.draw")
 			_deal_draw_btn.disabled = false
-			_win_label.text = Translations.tr_key("game.hold_cards_then_draw")
+			_win_label.text = ""
+			_show_hold_hint()
 			for i in _primary_cards.size():
 				_primary_cards[i].set_interactive(true)
 				if _manager.held[i]:
@@ -949,6 +952,7 @@ func _on_state_changed(new_state: int) -> void:
 				_show_mini_held(mini)
 
 		MultiHandManager.State.DRAWING:
+			_hide_hold_hint()
 			_deal_draw_btn.disabled = true
 			for card in _primary_cards:
 				card.set_interactive(false)
@@ -959,6 +963,42 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
 			_hands_btn.disabled = false
+
+
+func _show_hold_hint() -> void:
+	_hide_hold_hint()
+	_hold_hint_label = Label.new()
+	_hold_hint_label.text = Translations.tr_key("game.hold_cards_then_draw")
+	_hold_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hold_hint_label.add_theme_font_size_override("font_size", 18)
+	_hold_hint_label.add_theme_color_override("font_color", COL_YELLOW)
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+	_hold_hint_label.add_theme_font_override("font", bold)
+	_hold_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hold_hint_label.z_index = 20
+	add_child(_hold_hint_label)
+	_position_hold_hint.call_deferred()
+
+
+func _position_hold_hint() -> void:
+	if not _hold_hint_label or not is_instance_valid(_hold_hint_label):
+		return
+	await get_tree().process_frame
+	if not _primary_container or not is_instance_valid(_primary_container):
+		return
+	var rect := _primary_container.get_global_rect()
+	var lbl_size := _hold_hint_label.get_combined_minimum_size()
+	_hold_hint_label.global_position = Vector2(
+		rect.get_center().x - lbl_size.x / 2,
+		rect.position.y - lbl_size.y - 8
+	)
+
+
+func _hide_hold_hint() -> void:
+	if _hold_hint_label and is_instance_valid(_hold_hint_label):
+		_hold_hint_label.queue_free()
+	_hold_hint_label = null
 
 
 func _start_idle_blink_timer() -> void:
