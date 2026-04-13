@@ -1028,6 +1028,139 @@ MiddleSection позиционируется между Top и Bottom через
 8. Draw: primary рука тянет из своей колоды, каждая extra — из своей
 9. Evaluate: все руки оценены, total payout = сумма
 
+---
+
+## 20. Система локализации (i18n)
+
+Проект полностью локализован. Поддерживаемые языки: **английский (`en`)**,
+**русский (`ru`)**, **испанский (`es`)**. Никакого хардкода пользовательского
+текста в коде или сценах — всё идёт через один autoload.
+
+### 20.1 Архитектура
+
+```
+┌──────────────────────────┐        ┌────────────────────────────┐
+│ data/translations.json   │◄───────│ scripts/translations.gd    │
+│ { languages: {           │        │ (autoload "Translations")  │
+│     en: { key: str, ...} │        │                            │
+│     ru: { key: str, ...} │        │ tr_key(key, args) → str    │
+│     es: { key: str, ...} │        │ set_language(code)         │
+│ }}                       │        │ get_available_codes()      │
+└──────────────────────────┘        │ display_name_for_code()    │
+                                    └────────────────────────────┘
+                                                 ▲
+                                                 │
+                   ┌─────────────────────────────┴──────────┐
+                   │                                        │
+            scripts/*.gd                        scripts/variants/*.gd
+         (lobby, game, multi-hand,                    (base + overrides
+          settings, popups, etc.)                     use paytable key)
+```
+
+- **`scripts/translations.gd`** — autoload `Translations`. Парсит JSON один
+  раз при запуске (`_ready`). Детектит OS-локаль через `OS.get_locale_language()`
+  только если `SaveManager.language == "system"` или пусто; иначе использует
+  сохранённый выбор игрока. Фолбэк на `en` → на сам ключ (ключ в рантайме
+  видно как надпись — это специально, чтобы сразу замечать пропущенные
+  переводы).
+- **`data/translations.json`** — единственный источник правды. Структура
+  `{ version: 1, languages: { <код>: { <ключ>: <строка>, ... } } }`.
+  Ключи плоские, через точку: `модуль.назначение[.подтип]` (например
+  `lobby.cash`, `game.bet_one_fmt`, `info_card.active`, `hand.four_aces`,
+  `machine.jacks_or_better.name`).
+- **`SaveManager.language: String`** — сохраняется в `user://save.json`.
+  Значения: `"system"` | `"en"` | `"ru"` | `"es"`. `"system"` — «следовать
+  за локалью устройства».
+- **Шестерёнка ⚙ в лобби** (`_build_settings_button` в `lobby_manager.gd`)
+  открывает settings popup. Там есть одна кнопка `LANGUAGE: <текущий>`
+  которая разворачивает подпопап с выбором кода. Выбор языка вызывает
+  `Translations.set_language(code)` + `get_tree().reload_current_scene()` —
+  весь `main.tscn` перезагружается, `_ready()` каждого Control'а снова
+  считывает тексты через `tr_key`.
+
+### 20.2 API
+
+```gdscript
+# Простая подстановка
+label.text = Translations.tr_key("game.place_your_bet")
+
+# С аргументами (интерполяция через %s / %d)
+label.text = Translations.tr_key("game.bet_one_fmt", [bet])
+msg.text   = Translations.tr_key("double.msg_fmt",
+        [SaveManager.format_money(_double_amount),
+         SaveManager.format_money(doubled)])
+
+# Названия покерных рук — всегда через Paytable, не напрямую
+var display := paytable.get_hand_display_name(key)
+# (paytable.gd внутри делает Translations.tr_key("hand." + key))
+
+# Название/описание/фича машины
+Translations.tr_key("machine.%s.name" % variant_id)
+Translations.tr_key("machine.%s.mini" % variant_id)
+Translations.tr_key("machine.%s.feature" % variant_id)
+```
+
+### 20.3 Пространства имён ключей
+
+| Префикс | Где используется |
+|---|---|
+| `common.*`       | «YES», «NO», «GOT IT», «FREE», «X», «OK» — кнопки подтверждения, общие слова. |
+| `lobby.*`        | Кнопки режимов (`mode_single_play`, `mode_ultimate_x`…), заголовки top-bar'а, cash-метка. |
+| `settings.*`     | Заголовок и кнопки popup'а настроек и выбора языка. |
+| `game.*`         | Всё игровое поле: `deal`, `draw`, `double`, `bet_one_fmt`, `bet_max`, `total_bet`, `balance`, `games`, `win_label`, `no_win`, `place_your_bet`, `hold_cards_then_draw`, `last_win_fmt`, `held`, `winnings`, `try_again`. |
+| `game_depth.*`   | Тултип «Game Depth» (single- и multi-варианты текста). |
+| `bet_select.*`   | Popup выбора номинала ставки. |
+| `shop.*`         | Shop popup (кнопки `FREE`, заголовок). |
+| `info.*`         | Info-popup: заголовки (`title_single`, `title_multi`, `title_ultimate_x`), правила (`rules_*`), таблица множителей (`multiplier_table`, `col_winning_hand`, `col_next_multiplier`), таблица машин (`machines_title`, `col_machine`, `col_deck`, `col_rtp`, `col_feature`). |
+| `info_card.*`    | Боковая Ultimate X info-карточка (`ultimate_x_title`, `description`, `active`, `press_to_activate`). |
+| `double.*`       | Double-or-Nothing popup и статусы (`title`, `msg_fmt`, `pick_card`, `win`, `tie`, `lose`, `win_doubled_fmt`). |
+| `hand.*`         | **Все** названия комбинаций (`jacks_or_better`, `two_pair`, `royal_flush`, плюс wild-варианты `wild_royal_flush`, `five_of_a_kind`, `four_deuces_joker`, плюс kicker-ключи `four_aces_with_234_kicker` и т.д.). Ключ = имя ключа в `paytables.json` → `hand.{key}`. |
+| `machine.{id}.*` | Per-variant: `name`, `mini` (описание под заголовком в карточке лобби), `feature` (строка в info-таблице машин). `{id}` = variant_id (`jacks_or_better`, `deuces_and_joker`…). |
+
+**Важно:** названия машин (`machine.*.name`) — **английские во всех трёх
+языках** (бренды-константы: «Jacks or Better», «Deuces Wild»…). Название
+режима `ULTIMATE X` — тоже английское во всех языках. Всё остальное
+переводится.
+
+### 20.4 Где локализация резолвится автоматически
+
+- **Покерные руки в результатах/бейджах** → `BaseVariant.get_hand_name()` →
+  `get_paytable_key()` → `Paytable.get_hand_display_name(key)` →
+  `Translations.tr_key("hand." + key)`. Варианты не должны переопределять
+  `get_hand_name()` — только `get_paytable_key()`.
+- **Paytable-бейджи в `_build_paytable_badges`** — берут имена через
+  `_variant.paytable.get_hand_display_name(key)`.
+- **Цвет бейджа в `_get_badge_color_for_hand`** — сравнивает уже локализованное
+  имя с локализованным же через тот же `get_hand_display_name`.
+
+### 20.5 Как добавлять новый текст — чеклист
+
+1. Придумать ключ вида `модуль.назначение` (или `модуль.назначение_fmt` если
+   будут `%s` / `%d`-аргументы). Не дублировать — сперва поискать в
+   `data/translations.json`.
+2. Добавить строку в **все три** блока `languages.en`, `languages.ru`,
+   `languages.es` в `data/translations.json`.
+3. В коде использовать `Translations.tr_key("ключ")` или
+   `Translations.tr_key("ключ_fmt", [arg1, arg2])`.
+4. В `.tscn`-файле не писать финальный текст — оставить пустое значение или
+   нейтральный placeholder. Финальное значение выставляется из `_ready()`
+   скрипта сцены через `Translations.tr_key()`.
+5. Если это новая покерная рука или новая машина — сразу завести ключи
+   `hand.{paytable_key}` / `machine.{variant_id}.name` / `.mini` / `.feature`
+   во всех языках.
+
+### 20.6 Валидация
+
+- `python3 -c "import json; d=json.load(open('data/translations.json')); \
+  print({k: len(v) for k,v in d['languages'].items()})"` — должно вернуть
+  одинаковое число ключей для `en` / `ru` / `es`. Любое расхождение = забыт
+  перевод.
+- Если во время игры видишь в интерфейсе сам ключ (например
+  `game.place_your_bet`) — значит этого ключа нет ни в выбранном языке, ни в
+  `en` (двухуровневый фолбэк не сработал). Нужно добавить его в JSON.
+
+---
+
 ### Правила для Claude Code
 
 - **Не коммитить без явного одобрения пользователя**
@@ -1035,26 +1168,11 @@ MiddleSection позиционируется между Top и Bottom через
 - Использовать `load()` вместо `preload()` для сцен (избежать circular dependencies)
 - Корневые ноды сцен: `anchors_preset = 15` без `layout_mode`
 - Карты: `TextureRect` с `EXPAND_IGNORE_SIZE` + `STRETCH_KEEP_ASPECT_CENTERED`
-- **Локализация — обязательна для любого нового пользовательского текста.**
-  Никаких хардкодов английских/русских/испанских строк в коде или сценах.
-  Любая новая надпись (Label, Button, заголовок popup'а, статус, бейдж и т.д.)
-  должна:
-  1. Получить уникальный ключ в `data/translations.json` (обычно
-     `модуль.назначение`, например `lobby.cash`, `game.no_win`, `info.title_single`).
-  2. Иметь переводы для **всех** трёх языков: `en`, `ru`, `es`.
-  3. Извлекаться через `Translations.tr_key("ключ")` или
-     `Translations.tr_key("ключ_fmt", [arg1, arg2])` для строк с `%s` / `%d`.
-  4. Не дублировать существующие ключи — сначала проверь
-     `data/translations.json`.
-
-  Названия покерных рук должны идти через `Paytable.get_hand_display_name(key)`
-  (он сам резолвит `hand.{key}` в Translations). Названия машин — через
-  `Translations.tr_key("machine.{id}.name")` / `.mini` / `.feature`.
-
-  Текст в `.tscn` оставляй пустым или нейтральным placeholder'ом — реальное
-  значение всегда выставляется из `_ready()` через `Translations.tr_key()`.
-
-  При смене языка через настройки лобби (шестерёнка) `Translations.set_language()`
-  вызывает `get_tree().reload_current_scene()`, чтобы все label'ы перестроились.
-  Поэтому достаточно один раз вызвать `tr_key` в `_ready()` — не нужно
-  пересчитывать строки на лету.
+- **Никаких хардкодов пользовательского текста — только `Translations.tr_key()`.**
+  Подробности и полный API — в §20 «Система локализации». Перед добавлением
+  любой новой надписи (`Label.text`, `Button.text`, заголовок popup'а,
+  статус, win-бейдж, info-popup, название новой руки или машины) сначала
+  добавь ключ в `data/translations.json` во все три языка (`en` / `ru` / `es`),
+  потом используй `Translations.tr_key("ключ", [опциональные args])`.
+  Названия покерных рук — всегда через `Paytable.get_hand_display_name(key)`.
+  Текст в `.tscn` оставляй пустым — финальное значение ставится в `_ready()`.
