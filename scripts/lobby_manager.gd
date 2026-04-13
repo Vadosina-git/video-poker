@@ -63,6 +63,7 @@ func _ready() -> void:
 	_credits_label.text = Translations.tr_key("lobby.credits_fmt", [SaveManager.credits])
 	_build_carousel()
 	_build_settings_button()
+	_build_gift_widget()
 
 
 func _apply_theme() -> void:
@@ -594,3 +595,65 @@ func _on_language_chosen(code: String) -> void:
 	Translations.set_language(code)
 	# Force a full game reload so every cached label / built scene updates.
 	get_tree().call_deferred("reload_current_scene")
+
+
+# --- Gift widget ---
+
+var _gift_btn: Button = null
+var _gift_timer_label: Label = null
+var _gift_ready: bool = false
+
+func _build_gift_widget() -> void:
+	var top_bar := $VBoxContainer/TopBar as HBoxContainer
+	_gift_btn = Button.new()
+	_gift_btn.custom_minimum_size = Vector2(180, 52)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.1, 0.5, 0.1)
+	style.set_border_width_all(2)
+	style.border_color = Color(0.3, 0.8, 0.3)
+	style.set_corner_radius_all(8)
+	_gift_btn.add_theme_stylebox_override("normal", style)
+	var hover := style.duplicate()
+	hover.bg_color = Color(0.15, 0.6, 0.15)
+	_gift_btn.add_theme_stylebox_override("hover", hover)
+	_gift_btn.add_theme_font_size_override("font_size", 18)
+	_gift_btn.add_theme_color_override("font_color", Color.WHITE)
+	_gift_btn.pressed.connect(_on_gift_pressed)
+	top_bar.add_child(_gift_btn)
+	_update_gift_state()
+
+
+func _process(_delta: float) -> void:
+	if _gift_btn and not _gift_ready:
+		_update_gift_state()
+
+
+func _update_gift_state() -> void:
+	var interval_sec: int = ConfigManager.get_gift_interval_hours() * 3600
+	var now: int = int(Time.get_unix_time_from_system())
+	var elapsed: int = now - SaveManager.last_gift_time
+	if elapsed >= interval_sec or SaveManager.last_gift_time == 0:
+		_gift_ready = true
+		_gift_btn.text = Translations.tr_key("gift.claim")
+		_gift_btn.modulate = Color.WHITE
+	else:
+		_gift_ready = false
+		var remaining: int = interval_sec - elapsed
+		var h: int = remaining / 3600
+		var m: int = (remaining % 3600) / 60
+		var s: int = remaining % 60
+		_gift_btn.text = "%02d:%02d:%02d" % [h, m, s]
+		_gift_btn.modulate = Color(0.6, 0.6, 0.6)
+
+
+func _on_gift_pressed() -> void:
+	if not _gift_ready:
+		return
+	var chips: int = ConfigManager.get_gift_chips()
+	SaveManager.add_credits(chips)
+	SaveManager.last_gift_time = int(Time.get_unix_time_from_system())
+	SaveManager.save_game()
+	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
+	_gift_ready = false
+	_update_gift_state()
+	SoundManager.play("gift_claim")

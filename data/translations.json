@@ -143,7 +143,8 @@
       "settings.delete_confirm_2": "This action is irreversible. Balance, stats and progress will be reset.",
       "settings.delete_cancel": "CANCEL",
       "settings.delete_confirm": "DELETE",
-      "settings.delete_continue": "CONTINUE"
+      "settings.delete_continue": "CONTINUE",
+      "gift.claim": "CLAIM GIFT"
     },
     "ru": {
       "common.got_it": "ПОНЯТНО",
@@ -287,7 +288,8 @@
       "settings.delete_confirm_2": "Это действие необратимо. Баланс, статистика и прогресс будут сброшены.",
       "settings.delete_cancel": "ОТМЕНА",
       "settings.delete_confirm": "УДАЛИТЬ",
-      "settings.delete_continue": "ПРОДОЛЖИТЬ"
+      "settings.delete_continue": "ПРОДОЛЖИТЬ",
+      "gift.claim": "ЗАБРАТЬ"
     },
     "es": {
       "common.got_it": "ENTENDIDO",
@@ -431,7 +433,8 @@
       "settings.delete_confirm_2": "Esta acción es irreversible. El saldo, las estadísticas y el progreso se restablecerán.",
       "settings.delete_cancel": "CANCELAR",
       "settings.delete_confirm": "ELIMINAR",
-      "settings.delete_continue": "CONTINUAR"
+      "settings.delete_continue": "CONTINUAR",
+      "gift.claim": "RECLAMAR"
     }
   }
 }

@@ -11,6 +11,7 @@ var bet_level: int = 1    # 1-5, default 1
 var ultra_vp: bool = false  # Ultra VP mode flag
 var spin_poker: bool = false   # Spin Poker mode flag
 var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
+var last_gift_time: int = 0         # Unix timestamp of last gift claim
 var language: String = "system"  # "system" | "en" | "ru" | "es"
 var settings := {
 	"sound_fx": true,
@@ -154,6 +155,7 @@ func save_game() -> void:
 		"ultra_vp": ultra_vp,
 		"spin_poker": spin_poker,
 		"depth_hint_shown": depth_hint_shown,
+		"last_gift_time": last_gift_time,
 		"language": language,
 		"settings": settings,
 	}
@@ -181,6 +183,7 @@ func load_game() -> void:
 	ultra_vp = bool(data.get("ultra_vp", data.get("ultimate_x", false)))
 	spin_poker = bool(data.get("spin_poker", false))
 	depth_hint_shown = bool(data.get("depth_hint_shown", false))
+	last_gift_time = int(data.get("last_gift_time", 0))
 	language = String(data.get("language", "system"))
 	var saved_settings: Dictionary = data.get("settings", {})
 	for key in saved_settings:
