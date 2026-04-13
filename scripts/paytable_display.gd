@@ -185,10 +185,11 @@ func _reset_all_cells() -> void:
 		var style := _get_cell_style(_cell_panels[i])
 		if style:
 			style.bg_color = _get_base_color(row, col)
-		# Jackpot cell: top row, max bet — always red bold
+		# Jackpot cell: top row, max bet — light red bold, slightly larger
 		if i == jackpot_idx:
-			_labels[i].add_theme_color_override("font_color", Color("FF4444"))
+			_labels[i].add_theme_color_override("font_color", Color("FF6666"))
 			_labels[i].add_theme_font_override("font", bold_font)
+			_labels[i].add_theme_font_size_override("font_size", _labels[i].get_theme_font_size("font_size") + 2)
 		else:
 			_labels[i].add_theme_color_override("font_color", COL_YELLOW)
 			_labels[i].remove_theme_font_override("font")

@@ -1260,17 +1260,30 @@ func _show_info() -> void:
 	title.add_theme_color_override("font_color", COL_YELLOW)
 	content.add_child(title)
 
-	# Rules — centered with left margin
-	var rules_margin := MarginContainer.new()
-	rules_margin.add_theme_constant_override("margin_left", 120)
-	rules_margin.add_theme_constant_override("margin_right", 120)
-	content.add_child(rules_margin)
-	var rules := Label.new()
-	rules.autowrap_mode = TextServer.AUTOWRAP_WORD
-	rules.add_theme_font_size_override("font_size", 18)
-	rules.add_theme_color_override("font_color", Color.WHITE)
-	rules.text = Translations.tr_key("info.rules_single")
-	rules_margin.add_child(rules)
+	# Rules — RichTextLabel with BBCode on dark blue backdrop
+	var rules_panel := PanelContainer.new()
+	var rp_style := StyleBoxFlat.new()
+	rp_style.bg_color = Color(0.1, 0.1, 0.4, 0.7)
+	rp_style.set_corner_radius_all(8)
+	rp_style.content_margin_left = 24
+	rp_style.content_margin_right = 24
+	rp_style.content_margin_top = 16
+	rp_style.content_margin_bottom = 16
+	rules_panel.add_theme_stylebox_override("panel", rp_style)
+	content.add_child(rules_panel)
+	var rules := RichTextLabel.new()
+	rules.bbcode_enabled = true
+	rules.fit_content = true
+	rules.scroll_active = false
+	rules.add_theme_font_size_override("normal_font_size", 18)
+	rules.add_theme_color_override("default_color", Color.WHITE)
+	var rules_text: String = Translations.tr_key("info.rules_single")
+	# Auto-highlight keywords in yellow if no BBCode tags present
+	if "[color" not in rules_text:
+		for keyword in ["DEAL", "DRAW", "HOLD", "HELD", "MAX BET", "Royal Flush"]:
+			rules_text = rules_text.replace(keyword, "[color=yellow]%s[/color]" % keyword)
+	rules.text = "[center]%s[/center]" % rules_text
+	rules_panel.add_child(rules)
 
 	# Machines title
 	var machines_title := Label.new()
