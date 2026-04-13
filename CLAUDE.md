@@ -1035,3 +1035,26 @@ MiddleSection позиционируется между Top и Bottom через
 - Использовать `load()` вместо `preload()` для сцен (избежать circular dependencies)
 - Корневые ноды сцен: `anchors_preset = 15` без `layout_mode`
 - Карты: `TextureRect` с `EXPAND_IGNORE_SIZE` + `STRETCH_KEEP_ASPECT_CENTERED`
+- **Локализация — обязательна для любого нового пользовательского текста.**
+  Никаких хардкодов английских/русских/испанских строк в коде или сценах.
+  Любая новая надпись (Label, Button, заголовок popup'а, статус, бейдж и т.д.)
+  должна:
+  1. Получить уникальный ключ в `data/translations.json` (обычно
+     `модуль.назначение`, например `lobby.cash`, `game.no_win`, `info.title_single`).
+  2. Иметь переводы для **всех** трёх языков: `en`, `ru`, `es`.
+  3. Извлекаться через `Translations.tr_key("ключ")` или
+     `Translations.tr_key("ключ_fmt", [arg1, arg2])` для строк с `%s` / `%d`.
+  4. Не дублировать существующие ключи — сначала проверь
+     `data/translations.json`.
+
+  Названия покерных рук должны идти через `Paytable.get_hand_display_name(key)`
+  (он сам резолвит `hand.{key}` в Translations). Названия машин — через
+  `Translations.tr_key("machine.{id}.name")` / `.mini` / `.feature`.
+
+  Текст в `.tscn` оставляй пустым или нейтральным placeholder'ом — реальное
+  значение всегда выставляется из `_ready()` через `Translations.tr_key()`.
+
+  При смене языка через настройки лобби (шестерёнка) `Translations.set_language()`
+  вызывает `get_tree().reload_current_scene()`, чтобы все label'ы перестроились.
+  Поэтому достаточно один раз вызвать `tr_key` в `_ready()` — не нужно
+  пересчитывать строки на лету.

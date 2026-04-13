@@ -62,4 +62,10 @@ func get_payout_row(hand_key: String) -> Array:
 
 
 func get_hand_display_name(hand_key: String) -> String:
+	## Localized display name for a paytable key. Falls back to the key itself
+	## (uppercased, underscores stripped) if no translation exists yet.
+	var key := "hand." + hand_key
+	var translated := Translations.tr_key(key)
+	if translated != key:
+		return translated
 	return hand_key.replace("_", " ").to_upper()

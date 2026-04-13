@@ -15,7 +15,3 @@ func evaluate(hand: Array[CardData]) -> HandEvaluator.HandRank:
 
 func get_payout(hand_rank: HandEvaluator.HandRank, bet: int) -> int:
 	return paytable.get_payout(hand_rank, bet)
-
-
-func get_hand_name(hand_rank: HandEvaluator.HandRank) -> String:
-	return HandEvaluator.HAND_NAMES.get(hand_rank, "")

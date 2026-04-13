@@ -49,26 +49,6 @@ func get_paytable_key(hand_rank: HandEvaluator.HandRank) -> String:
 	return Paytable.STANDARD_HAND_KEYS.get(hand_rank, "")
 
 
-func get_hand_name(hand_rank: HandEvaluator.HandRank) -> String:
-	if hand_rank == HandEvaluator.HandRank.FOUR_OF_A_KIND:
-		var quad_rank := _get_quad_rank(_last_hand)
-		var kicker_rank := _get_kicker_rank(_last_hand)
-
-		if quad_rank == CardData.Rank.ACE:
-			if _has_special_kicker(quad_rank, kicker_rank):
-				return "4 ACES + 2/3/4"
-			return "4 ACES"
-
-		if quad_rank >= CardData.Rank.TWO and quad_rank <= CardData.Rank.FOUR:
-			if _has_special_kicker(quad_rank, kicker_rank):
-				return "4 2s/3s/4s + A/2/3/4"
-			return "4 TWOS/THREES/FOURS"
-
-		return "4 FIVES-KINGS"
-
-	return super.get_hand_name(hand_rank)
-
-
 func _get_quad_rank(hand: Array[CardData]) -> int:
 	var counts := {}
 	for card in hand:

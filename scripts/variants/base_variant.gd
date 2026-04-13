@@ -35,7 +35,14 @@ func get_payout(hand_rank: HandEvaluator.HandRank, bet: int) -> int:
 
 
 func get_hand_name(hand_rank: HandEvaluator.HandRank) -> String:
-	return HandEvaluator.HAND_NAMES.get(hand_rank, "")
+	## Localized display name for the last evaluated hand. Resolves through
+	## Paytable.get_hand_display_name (which itself goes through Translations)
+	## using the variant-specific paytable key. Variants no longer need to
+	## override this — they only override `get_paytable_key`.
+	var key := get_paytable_key(hand_rank)
+	if key == "":
+		return HandEvaluator.HAND_NAMES.get(hand_rank, "")
+	return paytable.get_hand_display_name(key)
 
 
 ## Returns the paytable key for the last evaluated hand.

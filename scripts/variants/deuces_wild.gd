@@ -40,10 +40,6 @@ func get_payout(hand_rank: HandEvaluator.HandRank, bet: int) -> int:
 	return _lookup_payout(_last_hand_key, bet)
 
 
-func get_hand_name(hand_rank: HandEvaluator.HandRank) -> String:
-	return _last_hand_key.replace("_", " ").to_upper()
-
-
 func get_paytable_key(hand_rank: HandEvaluator.HandRank) -> String:
 	return _last_hand_key
 
