@@ -8,7 +8,6 @@
       "common.free": "FREE",
       "common.close_x": "X",
       "common.ok": "OK",
-
       "lobby.cash": "CASH:",
       "lobby.credits_fmt": "CREDITS: %d",
       "lobby.title": "VIDEO POKER",
@@ -19,13 +18,11 @@
       "lobby.mode_ultra_vp": "ULTRA VP",
       "lobby.mode_25_play": "25 PLAY",
       "lobby.mode_spin_poker": "SPIN POKER",
-
       "settings.title": "SETTINGS",
       "settings.language": "LANGUAGE",
       "settings.language_system": "System",
       "settings.close": "CLOSE",
       "settings.reloading": "Reloading…",
-
       "game.deal": "DEAL",
       "game.draw": "DRAW",
       "game.double": "DOUBLE",
@@ -47,15 +44,11 @@
       "game.held": "HELD",
       "game.winnings": "WINNINGS:",
       "game.try_again": "TRY AGAIN",
-
       "game_depth.title": "GAME DEPTH",
       "game_depth.description_single": "This number shows how many rounds you can play\nwith your current balance at the current bet.\n\nHigher = longer session.",
       "game_depth.description_multi": "This number shows how many rounds you can play\nwith your current balance at the current bet\nand hand count.\n\nHigher = longer session.",
-
       "bet_select.title": "SELECT BET",
-
       "shop.title": "GET CHIPS",
-
       "info.title_single": "HOW TO PLAY VIDEO POKER",
       "info.title_multi": "MULTI-HAND VIDEO POKER",
       "info.title_ultra_vp": "ULTRA VP VIDEO POKER",
@@ -80,12 +73,10 @@
       "machine.deuces_wild.feature": "All 2s are wild. No pairs pay.",
       "machine.joker_poker.feature": "Joker is wild. Kings+ to win.",
       "machine.deuces_and_joker.feature": "5 wilds (2s+Joker). Huge jackpot.",
-
       "info_card.ultra_vp_title": "ULTRA\nVP",
       "info_card.description": "Win → Next hand\ngets multiplier!\nUp to 12x",
       "info_card.active": "ACTIVE!",
       "info_card.press_to_activate": "PRESS TO\nACTIVATE",
-
       "double.title": "DOUBLE OR NOTHING",
       "double.msg_fmt": "You won %s.\nDouble to %s?",
       "double.pick_card": "PICK A CARD TO BEAT THE DEALER",
@@ -93,7 +84,6 @@
       "double.tie": "TIE! BET RETURNED",
       "double.lose": "YOU LOSE!",
       "double.win_doubled_fmt": "YOU WIN! DOUBLED TO %s",
-
       "hand.nothing": "",
       "hand.jacks_or_better": "JACKS OR BETTER",
       "hand.kings_or_better": "KINGS OR BETTER",
@@ -119,7 +109,6 @@
       "hand.four_234_with_kicker": "4 2s/3s/4s + A/2/3/4",
       "hand.four_aces_with_234_kicker": "4 ACES + 2/3/4",
       "hand.four_234_with_a234_kicker": "4 2s/3s/4s + A/2/3/4",
-
       "machine.jacks_or_better.name": "Jacks or Better",
       "machine.jacks_or_better.mini": "The classic 9/6 full pay variant\nMin hand: Pair of Jacks+\nRoyal Flush: 4000 (Max Bet)\nFull House: 9 | Flush: 6\nRTP: 99.54% | Low variance",
       "machine.bonus_poker.name": "Bonus Poker",
@@ -139,7 +128,13 @@
       "machine.joker_poker.name": "Joker Poker",
       "machine.joker_poker.mini": "53-card deck with 1 Joker (wild)\nMin hand: Pair of Kings+\n5 of a Kind: 200 | Wild Royal: 100\nRTP: 100.65% | Low-Medium variance",
       "machine.deuces_and_joker.name": "Deuces & Joker",
-      "machine.deuces_and_joker.mini": "5 wild cards (4 Deuces + Joker)\nMin hand: Three of a Kind\n4 Deuces+Joker at Max Bet: 10,000\nNatural Royal: 4000\nHighest jackpot among all variants"
+      "machine.deuces_and_joker.mini": "5 wild cards (4 Deuces + Joker)\nMin hand: Three of a Kind\n4 Deuces+Joker at Max Bet: 10,000\nNatural Royal: 4000\nHighest jackpot among all variants",
+      "spin.see_pays": "SEE PAYS",
+      "spin.select_reels": "SELECT REELS TO HOLD THEN PRESS DRAW SPIN",
+      "spin.game_over": "GAME OVER",
+      "spin.game_pays_fmt": "GAME PAYS %s",
+      "game.not_enough_credits": "NOT ENOUGH CREDITS",
+      "common.back": "BACK"
     },
     "ru": {
       "common.got_it": "ПОНЯТНО",
@@ -148,7 +143,6 @@
       "common.free": "БЕСПЛАТНО",
       "common.close_x": "X",
       "common.ok": "OK",
-
       "lobby.cash": "БАЛАНС:",
       "lobby.credits_fmt": "КРЕДИТЫ: %d",
       "lobby.title": "ВИДЕО ПОКЕР",
@@ -159,13 +153,11 @@
       "lobby.mode_ultra_vp": "ULTRA VP",
       "lobby.mode_25_play": "25 РУК",
       "lobby.mode_spin_poker": "СПИН-ПОКЕР",
-
       "settings.title": "НАСТРОЙКИ",
       "settings.language": "ЯЗЫК",
       "settings.language_system": "Системный",
       "settings.close": "ЗАКРЫТЬ",
       "settings.reloading": "Перезагрузка…",
-
       "game.deal": "РАЗДАТЬ",
       "game.draw": "ЗАМЕНА",
       "game.double": "УДВОИТЬ",
@@ -187,15 +179,11 @@
       "game.held": "ОСТАВ",
       "game.winnings": "ВЫИГРЫШ:",
       "game.try_again": "ПОПРОБУЙТЕ СНОВА",
-
       "game_depth.title": "ГЛУБИНА ИГРЫ",
       "game_depth.description_single": "Это число показывает, сколько раундов\nможно сыграть с текущим балансом\nпри текущей ставке.\n\nБольше = длиннее сессия.",
       "game_depth.description_multi": "Это число показывает, сколько раундов\nможно сыграть с текущим балансом\nпри текущей ставке и числе рук.\n\nБольше = длиннее сессия.",
-
       "bet_select.title": "ВЫБЕРИТЕ СТАВКУ",
-
       "shop.title": "ПОЛУЧИТЬ ФИШКИ",
-
       "info.title_single": "КАК ИГРАТЬ В ВИДЕО ПОКЕР",
       "info.title_multi": "МУЛЬТИ-РУКА ВИДЕО ПОКЕР",
       "info.title_ultra_vp": "ULTRA VP ВИДЕО ПОКЕР",
@@ -220,12 +208,10 @@
       "machine.deuces_wild.feature": "Все двойки wild. Пары не платят.",
       "machine.joker_poker.feature": "Джокер wild. Короли+ для выигрыша.",
       "machine.deuces_and_joker.feature": "5 wild (2s+Джокер). Огромный джекпот.",
-
       "info_card.ultra_vp_title": "ULTRA\nVP",
       "info_card.description": "Выигрыш → Множитель\nна след. руку!\nДо 12x",
       "info_card.active": "АКТИВНО!",
       "info_card.press_to_activate": "НАЖМИТЕ ДЛЯ\nАКТИВАЦИИ",
-
       "double.title": "УДВОИТЬ ИЛИ НИЧЕГО",
       "double.msg_fmt": "Вы выиграли %s.\nУдвоить до %s?",
       "double.pick_card": "ВЫБЕРИТЕ КАРТУ, ЧТОБЫ ПОБЕДИТЬ ДИЛЕРА",
@@ -233,7 +219,6 @@
       "double.tie": "НИЧЬЯ! СТАВКА ВОЗВРАЩЕНА",
       "double.lose": "ВЫ ПРОИГРАЛИ!",
       "double.win_doubled_fmt": "ВЫИГРЫШ! УДВОЕНО ДО %s",
-
       "hand.nothing": "",
       "hand.jacks_or_better": "ВАЛЬТЫ ИЛИ ВЫШЕ",
       "hand.kings_or_better": "КОРОЛИ ИЛИ ВЫШЕ",
@@ -259,7 +244,6 @@
       "hand.four_234_with_kicker": "4 (2-4) + A/2/3/4",
       "hand.four_aces_with_234_kicker": "4 ТУЗА + 2/3/4",
       "hand.four_234_with_a234_kicker": "4 (2-4) + A/2/3/4",
-
       "machine.jacks_or_better.name": "Jacks or Better",
       "machine.jacks_or_better.mini": "Классический вариант 9/6 full pay\nМин. рука: пара Вальтов+\nRoyal Flush: 4000 (Max Bet)\nFull House: 9 | Flush: 6\nRTP: 99.54% | Низкая дисперсия",
       "machine.bonus_poker.name": "Bonus Poker",
@@ -279,7 +263,13 @@
       "machine.joker_poker.name": "Joker Poker",
       "machine.joker_poker.mini": "Колода 53 карты с 1 Джокером (wild)\nМин. рука: пара Королей+\nПокер из 5: 200 | Wild Royal: 100\nRTP: 100.65% | Низко-средняя дисперсия",
       "machine.deuces_and_joker.name": "Deuces & Joker",
-      "machine.deuces_and_joker.mini": "5 wild карт (4 двойки + Джокер)\nМин. рука: тройка\n4 двойки + Джокер при Max Bet: 10,000\nNatural Royal: 4000\nСамый большой джекпот из всех вариантов"
+      "machine.deuces_and_joker.mini": "5 wild карт (4 двойки + Джокер)\nМин. рука: тройка\n4 двойки + Джокер при Max Bet: 10,000\nNatural Royal: 4000\nСамый большой джекпот из всех вариантов",
+      "spin.see_pays": "ВЫПЛАТЫ",
+      "spin.select_reels": "Выберите барабаны для HOLD и жмите DRAW SPIN",
+      "spin.game_over": "РАУНД ОКОНЧЕН",
+      "spin.game_pays_fmt": "ВЫИГРЫШ: %s",
+      "game.not_enough_credits": "НЕДОСТАТОЧНО КРЕДИТОВ",
+      "common.back": "НАЗАД"
     },
     "es": {
       "common.got_it": "ENTENDIDO",
@@ -288,7 +278,6 @@
       "common.free": "GRATIS",
       "common.close_x": "X",
       "common.ok": "OK",
-
       "lobby.cash": "SALDO:",
       "lobby.credits_fmt": "CRÉDITOS: %d",
       "lobby.title": "VIDEO POKER",
@@ -299,13 +288,11 @@
       "lobby.mode_ultra_vp": "ULTRA VP",
       "lobby.mode_25_play": "25 PLAY",
       "lobby.mode_spin_poker": "SPIN POKER",
-
       "settings.title": "AJUSTES",
       "settings.language": "IDIOMA",
       "settings.language_system": "Sistema",
       "settings.close": "CERRAR",
       "settings.reloading": "Recargando…",
-
       "game.deal": "REPARTIR",
       "game.draw": "CAMBIAR",
       "game.double": "DOBLAR",
@@ -327,15 +314,11 @@
       "game.held": "FIJADA",
       "game.winnings": "GANANCIAS:",
       "game.try_again": "INTÉNTELO DE NUEVO",
-
       "game_depth.title": "PROFUNDIDAD",
       "game_depth.description_single": "Este número muestra cuántas rondas\npuede jugar con su saldo actual\na la apuesta actual.\n\nMás = sesión más larga.",
       "game_depth.description_multi": "Este número muestra cuántas rondas\npuede jugar con su saldo actual\na la apuesta y manos actuales.\n\nMás = sesión más larga.",
-
       "bet_select.title": "SELECCIONE APUESTA",
-
       "shop.title": "OBTENER FICHAS",
-
       "info.title_single": "CÓMO JUGAR VIDEO POKER",
       "info.title_multi": "VIDEO POKER MULTI-MANO",
       "info.title_ultra_vp": "ULTRA VP VIDEO POKER",
@@ -360,12 +343,10 @@
       "machine.deuces_wild.feature": "Todos los doses son wild. Pares no pagan.",
       "machine.joker_poker.feature": "Joker es wild. Reyes+ para ganar.",
       "machine.deuces_and_joker.feature": "5 wild (2s+Joker). Jackpot enorme.",
-
       "info_card.ultra_vp_title": "ULTRA\nVP",
       "info_card.description": "¡Ganar → La próxima\nmano recibe mult.!\nHasta 12x",
       "info_card.active": "¡ACTIVO!",
       "info_card.press_to_activate": "PULSE PARA\nACTIVAR",
-
       "double.title": "DOBLAR O NADA",
       "double.msg_fmt": "Ganó %s.\n¿Doblar a %s?",
       "double.pick_card": "ELIJA UNA CARTA PARA VENCER AL CRUPIER",
@@ -373,7 +354,6 @@
       "double.tie": "¡EMPATE! APUESTA DEVUELTA",
       "double.lose": "¡PERDIÓ!",
       "double.win_doubled_fmt": "¡GANÓ! DOBLADO A %s",
-
       "hand.nothing": "",
       "hand.jacks_or_better": "JOTAS O MÁS",
       "hand.kings_or_better": "REYES O MÁS",
@@ -399,7 +379,6 @@
       "hand.four_234_with_kicker": "4 (2-4) + A/2/3/4",
       "hand.four_aces_with_234_kicker": "4 ASES + 2/3/4",
       "hand.four_234_with_a234_kicker": "4 (2-4) + A/2/3/4",
-
       "machine.jacks_or_better.name": "Jacks or Better",
       "machine.jacks_or_better.mini": "Variante clásica 9/6 full pay\nMano mínima: par de Jotas+\nEscalera Real: 4000 (Apuesta Máx)\nFull: 9 | Color: 6\nRTP: 99.54% | Variancia baja",
       "machine.bonus_poker.name": "Bonus Poker",
@@ -419,7 +398,13 @@
       "machine.joker_poker.name": "Joker Poker",
       "machine.joker_poker.mini": "Baraja de 53 cartas con 1 Joker (wild)\nMano mínima: par de Reyes+\nCinco Iguales: 200 | Escalera Real Wild: 100\nRTP: 100.65% | Variancia baja-media",
       "machine.deuces_and_joker.name": "Deuces & Joker",
-      "machine.deuces_and_joker.mini": "5 cartas wild (4 Doses + Joker)\nMano mínima: Trío\n4 Doses+Joker en Apuesta Máx: 10,000\nEscalera Real Natural: 4000\nMayor jackpot de todas las variantes"
+      "machine.deuces_and_joker.mini": "5 cartas wild (4 Doses + Joker)\nMano mínima: Trío\n4 Doses+Joker en Apuesta Máx: 10,000\nEscalera Real Natural: 4000\nMayor jackpot de todas las variantes",
+      "spin.see_pays": "VER PAGOS",
+      "spin.select_reels": "Seleccione carretes para HOLD y presione DRAW SPIN",
+      "spin.game_over": "FIN DEL JUEGO",
+      "spin.game_pays_fmt": "PAGO: %s",
+      "game.not_enough_credits": "CRÉDITOS INSUFICIENTES",
+      "common.back": "VOLVER"
     }
   }
 }
