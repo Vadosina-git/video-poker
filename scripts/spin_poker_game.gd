@@ -16,6 +16,8 @@ var _manager: SpinPokerManager
 var _current_denomination: int = 1
 var _animating: bool = false
 var _rush: bool = false
+var _balance_show_depth: bool = false
+var _depth_tooltip: Control = null
 
 # UI refs
 var _game_title: Label
@@ -95,6 +97,8 @@ func _ready() -> void:
 	_speed_level = SaveManager.speed_level
 	_current_denomination = SaveManager.denomination
 	_build_ui()
+	_current_denomination = _recommend_denomination()
+	SaveManager.denomination = _current_denomination
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
 	_update_bet_amount_btn()
@@ -169,7 +173,7 @@ func _build_ui() -> void:
 
 	# Build 15 card slots (3 rows × 5 cols), square cards (184×184 SVGs)
 	var back_tex: Texture2D = null
-	var card_back_path := SPIN_CARD_DIR + "blue_cover card.svg"
+	var card_back_path := SPIN_CARD_DIR + "card_back_spin.svg"
 	if ResourceLoader.exists(card_back_path):
 		back_tex = load(card_back_path)
 
@@ -206,39 +210,38 @@ func _build_ui() -> void:
 		right_col.add_child(lbl)
 		_right_line_labels.append(lbl)
 
-	# ── Status bar
+	# ── Status + game pays: inline labels (no separate bar, prevents layout jumps)
 	_status_label = Label.new()
 	_status_label.text = "PLACE YOUR BET"
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status_label.add_theme_font_size_override("font_size", 14)
+	_status_label.add_theme_font_size_override("font_size", 13)
 	_status_label.add_theme_color_override("font_color", Color.WHITE)
 	_status_label.add_theme_font_override("font", bold)
-	var status_bg := PanelContainer.new()
-	var sstyle := StyleBoxFlat.new()
-	sstyle.bg_color = Color(0, 0, 0, 0.8)
-	sstyle.content_margin_left = 16
-	sstyle.content_margin_right = 16
-	sstyle.content_margin_top = 4
-	sstyle.content_margin_bottom = 4
-	status_bg.add_theme_stylebox_override("panel", sstyle)
-	status_bg.add_child(_status_label)
-	root_vbox.add_child(status_bg)
 
-	# ── Game pays label
 	_game_pays_label = Label.new()
 	_game_pays_label.text = ""
 	_game_pays_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_game_pays_label.add_theme_font_size_override("font_size", 16)
+	_game_pays_label.add_theme_font_size_override("font_size", 14)
 	_game_pays_label.add_theme_color_override("font_color", COL_YELLOW)
 	_game_pays_label.add_theme_font_override("font", bold)
 	_game_pays_label.visible = false
-	root_vbox.add_child(_game_pays_label)
 
 	# ── Bottom bar
 	_build_bottom_bar(root_vbox, bold)
 
 
 func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
+	# Status row: status left, game pays right (fixed height, no layout jumps)
+	var status_row := HBoxContainer.new()
+	status_row.add_theme_constant_override("separation", 16)
+	status_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	root_vbox.add_child(status_row)
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_row.add_child(_status_label)
+	_game_pays_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_row.add_child(_game_pays_label)
+
+	# Info row: WIN | BET | CREDIT
 	var info_row := HBoxContainer.new()
 	info_row.add_theme_constant_override("separation", 12)
 	info_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -269,8 +272,12 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_balance_label.text = "CREDIT"
 	_balance_label.add_theme_font_size_override("font_size", 14)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
+	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_label.gui_input.connect(_on_balance_clicked)
 	info_row.add_child(_balance_label)
 	_balance_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_cd["box"].gui_input.connect(_on_balance_clicked)
 	info_row.add_child(_balance_cd["box"])
 
 	var btn_row := HBoxContainer.new()
@@ -377,7 +384,7 @@ func _get_suit_code(card: CardData) -> String:
 
 func _get_card_path(card: CardData) -> String:
 	if card == null:
-		return SPIN_CARD_DIR + "blue_cover card.svg"
+		return SPIN_CARD_DIR + "card_back_spin.svg"
 	if card.is_joker():
 		return SPIN_CARD_DIR + "vp joker red.svg"
 	if _variant.is_wild_card(card) and card.rank == CardData.Rank.TWO:
@@ -396,7 +403,7 @@ func _set_card_texture(row: int, col: int, card: CardData) -> void:
 
 
 func _set_card_back(row: int, col: int) -> void:
-	var path := SPIN_CARD_DIR + "blue_cover card.svg"
+	var path := SPIN_CARD_DIR + "card_back_spin.svg"
 	if ResourceLoader.exists(path):
 		_card_rects[row][col].texture = load(path)
 	_card_rects[row][col].modulate = Color.WHITE
@@ -840,6 +847,11 @@ func _on_deal_draw_pressed() -> void:
 	if _manager.state == SpinPokerManager.State.SPINNING or _manager.state == SpinPokerManager.State.DRAW_SPINNING:
 		_rush = true
 		return
+	# Check credits before deal
+	if _manager.state == SpinPokerManager.State.IDLE or _manager.state == SpinPokerManager.State.WIN_DISPLAY:
+		if _manager.get_total_bet() > SaveManager.credits:
+			_status_label.text = "NOT ENOUGH CREDITS"
+			return
 	_manager.deal_or_draw()
 
 
@@ -886,6 +898,8 @@ func _update_speed_label() -> void:
 
 func _on_bet_changed(new_bet: int) -> void:
 	_update_bet_display(new_bet)
+	if _balance_show_depth:
+		_update_balance(SaveManager.credits)
 
 
 func _on_credits_changed(new_credits: int) -> void:
@@ -894,8 +908,110 @@ func _on_credits_changed(new_credits: int) -> void:
 
 # ─── UI UPDATES ───────────────────────────────────────────────────────
 
+func _recommend_denomination() -> int:
+	var best: int = BET_AMOUNTS[0]
+	for amount in BET_AMOUNTS:
+		var worst_cost: int = SpinPokerManager.NUM_LINES * SpinPokerManager.MAX_BET * amount
+		if worst_cost <= SaveManager.credits:
+			best = amount
+		else:
+			break
+	return best
+
+
+func _calculate_game_depth() -> int:
+	var per_round: int = SpinPokerManager.NUM_LINES * _manager.bet * _current_denomination
+	if per_round <= 0:
+		return 0
+	return SaveManager.credits / per_round
+
+
 func _update_balance(credits: int) -> void:
-	SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits))
+	if _balance_show_depth:
+		var depth := _calculate_game_depth()
+		_balance_label.text = Translations.tr_key("game.games")
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+	else:
+		_balance_label.text = "CREDIT"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
+
+
+func _on_balance_clicked(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if not SaveManager.depth_hint_shown:
+			_show_depth_tooltip()
+			SaveManager.depth_hint_shown = true
+			SaveManager.save_game()
+		_balance_show_depth = not _balance_show_depth
+		_update_balance(SaveManager.credits)
+
+
+func _show_depth_tooltip() -> void:
+	if _depth_tooltip:
+		_depth_tooltip.queue_free()
+	_depth_tooltip = Control.new()
+	_depth_tooltip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_depth_tooltip.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_depth_tooltip)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed:
+			_depth_tooltip.queue_free()
+			_depth_tooltip = null
+	)
+	_depth_tooltip.add_child(dim)
+
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color("062015")
+	ps.set_border_width_all(3)
+	ps.border_color = COL_YELLOW
+	ps.set_corner_radius_all(12)
+	ps.content_margin_left = 28
+	ps.content_margin_right = 28
+	ps.content_margin_top = 20
+	ps.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_depth_tooltip.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+	var title := Label.new()
+	title.text = Translations.tr_key("game_depth.title")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", COL_YELLOW)
+	title.add_theme_font_override("font", bold)
+	vbox.add_child(title)
+
+	var msg := Label.new()
+	msg.text = Translations.tr_key("game_depth.description_multi")
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.add_theme_font_size_override("font_size", 16)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(msg)
+
+	var ok_btn := Button.new()
+	ok_btn.text = Translations.tr_key("common.got_it")
+	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
+	_style_btn(ok_btn, tex_y, COL_BTN_TEXT, 18, 140, 44)
+	ok_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ok_btn.pressed.connect(func() -> void:
+		if _depth_tooltip:
+			_depth_tooltip.queue_free()
+			_depth_tooltip = null
+	)
+	vbox.add_child(ok_btn)
 
 
 func _update_bet_display(bet: int) -> void:
