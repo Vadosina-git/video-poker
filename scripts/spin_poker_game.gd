@@ -124,7 +124,7 @@ func _build_ui() -> void:
 
 	# ── Top: title
 	_game_title = Label.new()
-	_game_title.text = "SPIN POKER — %s" % _variant.paytable.name.to_upper()
+	_game_title.text = "SPIN POKER — %s" % _variant.paytable.name.to_upper()  # SPIN POKER stays English (brand name)
 	_game_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_title.add_theme_font_size_override("font_size", 18)
 	_game_title.add_theme_color_override("font_color", COL_YELLOW)
@@ -212,7 +212,7 @@ func _build_ui() -> void:
 
 	# ── Status + game pays: inline labels (no separate bar, prevents layout jumps)
 	_status_label = Label.new()
-	_status_label.text = "PLACE YOUR BET"
+	_status_label.text = Translations.tr_key("game.place_your_bet")
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_label.add_theme_font_size_override("font_size", 13)
 	_status_label.add_theme_color_override("font_color", Color.WHITE)
@@ -248,7 +248,7 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	root_vbox.add_child(info_row)
 
 	_win_label = Label.new()
-	_win_label.text = "WIN"
+	_win_label.text = Translations.tr_key("game.win_label")
 	_win_label.add_theme_font_size_override("font_size", 14)
 	_win_label.add_theme_color_override("font_color", Color.WHITE)
 	info_row.add_child(_win_label)
@@ -257,7 +257,7 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	SaveManager.set_currency_value(_win_cd, "0")
 
 	_bet_display_label = Label.new()
-	_bet_display_label.text = "BET"
+	_bet_display_label.text = Translations.tr_key("game.total_bet")
 	_bet_display_label.add_theme_font_size_override("font_size", 14)
 	_bet_display_label.add_theme_color_override("font_color", Color.WHITE)
 	info_row.add_child(_bet_display_label)
@@ -269,7 +269,7 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	info_row.add_child(spacer)
 
 	_balance_label = Label.new()
-	_balance_label.text = "CREDIT"
+	_balance_label.text = Translations.tr_key("game.balance")
 	_balance_label.add_theme_font_size_override("font_size", 14)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -290,13 +290,13 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	var tex_green := load("res://assets/textures/btn_rect_green.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_green.svg") else null
 
 	_back_btn = Button.new()
-	_back_btn.text = "BACK"
+	_back_btn.text = Translations.tr_key("common.back")
 	_style_btn(_back_btn, tex_blue, Color.WHITE, 13, 70, 36)
 	_back_btn.pressed.connect(func() -> void: back_to_lobby.emit())
 	btn_row.add_child(_back_btn)
 
 	_see_pays_btn = Button.new()
-	_see_pays_btn.text = "SEE PAYS"
+	_see_pays_btn.text = Translations.tr_key("spin.see_pays")
 	_style_btn(_see_pays_btn, tex_blue, Color.WHITE, 13, 90, 36)
 	_see_pays_btn.pressed.connect(_show_paytable)
 	btn_row.add_child(_see_pays_btn)
@@ -314,13 +314,13 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	btn_row.add_child(_deal_draw_btn)
 
 	_bet_btn = Button.new()
-	_bet_btn.text = "BET"
+	_bet_btn.text = Translations.tr_key("game.bet_one")
 	_style_btn(_bet_btn, tex_yellow, COL_BTN_TEXT, 13, 70, 36)
 	_bet_btn.pressed.connect(_on_bet_one_pressed)
 	btn_row.add_child(_bet_btn)
 
 	_bet_max_btn = Button.new()
-	_bet_max_btn.text = "BET MAX"
+	_bet_max_btn.text = Translations.tr_key("game.bet_max")
 	_style_btn(_bet_max_btn, tex_yellow, COL_BTN_TEXT, 13, 90, 36)
 	_bet_max_btn.pressed.connect(_on_bet_max_pressed)
 	btn_row.add_child(_bet_max_btn)
@@ -488,7 +488,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = false
 			_bet_max_btn.disabled = false
 			_bet_amount_btn.disabled = false
-			_status_label.text = "PLACE YOUR BET"
+			_status_label.text = Translations.tr_key("game.place_your_bet")
 			_game_pays_label.visible = false
 
 		SpinPokerManager.State.SPINNING:
@@ -503,7 +503,7 @@ func _on_state_changed(new_state: int) -> void:
 			_deal_draw_btn.disabled = false
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
-			_status_label.text = "SELECT REELS TO HOLD THEN PRESS DRAW SPIN"
+			_status_label.text = Translations.tr_key("spin.select_reels")
 
 		SpinPokerManager.State.DRAW_SPINNING:
 			_deal_draw_btn.text = "STOP\nSPIN"
@@ -696,15 +696,15 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 
 	if total_payout > 0:
 		var display_total: int = total_payout / maxi(SaveManager.denomination, 1)
-		_game_pays_label.text = "GAME PAYS %d" % display_total
+		_game_pays_label.text = Translations.tr_key("spin.game_pays_fmt", [str(display_total)])
 		_game_pays_label.visible = true
 		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
-		_status_label.text = "GAME OVER"
+		_status_label.text = Translations.tr_key("spin.game_over")
 		_highlight_all_winning()
 		if _winning_lines.size() > 0:
 			_start_win_cycle()
 	else:
-		_status_label.text = "GAME OVER"
+		_status_label.text = Translations.tr_key("spin.game_over")
 		_game_pays_label.visible = false
 
 
@@ -850,7 +850,7 @@ func _on_deal_draw_pressed() -> void:
 	# Check credits before deal
 	if _manager.state == SpinPokerManager.State.IDLE or _manager.state == SpinPokerManager.State.WIN_DISPLAY:
 		if _manager.get_total_bet() > SaveManager.credits:
-			_status_label.text = "NOT ENOUGH CREDITS"
+			_status_label.text = Translations.tr_key("game.not_enough_credits")
 			return
 	_manager.deal_or_draw()
 
@@ -932,7 +932,7 @@ func _update_balance(credits: int) -> void:
 		_balance_label.text = Translations.tr_key("game.games")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
 	else:
-		_balance_label.text = "CREDIT"
+		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
 
 
@@ -1083,7 +1083,7 @@ func _show_bet_picker() -> void:
 	panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "SELECT BET"
+	title.text = Translations.tr_key("bet_select.title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color.WHITE)
