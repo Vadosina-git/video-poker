@@ -8,6 +8,8 @@ var last_variant: String = "jacks_or_better"
 var hand_count: int = 1  # 1=single, 3=triple, 5=five, 10=ten, 12=twelve, 25=twenty-five
 var speed_level: int = 1  # 0-3, default 1 (second speed)
 var bet_level: int = 1    # 1-5, default 1
+var ultimate_x: bool = false  # Ultimate X mode flag
+var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
 var settings := {
 	"sound_fx": true,
 	"music": true,
@@ -51,7 +53,8 @@ func create_currency_display(glyph_h: int, color: Color) -> Dictionary:
 
 ## Update currency display with a formatted string. Prepends chip icon.
 ## Pass glyph_h/color to change size/color, or 0/negative to keep current.
-func set_currency_value(cd: Dictionary, text: String, glyph_h: int = 0, color: Color = Color(-1, 0, 0)) -> void:
+## Pass show_chip=false to render without the chip glyph.
+func set_currency_value(cd: Dictionary, text: String, glyph_h: int = 0, color: Color = Color(-1, 0, 0), show_chip: bool = true) -> void:
 	if glyph_h > 0:
 		cd["glyph_h"] = glyph_h
 	if color.r >= 0:
@@ -74,7 +77,8 @@ func set_currency_value(cd: Dictionary, text: String, glyph_h: int = 0, color: C
 	for child in box.get_children():
 		box.remove_child(child)
 		child.free()
-	_add_glyph(box, "chip", h, col)
+	if show_chip:
+		_add_glyph(box, "chip", h, col)
 	for ch in text:
 		if ch in _glyphs:
 			_add_glyph(box, ch, h, col)
@@ -116,6 +120,27 @@ static func format_short(n: int) -> String:
 	return str(n)
 
 
+## Estimate pixel width of a currency string rendered at given glyph height.
+func estimate_currency_width(text: String, glyph_h: int, show_chip: bool = true) -> float:
+	var total: float = 0.0
+	if show_chip and "chip" in _glyphs:
+		var tex: Texture2D = _glyphs["chip"]
+		total += glyph_h * (tex.get_width() / maxf(tex.get_height(), 1.0))
+	for ch in text:
+		if ch in _glyphs:
+			var tex: Texture2D = _glyphs[ch]
+			total += glyph_h * (tex.get_width() / maxf(tex.get_height(), 1.0))
+	return total
+
+
+## Format number: prefer full format ("1,024"), fall back to short ("1K") if too wide.
+func format_auto(n: int, max_width: float, glyph_h: int) -> String:
+	var full := format_money(n)
+	if estimate_currency_width(full, glyph_h) <= max_width:
+		return full
+	return format_short(n)
+
+
 func save_game() -> void:
 	var data := {
 		"credits": credits,
@@ -124,6 +149,8 @@ func save_game() -> void:
 		"hand_count": hand_count,
 		"speed_level": speed_level,
 		"bet_level": bet_level,
+		"ultimate_x": ultimate_x,
+		"depth_hint_shown": depth_hint_shown,
 		"settings": settings,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -147,6 +174,8 @@ func load_game() -> void:
 	hand_count = int(data.get("hand_count", 1))
 	speed_level = int(data.get("speed_level", 1))
 	bet_level = int(data.get("bet_level", 1))
+	ultimate_x = bool(data.get("ultimate_x", false))
+	depth_hint_shown = bool(data.get("depth_hint_shown", false))
 	var saved_settings: Dictionary = data.get("settings", {})
 	for key in saved_settings:
 		if key in settings:

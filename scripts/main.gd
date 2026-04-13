@@ -29,13 +29,14 @@ func _on_machine_selected(variant_id: String) -> void:
 	var paytable: Paytable = _paytables[variant_id]
 	var variant := _create_variant(variant_id, paytable)
 	var hand_count: int = SaveManager.hand_count
+	var ultimate_x: bool = SaveManager.ultimate_x
 
-	if hand_count > 1:
+	if hand_count > 1 or ultimate_x:
 		# Multi-hand mode
 		var multi_scene := load("res://scenes/multi_hand_game.tscn")
 		if multi_scene:
 			var multi_game: Control = multi_scene.instantiate()
-			multi_game.setup(variant, hand_count)
+			multi_game.setup(variant, hand_count, ultimate_x)
 			add_child(multi_game)
 			_make_full_rect(multi_game)
 			_current_scene = multi_game

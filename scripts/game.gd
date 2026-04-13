@@ -35,6 +35,8 @@ var _double_amount: int = 0
 var _double_warned: bool = false  # show warning only once per session
 var _in_double: bool = false
 var _balance_cd: Dictionary  # currency display for balance
+var _balance_show_depth: bool = false
+var _depth_tooltip: Control = null
 var _bet_cd: Dictionary      # currency display for total bet
 var _variant: BaseVariant
 var _animating: bool = false
@@ -57,7 +59,7 @@ const ARROW_ACTIVE := "▶"
 const ARROW_INACTIVE := "▷"
 
 # Bet amounts for the picker
-const BET_AMOUNTS := [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 8192, 16384]
+const BET_AMOUNTS := [1, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000, 10000, 50000]
 var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 
@@ -113,6 +115,7 @@ func _ready() -> void:
 	_update_bet_amount_btn()
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_game_manager.bet)
+	_bet_one_btn.text = "BET %d" % _game_manager.bet
 	_set_status("PLACE YOUR BET")
 
 
@@ -151,7 +154,13 @@ func _apply_theme() -> void:
 	_balance_label.add_theme_font_size_override("font_size", 22)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
 	_balance_label.text = "BALANCE:"
+	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_balance_label.gui_input.connect(_on_balance_clicked)
 	_balance_cd = SaveManager.create_currency_display(18, Color.WHITE)
+	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_cd["box"].mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_balance_cd["box"].gui_input.connect(_on_balance_clicked)
 	_balance_label.get_parent().add_child(_balance_cd["box"])
 	_balance_label.get_parent().move_child(_balance_cd["box"], _balance_label.get_index() + 1)
 	# Top-up button
@@ -388,7 +397,99 @@ func _position_status_label() -> void:
 # --- Display helpers ---
 
 func _update_balance(credits: int) -> void:
-	SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits))
+	if _balance_show_depth:
+		var depth := _calculate_game_depth()
+		_balance_label.text = "GAMES:"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+	else:
+		_balance_label.text = "BALANCE:"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
+
+
+func _calculate_game_depth() -> int:
+	var per_round: int = _game_manager.bet * SaveManager.denomination
+	if per_round <= 0:
+		return 0
+	return SaveManager.credits / per_round
+
+
+func _on_balance_clicked(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if not SaveManager.depth_hint_shown:
+			_show_depth_tooltip()
+			SaveManager.depth_hint_shown = true
+			SaveManager.save_game()
+		_balance_show_depth = not _balance_show_depth
+		_update_balance(SaveManager.credits)
+
+
+func _show_depth_tooltip() -> void:
+	if _depth_tooltip:
+		_depth_tooltip.queue_free()
+	_depth_tooltip = Control.new()
+	_depth_tooltip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_depth_tooltip.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_depth_tooltip)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed:
+			_depth_tooltip.queue_free()
+			_depth_tooltip = null
+	)
+	_depth_tooltip.add_child(dim)
+
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = COL_BG
+	ps.set_border_width_all(3)
+	ps.border_color = COL_YELLOW
+	ps.set_corner_radius_all(12)
+	ps.content_margin_left = 28
+	ps.content_margin_right = 28
+	ps.content_margin_top = 20
+	ps.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_depth_tooltip.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+	var title := Label.new()
+	title.text = "GAME DEPTH"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", COL_YELLOW)
+	title.add_theme_font_override("font", bold)
+	vbox.add_child(title)
+
+	var msg := Label.new()
+	msg.text = "This number shows how many rounds you can play\nwith your current balance at the current bet.\n\nHigher = longer session."
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.add_theme_font_size_override("font_size", 16)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(msg)
+
+	var ok_btn := Button.new()
+	ok_btn.text = "GOT IT"
+	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
+	_style_button_texture(ok_btn, tex_y, COL_BTN_TEXT, 18, 140, 44)
+	ok_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ok_btn.pressed.connect(func() -> void:
+		if _depth_tooltip:
+			_depth_tooltip.queue_free()
+			_depth_tooltip = null
+	)
+	vbox.add_child(ok_btn)
 
 func _update_bet_display(bet: int) -> void:
 	var total: int = bet * SaveManager.denomination
@@ -438,6 +539,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_one_btn.disabled = false
 			_bet_max_btn.disabled = false
 			_deal_draw_btn.disabled = false
+			_bet_amount_btn.disabled = false
 			_double_btn.disabled = true
 			_in_double = false
 			_set_status("PLACE YOUR BET")
@@ -449,6 +551,7 @@ func _on_state_changed(new_state: int) -> void:
 			_deal_draw_btn.disabled = true
 			_bet_one_btn.disabled = true
 			_bet_max_btn.disabled = true
+			_bet_amount_btn.disabled = true
 			_set_win_dimmed()
 			_paytable_display.highlight_bet_column(_game_manager.bet)
 
@@ -582,7 +685,14 @@ func _animate_credits(target: int) -> void:
 
 func _update_credit_display(value: int) -> void:
 	_displayed_credits = value
-	SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value))
+	if _balance_show_depth:
+		var per_round: int = _game_manager.bet * SaveManager.denomination
+		var depth := (value / per_round) if per_round > 0 else 0
+		_balance_label.text = "GAMES:"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+	else:
+		_balance_label.text = "BALANCE:"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value), 0, Color(-1, 0, 0), true)
 
 
 func _on_credit_animation_done() -> void:
@@ -606,6 +716,9 @@ func _unlock_buttons() -> void:
 func _on_bet_changed(new_bet: int) -> void:
 	_update_bet_display(new_bet)
 	_paytable_display.highlight_bet_column(new_bet)
+	_bet_one_btn.text = "BET %d" % new_bet
+	if _balance_show_depth:
+		_update_balance(SaveManager.credits)
 
 
 func _on_bet_max_pressed() -> void:
@@ -804,7 +917,7 @@ func _update_bet_amount_btn() -> void:
 		_bet_btn_cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_bet_btn_cd["box"].set_anchors_preset(Control.PRESET_FULL_RECT)
 		_bet_amount_btn.add_child(_bet_btn_cd["box"])
-	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_short(_current_denomination))
+	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_auto(_current_denomination, 118, 20))
 
 func _on_bet_amount_pressed() -> void:
 	if _game_manager.state != GameManager.State.IDLE and _game_manager.state != GameManager.State.WIN_DISPLAY:
@@ -870,7 +983,7 @@ func _show_bet_picker() -> void:
 		_style_button_texture(btn, tex_yellow, COL_BTN_TEXT, 22, 140, 50)
 		var cd := SaveManager.create_currency_display(20, COL_BTN_TEXT)
 		cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
-		SaveManager.set_currency_value(cd, SaveManager.format_short(amount))
+		SaveManager.set_currency_value(cd, SaveManager.format_auto(amount, 108, 20))
 		cd["box"].set_anchors_preset(Control.PRESET_FULL_RECT)
 		btn.add_child(cd["box"])
 		btn.pressed.connect(func() -> void:
@@ -883,6 +996,7 @@ func _select_denomination(amount: int) -> void:
 	SaveManager.denomination = amount
 	_update_bet_amount_btn()
 	_update_bet_display(_game_manager.bet)
+	_bet_one_btn.text = "BET %d" % _game_manager.bet
 	_hide_bet_picker()
 
 func _hide_bet_picker() -> void:

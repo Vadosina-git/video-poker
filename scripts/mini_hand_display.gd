@@ -6,6 +6,9 @@ extends HBoxContainer
 var _card_textures: Array[TextureRect] = []
 var _face_up: Array[bool] = [false, false, false, false, false]
 var _variant: BaseVariant = null
+var _mult_display: HBoxContainer = null
+var _next_mult_display: VBoxContainer = null
+var _active_mult_display: HBoxContainer = null
 
 const SUIT_CODES := {
 	CardData.Suit.HEARTS: "h", CardData.Suit.DIAMONDS: "d",
@@ -107,7 +110,7 @@ var _overlay_parent: Control = null  # Set externally by multi_hand_game.gd
 
 var _is_losing: bool = false
 
-func show_result(hand_name: String, multiplier: int, badge_color: Color = Color("FFEC00")) -> void:
+func show_result(hand_name: String, multiplier: int, badge_color: Color = Color("FFEC00"), active_mult: int = 1) -> void:
 	hide_result()
 	if hand_name == "":
 		_is_losing = true
@@ -128,7 +131,11 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var label := Label.new()
-	label.text = "%s\nX%d" % [hand_name, multiplier]
+	if active_mult > 1:
+		var total := active_mult * multiplier
+		label.text = "%s\n%d x %d = %d" % [hand_name, active_mult, multiplier, total]
+	else:
+		label.text = "%s\nX%d" % [hand_name, multiplier]
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 12)
 	label.add_theme_color_override("font_color", Color.WHITE)
@@ -175,6 +182,97 @@ func dim_non_winning() -> void:
 func undim_all() -> void:
 	for i in _card_textures.size():
 		_card_textures[i].modulate = Color.WHITE
+
+
+func _ensure_mult_displays() -> void:
+	if not _next_mult_display:
+		_next_mult_display = VBoxContainer.new()
+		_next_mult_display.alignment = BoxContainer.ALIGNMENT_CENTER
+		_next_mult_display.add_theme_constant_override("separation", 0)
+		_next_mult_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_next_mult_display.visible = false
+		_next_mult_display.top_level = true
+		add_child(_next_mult_display)
+	if not _active_mult_display:
+		_active_mult_display = HBoxContainer.new()
+		_active_mult_display.alignment = BoxContainer.ALIGNMENT_CENTER
+		_active_mult_display.add_theme_constant_override("separation", 0)
+		_active_mult_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_active_mult_display.visible = false
+		_active_mult_display.top_level = true
+		add_child(_active_mult_display)
+
+
+func set_next_multiplier(mult: int) -> void:
+	_ensure_mult_displays()
+	if mult > 1 and is_inside_tree():
+		var rect := get_global_rect()
+		MultiplierGlyphs.set_next_value_x(_next_mult_display, mult, 10.0, 8.0)
+		_next_mult_display.size = Vector2(60, 30)
+		_next_mult_display.global_position = Vector2(rect.position.x - 64, rect.position.y)
+		_next_mult_display.visible = true
+	elif _next_mult_display:
+		_next_mult_display.visible = false
+
+
+func set_active_multiplier(mult: int) -> void:
+	_ensure_mult_displays()
+	if mult > 1 and is_inside_tree():
+		var rect := get_global_rect()
+		MultiplierGlyphs.set_value_x(_active_mult_display, mult, 18.0)
+		_active_mult_display.size = Vector2(50, 30)
+		_active_mult_display.global_position = Vector2(rect.position.x - 52, rect.position.y + rect.size.y - 28)
+		_active_mult_display.visible = true
+	elif _active_mult_display:
+		_active_mult_display.visible = false
+
+
+## Animate NEXT display (top-left) down to ACTIVE position (bottom-left) growing in size.
+## Simultaneously fade out existing ACTIVE display (if any).
+func animate_next_to_active() -> void:
+	if not _next_mult_display or not _next_mult_display.visible or not is_inside_tree():
+		return
+	_ensure_mult_displays()
+	var rect := get_global_rect()
+	var end_pos := Vector2(rect.position.x - 52, rect.position.y + rect.size.y - 28)
+	var tween := create_tween()
+	# Fade out existing active (fast, before NEXT arrives)
+	if _active_mult_display.visible:
+		tween.parallel().tween_property(_active_mult_display, "modulate:a", 0.0, 0.15)
+	# Move NEXT down and grow
+	tween.parallel().tween_property(_next_mult_display, "global_position", end_pos, 0.35).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(_next_mult_display, "scale", Vector2(1.6, 1.6), 0.35).set_ease(Tween.EASE_OUT)
+	await tween.finished
+	# Transfer NEXT → ACTIVE
+	var mult_num := MultiplierGlyphs.get_value(_next_mult_display)
+	_next_mult_display.visible = false
+	_next_mult_display.scale = Vector2.ONE
+	_active_mult_display.modulate.a = 1.0
+	set_active_multiplier(mult_num)
+
+
+func clear_multipliers() -> void:
+	if _next_mult_display:
+		_next_mult_display.visible = false
+	if _active_mult_display:
+		_active_mult_display.visible = false
+
+
+func set_multiplier(mult: int) -> void:
+	if not _mult_display:
+		_mult_display = HBoxContainer.new()
+		_mult_display.alignment = BoxContainer.ALIGNMENT_CENTER
+		_mult_display.add_theme_constant_override("separation", 0)
+		_mult_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_mult_display.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		_mult_display.offset_top = -24
+		_mult_display.offset_bottom = -4
+		add_child(_mult_display)
+	if mult > 1:
+		MultiplierGlyphs.set_value_x(_mult_display, mult, 16.0)
+		_mult_display.visible = true
+	else:
+		_mult_display.visible = false
 
 
 func apply_final_dim() -> void:

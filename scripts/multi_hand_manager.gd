@@ -16,22 +16,48 @@ var state: State = State.IDLE
 var variant: BaseVariant
 var num_hands: int = 3
 var bet: int = 1
+var ultimate_x: bool = false
 
 var primary_hand: Array[CardData] = []
 var held: Array[bool] = [false, false, false, false, false]
 var all_hands: Array = []
 var all_results: Array = []
+# Ultimate X: multiplier for each hand (index 0 = primary, 1+ = extras)
+var hand_multipliers: Array[int] = []  # Active multipliers applied this round
+var next_multipliers: Array[int] = []   # Earned from last round, shown as "NEXT"
 
 var _extra_decks: Array[Deck] = []
 
 
-func setup(p_variant: BaseVariant, p_num_hands: int) -> void:
+func setup(p_variant: BaseVariant, p_num_hands: int, p_ultimate_x: bool = false) -> void:
 	variant = p_variant
 	num_hands = p_num_hands
+	ultimate_x = p_ultimate_x
 	bet = clampi(SaveManager.bet_level, 1, MAX_BET)
 	_extra_decks.clear()
 	for i in (num_hands - 1):
 		_extra_decks.append(Deck.new(p_variant.paytable.deck_size))
+	# Initialize all multipliers to 1
+	hand_multipliers.clear()
+	next_multipliers.clear()
+	for i in num_hands:
+		hand_multipliers.append(1)
+		next_multipliers.append(1)
+
+
+## Ultimate X multiplier table based on hand rank
+static func get_ultimate_x_multiplier(hand_rank: HandEvaluator.HandRank) -> int:
+	match hand_rank:
+		HandEvaluator.HandRank.JACKS_OR_BETTER: return 2
+		HandEvaluator.HandRank.TWO_PAIR: return 3
+		HandEvaluator.HandRank.THREE_OF_A_KIND: return 4
+		HandEvaluator.HandRank.STRAIGHT: return 5
+		HandEvaluator.HandRank.FLUSH: return 6
+		HandEvaluator.HandRank.FULL_HOUSE: return 8
+		HandEvaluator.HandRank.FOUR_OF_A_KIND: return 10
+		HandEvaluator.HandRank.STRAIGHT_FLUSH: return 12
+		HandEvaluator.HandRank.ROYAL_FLUSH: return 12
+		_: return 1
 
 
 func bet_one() -> void:
@@ -69,10 +95,24 @@ func deal() -> void:
 	if state != State.IDLE:
 		return
 
-	var cost: int = bet * num_hands * SaveManager.denomination
+	var ux_active: bool = ultimate_x and bet == MAX_BET
+	var bet_multiplier := 2 if ux_active else 1
+	var cost: int = bet * num_hands * SaveManager.denomination * bet_multiplier
 	if not SaveManager.deduct_credits(cost):
 		return
 	credits_changed.emit(SaveManager.credits)
+
+	# Ultimate X: activate next_multipliers for this round (only at MAX BET)
+	if ux_active:
+		hand_multipliers = next_multipliers.duplicate()
+	else:
+		# Reset all multipliers to 1 when not at max bet
+		hand_multipliers.clear()
+		for i in num_hands:
+			hand_multipliers.append(1)
+	next_multipliers.clear()
+	for i in num_hands:
+		next_multipliers.append(1)
 
 	primary_hand = variant.deal()
 	held = [false, false, false, false, false]
@@ -134,17 +174,32 @@ func _evaluate_all() -> void:
 
 	all_results.clear()
 	var total_payout: int = 0
+	var ux_active: bool = ultimate_x and bet == MAX_BET
+	# Earned multipliers for next round
+	var earned_multipliers: Array[int] = []
 
-	for hand_cards in all_hands:
+	for i in all_hands.size():
+		var hand_cards: Array = all_hands[i]
 		var hand_rank := variant.evaluate(hand_cards)
-		var payout: int = variant.get_payout(hand_rank, bet) * SaveManager.denomination
+		var base_payout: int = variant.get_payout(hand_rank, bet) * SaveManager.denomination
+		var mult: int = hand_multipliers[i] if i < hand_multipliers.size() and ux_active else 1
+		var payout: int = base_payout * mult
 		var hand_name: String = variant.get_hand_name(hand_rank)
 		all_results.append({
 			"hand_rank": hand_rank,
 			"hand_name": hand_name,
 			"payout": payout,
+			"base_payout": base_payout,
+			"multiplier": mult,
 		})
 		total_payout += payout
+		# Calculate earned multiplier for next round (only at MAX BET)
+		if ux_active:
+			earned_multipliers.append(get_ultimate_x_multiplier(hand_rank))
+
+	# Store earned multipliers as next_multipliers (to be activated on next deal)
+	if ux_active:
+		next_multipliers = earned_multipliers
 
 	if total_payout > 0:
 		SaveManager.add_credits(total_payout)
