@@ -62,11 +62,13 @@ const SPEED_CONFIGS := [
 	{"spin_ms": 20, "base_spin_ms": 0,   "col_stop_ms": 0},
 ]
 
-# Card path helpers
+# Card path helpers — spin poker uses square SVG cards from cards_spin/
+const SPIN_CARD_DIR := "res://assets/cards/cards_spin/"
 const SUIT_CODES := {
 	CardData.Suit.HEARTS: "h", CardData.Suit.DIAMONDS: "d",
 	CardData.Suit.CLUBS: "c", CardData.Suit.SPADES: "s",
 }
+const SUIT_CODES_CLUBS_CYR := "\u0441"  # Cyrillic с (used for number cards in spin assets)
 const RANK_CODES := {
 	CardData.Rank.TWO: "2", CardData.Rank.THREE: "3", CardData.Rank.FOUR: "4",
 	CardData.Rank.FIVE: "5", CardData.Rank.SIX: "6", CardData.Rank.SEVEN: "7",
@@ -74,6 +76,7 @@ const RANK_CODES := {
 	CardData.Rank.JACK: "j", CardData.Rank.QUEEN: "q", CardData.Rank.KING: "k",
 	CardData.Rank.ACE: "a",
 }
+const FACE_RANKS := [CardData.Rank.JACK, CardData.Rank.QUEEN, CardData.Rank.KING, CardData.Rank.ACE]
 
 
 func setup(variant: BaseVariant) -> void:
@@ -160,14 +163,13 @@ func _build_ui() -> void:
 
 	_grid_container = GridContainer.new()
 	_grid_container.columns = 5
-	_grid_container.add_theme_constant_override("h_separation", 2)
+	_grid_container.add_theme_constant_override("h_separation", 0)
 	_grid_container.add_theme_constant_override("v_separation", 0)
 	_grid_panel.add_child(_grid_container)
 
-	# Build 15 card slots (3 rows × 5 cols)
-	# Target: grid ~730×390 → each cell ~144×130, cards keep aspect inside
+	# Build 15 card slots (3 rows × 5 cols), square cards (184×184 SVGs)
 	var back_tex: Texture2D = null
-	var card_back_path := "res://assets/cards/card_back.png"
+	var card_back_path := SPIN_CARD_DIR + "blue_cover card.svg"
 	if ResourceLoader.exists(card_back_path):
 		back_tex = load(card_back_path)
 
@@ -177,7 +179,7 @@ func _build_ui() -> void:
 			var tex_rect := TextureRect.new()
 			tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tex_rect.custom_minimum_size = Vector2(140, 126)
+			tex_rect.custom_minimum_size = Vector2(120, 120)
 			tex_rect.texture = back_tex
 			tex_rect.mouse_filter = Control.MOUSE_FILTER_STOP if row == 1 else Control.MOUSE_FILTER_IGNORE
 			if row == 1:
@@ -364,17 +366,26 @@ func _make_line_label(line_idx: int) -> Label:
 
 # ─── CARD RENDERING ────────────────────────────────────────────────────
 
+func _get_suit_code(card: CardData) -> String:
+	if card.suit == CardData.Suit.CLUBS:
+		# Number cards use Cyrillic "с", face cards use Latin "c" in spin assets
+		if card.rank in FACE_RANKS:
+			return "c"
+		return SUIT_CODES_CLUBS_CYR
+	return SUIT_CODES.get(card.suit, "")
+
+
 func _get_card_path(card: CardData) -> String:
 	if card == null:
-		return "res://assets/cards/card_back.png"
+		return SPIN_CARD_DIR + "blue_cover card.svg"
 	if card.is_joker():
-		return "res://assets/cards/card_vp_joker_red.png"
+		return SPIN_CARD_DIR + "vp joker red.svg"
 	if _variant.is_wild_card(card) and card.rank == CardData.Rank.TWO:
-		var s: String = SUIT_CODES.get(card.suit, "")
-		return "res://assets/cards/card_vp_wild%s.png" % s
+		var s := _get_suit_code(card)
+		return SPIN_CARD_DIR + "card_vp_wild%s.svg" % s
 	var r: String = RANK_CODES.get(card.rank, "")
-	var s: String = SUIT_CODES.get(card.suit, "")
-	return "res://assets/cards/card_vp_%s%s.png" % [r, s]
+	var s := _get_suit_code(card)
+	return SPIN_CARD_DIR + "card_vp_%s%s.svg" % [r, s]
 
 
 func _set_card_texture(row: int, col: int, card: CardData) -> void:
@@ -385,7 +396,7 @@ func _set_card_texture(row: int, col: int, card: CardData) -> void:
 
 
 func _set_card_back(row: int, col: int) -> void:
-	var path := "res://assets/cards/card_back.png"
+	var path := SPIN_CARD_DIR + "blue_cover card.svg"
 	if ResourceLoader.exists(path):
 		_card_rects[row][col].texture = load(path)
 	_card_rects[row][col].modulate = Color.WHITE
@@ -651,12 +662,20 @@ func _animate_spin_draw(grid: Array) -> void:
 
 func _build_random_card_paths(count: int) -> Array[String]:
 	var paths: Array[String] = []
-	var suits := ["h", "d", "c", "s"]
-	var ranks := ["2","3","4","5","6","7","8","9","10","j","q","k","a"]
+	var suits_std := ["h", "d", "s"]
+	var num_ranks := ["2","3","4","5","6","7","8","9","10"]
+	var face_ranks := ["j","q","k","a"]
 	for _i in count:
-		var r: String = ranks[randi() % ranks.size()]
-		var s: String = suits[randi() % suits.size()]
-		paths.append("res://assets/cards/card_vp_%s%s.png" % [r, s])
+		if randi() % 2 == 0:
+			var r: String = num_ranks[randi() % num_ranks.size()]
+			var all_s := suits_std + [SUIT_CODES_CLUBS_CYR]
+			var s: String = all_s[randi() % all_s.size()]
+			paths.append(SPIN_CARD_DIR + "card_vp_%s%s.svg" % [r, s])
+		else:
+			var r: String = face_ranks[randi() % face_ranks.size()]
+			var all_s := suits_std + ["c"]
+			var s: String = all_s[randi() % all_s.size()]
+			paths.append(SPIN_CARD_DIR + "card_vp_%s%s.svg" % [r, s])
 	return paths
 
 
