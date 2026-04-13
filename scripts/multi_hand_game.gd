@@ -32,6 +32,8 @@ var _rush_round: bool = false
 var _num_hands: int = 3
 var _blink_tween: Tween = null
 var _bet_flash_tween: Tween
+var _idle_blink_tween: Tween = null
+var _idle_timer: SceneTreeTimer = null
 var _balance_cd: Dictionary
 var _balance_show_depth: bool = false
 var _depth_tooltip: Control = null
@@ -922,8 +924,10 @@ func _on_state_changed(new_state: int) -> void:
 			_win_label.add_theme_color_override("font_color", COL_YELLOW)
 			for card in _primary_cards:
 				card.set_interactive(false)
+			_start_idle_blink_timer()
 
 		MultiHandManager.State.DEALING:
+			_stop_idle_blink()
 			_deal_draw_btn.disabled = true
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
@@ -955,6 +959,35 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
 			_hands_btn.disabled = false
+
+
+func _start_idle_blink_timer() -> void:
+	_stop_idle_blink()
+	_idle_timer = get_tree().create_timer(5.0)
+	_idle_timer.timeout.connect(_begin_deal_blink)
+
+func _begin_deal_blink() -> void:
+	_idle_timer = null
+	if _idle_blink_tween:
+		_idle_blink_tween.kill()
+	_idle_blink_tween = create_tween().set_loops()
+	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
+	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
+
+func _stop_idle_blink() -> void:
+	_idle_timer = null
+	if _idle_blink_tween:
+		_idle_blink_tween.kill()
+		_idle_blink_tween = null
+	_deal_draw_btn.modulate.a = 1.0
+
+
+func _flash_balance_red() -> void:
+	var tw := create_tween()
+	tw.tween_property(_balance_cd["box"], "modulate", Color(1, 0.3, 0.3), 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color.WHITE, 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color(1, 0.3, 0.3), 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color.WHITE, 0.15)
 
 
 func _show_mini_held(mini: MiniHandDisplay) -> void:
@@ -1041,6 +1074,13 @@ func _on_deal_draw_pressed() -> void:
 			await get_tree().create_timer(0.08).timeout
 		_manager.draw()
 	else:
+		if _manager.state == MultiHandManager.State.IDLE or _manager.state == MultiHandManager.State.WIN_DISPLAY:
+			var ux_mult := 2 if _ultra_vp else 1
+			var cost: int = _manager.bet * _num_hands * SaveManager.denomination * ux_mult
+			if cost > SaveManager.credits:
+				_flash_balance_red()
+				_show_shop()
+				return
 		# Starting new round — animate NEXT → ACTIVE first (Ultra VP)
 		if _ultra_vp and _manager.bet == MultiHandManager.MAX_BET:
 			_animating = true

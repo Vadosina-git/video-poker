@@ -53,6 +53,8 @@ var _winning_lines: Array = []
 var _current_win_cycle: int = -1
 var _blink_tween: Tween
 var _win_badge: PanelContainer = null
+var _idle_blink_tween: Tween = null
+var _idle_timer: SceneTreeTimer = null
 
 # Speed
 var _speed_level: int = 1
@@ -490,8 +492,10 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_amount_btn.disabled = false
 			_status_label.text = Translations.tr_key("game.place_your_bet")
 			_game_pays_label.visible = false
+			_start_idle_blink_timer()
 
 		SpinPokerManager.State.SPINNING:
+			_stop_idle_blink()
 			_deal_draw_btn.text = "STOP\nSPIN"
 			_deal_draw_btn.disabled = false
 			_bet_btn.disabled = true
@@ -838,6 +842,36 @@ func _draw_lines() -> void:
 		_line_draw_node.draw_polyline(points, color, 3.0, true)
 
 
+# ─── IDLE BLINK & BALANCE FLASH ──────────────────────────────────────
+
+func _start_idle_blink_timer() -> void:
+	_stop_idle_blink()
+	_idle_timer = get_tree().create_timer(5.0)
+	_idle_timer.timeout.connect(_begin_deal_blink)
+
+func _begin_deal_blink() -> void:
+	_idle_timer = null
+	if _idle_blink_tween:
+		_idle_blink_tween.kill()
+	_idle_blink_tween = create_tween().set_loops()
+	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
+	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
+
+func _stop_idle_blink() -> void:
+	_idle_timer = null
+	if _idle_blink_tween:
+		_idle_blink_tween.kill()
+		_idle_blink_tween = null
+	_deal_draw_btn.modulate.a = 1.0
+
+func _flash_balance_red() -> void:
+	var tw := create_tween()
+	tw.tween_property(_balance_cd["box"], "modulate", Color(1, 0.3, 0.3), 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color.WHITE, 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color(1, 0.3, 0.3), 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color.WHITE, 0.15)
+
+
 # ─── BUTTON HANDLERS ─────────────────────────────────────────────────
 
 func _on_deal_draw_pressed() -> void:
@@ -850,7 +884,8 @@ func _on_deal_draw_pressed() -> void:
 	# Check credits before deal
 	if _manager.state == SpinPokerManager.State.IDLE or _manager.state == SpinPokerManager.State.WIN_DISPLAY:
 		if _manager.get_total_bet() > SaveManager.credits:
-			_status_label.text = Translations.tr_key("game.not_enough_credits")
+			_flash_balance_red()
+			_show_bet_picker()
 			return
 	_manager.deal_or_draw()
 
