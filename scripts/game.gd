@@ -62,6 +62,8 @@ const ARROW_INACTIVE := "▷"
 const BET_AMOUNTS := [1, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000, 10000, 50000]
 var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
+var _idle_blink_tween: Tween = null
+var _idle_timer: SceneTreeTimer = null
 
 
 func setup(variant: BaseVariant) -> void:
@@ -547,8 +549,10 @@ func _on_state_changed(new_state: int) -> void:
 			for card_vis in _card_visuals:
 				card_vis.set_interactive(false)
 			_paytable_display.highlight_bet_column(_game_manager.bet)
+			_start_idle_blink_timer()
 
 		GameManager.State.DEALING:
+			_stop_idle_blink()
 			_deal_draw_btn.disabled = true
 			_bet_one_btn.disabled = true
 			_bet_max_btn.disabled = true
@@ -639,7 +643,22 @@ func _on_deal_draw_pressed() -> void:
 		_animating = false
 		_game_manager.on_draw_animation_complete()
 	else:
+		# G.11: Check if can afford before dealing
+		if _game_manager.state == GameManager.State.IDLE or _game_manager.state == GameManager.State.WIN_DISPLAY:
+			var cost: int = _game_manager.bet * _current_denomination
+			if cost > SaveManager.credits:
+				_flash_balance_red()
+				_show_shop()
+				return
 		_game_manager.deal_or_draw()
+
+
+func _flash_balance_red() -> void:
+	var tw := create_tween()
+	tw.tween_property(_balance_cd["box"], "modulate", Color(1, 0.3, 0.3), 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color.WHITE, 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color(1, 0.3, 0.3), 0.15)
+	tw.tween_property(_balance_cd["box"], "modulate", Color.WHITE, 0.15)
 
 
 func _on_card_replaced(_index: int, _new_card: CardData) -> void:
@@ -924,6 +943,35 @@ func _on_bet_amount_pressed() -> void:
 	if _game_manager.state != GameManager.State.IDLE and _game_manager.state != GameManager.State.WIN_DISPLAY:
 		return
 	_show_bet_picker()
+
+
+# ─── IDLE BLINK (G.10) ───────────────────────────────────────────────
+
+func _start_idle_blink_timer() -> void:
+	_stop_idle_blink()
+	_idle_timer = get_tree().create_timer(5.0)
+	_idle_timer.timeout.connect(_begin_deal_blink)
+
+
+func _begin_deal_blink() -> void:
+	_idle_timer = null
+	if _idle_blink_tween:
+		_idle_blink_tween.kill()
+	_idle_blink_tween = create_tween().set_loops()
+	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
+	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
+
+
+func _stop_idle_blink() -> void:
+	if _idle_timer and _idle_timer.time_left > 0:
+		# Can't cancel SceneTreeTimer, just disconnect
+		pass
+	_idle_timer = null
+	if _idle_blink_tween:
+		_idle_blink_tween.kill()
+		_idle_blink_tween = null
+	_deal_draw_btn.modulate.a = 1.0
+
 
 func _on_back_pressed() -> void:
 	var overlay := Control.new()
