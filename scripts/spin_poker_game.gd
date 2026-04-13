@@ -124,10 +124,10 @@ func _build_ui() -> void:
 	_game_title.add_theme_font_override("font", bold)
 	root_vbox.add_child(_game_title)
 
-	# ── Middle: grid area with line labels
+	# ── Middle: grid area with line labels — centered, fixed proportions
 	var grid_area := HBoxContainer.new()
 	grid_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	grid_area.add_theme_constant_override("separation", 2)
+	grid_area.add_theme_constant_override("separation", 0)
 	grid_area.alignment = BoxContainer.ALIGNMENT_CENTER
 	root_vbox.add_child(grid_area)
 
@@ -135,35 +135,37 @@ func _build_ui() -> void:
 	var left_col := VBoxContainer.new()
 	left_col.add_theme_constant_override("separation", 0)
 	left_col.alignment = BoxContainer.ALIGNMENT_CENTER
-	left_col.custom_minimum_size.x = 28
+	left_col.custom_minimum_size.x = 24
 	grid_area.add_child(left_col)
 	for i in 10:
 		var lbl := _make_line_label(i)
 		left_col.add_child(lbl)
 		_left_line_labels.append(lbl)
 
-	# Grid panel
+	# Grid panel — silver border frame, no expand, centered
 	_grid_panel = PanelContainer.new()
 	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = GRID_BG
-	panel_style.set_border_width_all(2)
-	panel_style.border_color = Color(0.6, 0.6, 0.7)
-	panel_style.set_corner_radius_all(4)
-	panel_style.content_margin_left = 2
-	panel_style.content_margin_right = 2
-	panel_style.content_margin_top = 2
-	panel_style.content_margin_bottom = 2
+	panel_style.bg_color = Color(0.75, 0.75, 0.8)  # Silver/light gray frame
+	panel_style.set_border_width_all(3)
+	panel_style.border_color = Color(0.85, 0.85, 0.9)
+	panel_style.set_corner_radius_all(2)
+	panel_style.content_margin_left = 3
+	panel_style.content_margin_right = 3
+	panel_style.content_margin_top = 3
+	panel_style.content_margin_bottom = 3
 	_grid_panel.add_theme_stylebox_override("panel", panel_style)
-	_grid_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_grid_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_grid_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid_area.add_child(_grid_panel)
 
 	_grid_container = GridContainer.new()
 	_grid_container.columns = 5
-	_grid_container.add_theme_constant_override("h_separation", 1)
-	_grid_container.add_theme_constant_override("v_separation", 1)
+	_grid_container.add_theme_constant_override("h_separation", 2)
+	_grid_container.add_theme_constant_override("v_separation", 0)
 	_grid_panel.add_child(_grid_container)
 
 	# Build 15 card slots (3 rows × 5 cols)
+	# Target: grid ~730×390 → each cell ~144×130, cards keep aspect inside
 	var back_tex: Texture2D = null
 	var card_back_path := "res://assets/cards/card_back.png"
 	if ResourceLoader.exists(card_back_path):
@@ -175,10 +177,8 @@ func _build_ui() -> void:
 			var tex_rect := TextureRect.new()
 			tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tex_rect.custom_minimum_size = Vector2(70, 98)
-			tex_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			tex_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
-			tex_rect.texture = back_tex  # All start as card backs
+			tex_rect.custom_minimum_size = Vector2(140, 126)
+			tex_rect.texture = back_tex
 			tex_rect.mouse_filter = Control.MOUSE_FILTER_STOP if row == 1 else Control.MOUSE_FILTER_IGNORE
 			if row == 1:
 				var c := col
@@ -197,7 +197,7 @@ func _build_ui() -> void:
 	var right_col := VBoxContainer.new()
 	right_col.add_theme_constant_override("separation", 0)
 	right_col.alignment = BoxContainer.ALIGNMENT_CENTER
-	right_col.custom_minimum_size.x = 28
+	right_col.custom_minimum_size.x = 24
 	grid_area.add_child(right_col)
 	for i in range(10, 20):
 		var lbl := _make_line_label(i)
