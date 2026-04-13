@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 
 SaveManager="*res://scripts/save_manager.gd"
 SoundManager="*res://scripts/sound_manager.gd"
+Translations="*res://scripts/translations.gd"
 
 [display]
 

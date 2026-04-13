@@ -132,7 +132,7 @@ func _ready() -> void:
 
 	# Double button
 	_double_btn = Button.new()
-	_double_btn.text = "DOUBLE"
+	_double_btn.text = Translations.tr_key("game.double")
 	_double_btn.disabled = true
 	_double_btn.pressed.connect(_on_double_pressed)
 
@@ -159,15 +159,14 @@ func _ready() -> void:
 	_update_speed_display()
 
 	_update_title()
-	_hands_btn.text = "ULTIMATE X" if _ultimate_x else ("%d HANDS" % _num_hands)
-	_hands_btn.text = "%d HANDS" % _num_hands
+	_hands_btn.text = Translations.tr_key("game.ultimate_x_btn") if _ultimate_x else Translations.tr_key("game.hands_n_fmt", [_num_hands])
 	_current_denomination = _recommend_denomination()
 	SaveManager.denomination = _current_denomination
 	_update_bet_amount_btn()
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
-	_bet_btn.text = "BET %d" % _manager.bet
-	_win_label.text = "WIN:"
+	_bet_btn.text = Translations.tr_key("game.bet_one_fmt", [_manager.bet])
+	_win_label.text = Translations.tr_key("game.win_label")
 
 
 func _setup_background() -> void:
@@ -264,20 +263,20 @@ func _apply_theme() -> void:
 	ir_parent.move_child(ir_margin, ir_idx)
 	_win_label.add_theme_font_size_override("font_size", 16)
 	_win_label.add_theme_color_override("font_color", COL_YELLOW)
-	_win_label.text = "WIN:"
+	_win_label.text = Translations.tr_key("game.win_label")
 	_win_cd = SaveManager.create_currency_display(16, COL_YELLOW)
 	_info_row.add_child(_win_cd["box"])
 	_info_row.move_child(_win_cd["box"], _win_label.get_index() + 1)
 	SaveManager.set_currency_value(_win_cd, "0")
 	_total_bet_label.add_theme_font_size_override("font_size", 16)
 	_total_bet_label.add_theme_color_override("font_color", Color.WHITE)
-	_total_bet_label.text = "TOTAL BET:"
+	_total_bet_label.text = Translations.tr_key("game.total_bet")
 	_bet_cd = SaveManager.create_currency_display(16, Color.WHITE)
 	_info_row.add_child(_bet_cd["box"])
 	_info_row.move_child(_bet_cd["box"], _total_bet_label.get_index() + 1)
 	_balance_label.add_theme_font_size_override("font_size", 16)
 	_balance_label.add_theme_color_override("font_color", COL_YELLOW)
-	_balance_label.text = "BALANCE:"
+	_balance_label.text = Translations.tr_key("game.balance")
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_balance_label.gui_input.connect(_on_balance_clicked)
@@ -658,7 +657,7 @@ func _switch_hand_count(new_count: int) -> void:
 	_num_hands = new_count
 	SaveManager.hand_count = new_count
 	SaveManager.save_game()
-	_hands_btn.text = "ULTIMATE X" if _ultimate_x else ("%d HANDS" % _num_hands)
+	_hands_btn.text = Translations.tr_key("game.ultimate_x_btn") if _ultimate_x else Translations.tr_key("game.hands_n_fmt", [_num_hands])
 	_manager.setup(_variant, _num_hands, _ultimate_x)
 	# Load saved UX state for new hand count
 	_load_ux_state()
@@ -756,10 +755,10 @@ func _is_rushing() -> bool:
 func _update_balance(credits: int) -> void:
 	if _balance_show_depth:
 		var depth := _calculate_game_depth()
-		_balance_label.text = "GAMES:"
+		_balance_label.text = Translations.tr_key("game.games")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
 	else:
-		_balance_label.text = "BALANCE:"
+		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
 
 
@@ -824,7 +823,7 @@ func _show_depth_tooltip() -> void:
 	var bold := SystemFont.new()
 	bold.font_weight = 700
 	var title := Label.new()
-	title.text = "GAME DEPTH"
+	title.text = Translations.tr_key("game_depth.title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", COL_YELLOW)
@@ -832,14 +831,14 @@ func _show_depth_tooltip() -> void:
 	vbox.add_child(title)
 
 	var msg := Label.new()
-	msg.text = "This number shows how many rounds you can play\nwith your current balance at the current bet\nand hand count.\n\nHigher = longer session."
+	msg.text = Translations.tr_key("game_depth.description_multi")
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.add_theme_font_size_override("font_size", 16)
 	msg.add_theme_color_override("font_color", Color.WHITE)
 	vbox.add_child(msg)
 
 	var ok_btn := Button.new()
-	ok_btn.text = "GOT IT"
+	ok_btn.text = Translations.tr_key("common.got_it")
 	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
 	_style_btn(ok_btn, tex_y, COL_BTN_TEXT, 18, 140, 44)
 	ok_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -907,7 +906,7 @@ func _update_bet_amount_btn() -> void:
 func _on_state_changed(new_state: int) -> void:
 	match new_state:
 		MultiHandManager.State.IDLE:
-			_deal_draw_btn.text = "DEAL"
+			_deal_draw_btn.text = Translations.tr_key("game.deal")
 			_bet_btn.disabled = false
 			_bet_max_btn.disabled = false
 			_deal_draw_btn.disabled = false
@@ -915,7 +914,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_amount_btn.disabled = false
 			_double_btn.disabled = true
 			_in_double = false
-			_win_label.text = "PLACE YOUR BET"
+			_win_label.text = Translations.tr_key("game.place_your_bet")
 			_win_cd["box"].visible = false
 			_win_label.add_theme_color_override("font_color", COL_YELLOW)
 			for card in _primary_cards:
@@ -931,9 +930,9 @@ func _on_state_changed(new_state: int) -> void:
 			_win_label.text = ""
 
 		MultiHandManager.State.HOLDING:
-			_deal_draw_btn.text = "DRAW"
+			_deal_draw_btn.text = Translations.tr_key("game.draw")
 			_deal_draw_btn.disabled = false
-			_win_label.text = "HOLD CARDS, THEN DRAW"
+			_win_label.text = Translations.tr_key("game.hold_cards_then_draw")
 			for i in _primary_cards.size():
 				_primary_cards[i].set_interactive(true)
 				if _manager.held[i]:
@@ -948,7 +947,7 @@ func _on_state_changed(new_state: int) -> void:
 				card.set_interactive(false)
 
 		MultiHandManager.State.WIN_DISPLAY:
-			_deal_draw_btn.text = "DEAL"
+			_deal_draw_btn.text = Translations.tr_key("game.deal")
 			_deal_draw_btn.disabled = true
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
@@ -1148,12 +1147,12 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 
 	# Show total win + animate credits
 	if total_payout > 0:
-		_win_label.text = "WIN:"
+		_win_label.text = Translations.tr_key("game.win_label")
 		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
 		_win_cd["box"].visible = true
 		_win_label.add_theme_color_override("font_color", COL_YELLOW)
 	else:
-		_win_label.text = "NO WIN"
+		_win_label.text = Translations.tr_key("game.no_win")
 		_win_cd["box"].visible = false
 		_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 		_delay_unlock_buttons()
@@ -1199,10 +1198,10 @@ func _update_info_card_status() -> void:
 		return
 	var ux_active := _manager.bet == MultiHandManager.MAX_BET
 	if ux_active:
-		_info_card_active_label.text = "ACTIVE!"
+		_info_card_active_label.text = Translations.tr_key("info_card.active")
 		_info_card_active_label.add_theme_color_override("font_color", Color("07E02F"))
 	else:
-		_info_card_active_label.text = "PRESS TO\nACTIVATE"
+		_info_card_active_label.text = Translations.tr_key("info_card.press_to_activate")
 		_info_card_active_label.add_theme_color_override("font_color", Color("FF4444"))
 
 
@@ -1700,7 +1699,7 @@ func _build_info_card() -> void:
 	_info_card.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "ULTIMATE\nX"
+	title.text = Translations.tr_key("info_card.ultimate_x_title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", Color("FFEC00"))
@@ -1715,7 +1714,7 @@ func _build_info_card() -> void:
 	vbox.add_child(sep)
 
 	var desc := Label.new()
-	desc.text = "Win → Next hand\ngets multiplier!\nUp to 12x"
+	desc.text = Translations.tr_key("info_card.description")
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
 	desc.add_theme_font_size_override("font_size", 12)
@@ -1820,10 +1819,10 @@ func _update_credit_display(value: int) -> void:
 		var bet_mult := 2 if ux_active else 1
 		var per_round: int = _manager.bet * _num_hands * SaveManager.denomination * bet_mult
 		var depth := (value / per_round) if per_round > 0 else 0
-		_balance_label.text = "GAMES:"
+		_balance_label.text = Translations.tr_key("game.games")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
 	else:
-		_balance_label.text = "BALANCE:"
+		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value), 0, Color(-1, 0, 0), true)
 
 
@@ -1882,7 +1881,7 @@ func _on_bet_max_pressed() -> void:
 func _on_bet_changed(new_bet: int) -> void:
 	_update_bet_display(new_bet)
 	_update_paytable_badges()
-	_bet_btn.text = "BET %d" % new_bet
+	_bet_btn.text = Translations.tr_key("game.bet_one_fmt", [new_bet])
 	if _balance_show_depth:
 		_update_balance(SaveManager.credits)
 
@@ -1968,7 +1967,7 @@ func _show_bet_picker() -> void:
 	panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "SELECT BET"
+	title.text = Translations.tr_key("bet_select.title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color.WHITE)
@@ -2047,7 +2046,7 @@ func _show_shop() -> void:
 	panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "GET CHIPS"
+	title.text = Translations.tr_key("shop.title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", COL_YELLOW)
@@ -2071,7 +2070,7 @@ func _show_shop() -> void:
 		item.add_child(cl["box"])
 
 		var buy_btn := Button.new()
-		buy_btn.text = "FREE"
+		buy_btn.text = Translations.tr_key("common.free")
 		_style_btn(buy_btn, tex_green, Color.WHITE, 16, 120, 36)
 		buy_btn.pressed.connect(_on_shop_buy.bind(amount))
 		item.add_child(buy_btn)
@@ -2148,7 +2147,7 @@ func _show_info() -> void:
 
 	# Title
 	var title := Label.new()
-	title.text = "ULTIMATE X VIDEO POKER" if _ultimate_x else "MULTI-HAND VIDEO POKER"
+	title.text = Translations.tr_key("info.title_ultimate_x") if _ultimate_x else Translations.tr_key("info.title_multi")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color("FFEC00"))
@@ -2160,16 +2159,13 @@ func _show_info() -> void:
 	rules.autowrap_mode = TextServer.AUTOWRAP_WORD
 	rules.add_theme_font_size_override("font_size", 16)
 	rules.add_theme_color_override("font_color", Color.WHITE)
-	if _ultimate_x:
-		rules.text = "1. Select MAX BET to activate the Ultimate X feature (2x cost).\n2. Deal 5 cards on the primary hand.\n3. Hold the cards you want to keep — they apply to ALL hands.\n4. Draw replacements. Each hand draws independently.\n5. Winning hands pay AND grant a multiplier on that specific hand for the next round.\n6. A hand that doesn't win loses its multiplier (resets to 1x).\n7. Use the HANDS button to cycle 3/5/10 hand layouts.\n8. Feature disabled below MAX BET — play standard multi-hand."
-	else:
-		rules.text = "1. Place your bet (1-5 coins). Max bet pays best for Royal Flush.\n2. Deal 5 cards on the primary hand.\n3. Choose HOLD cards — same hold applies to ALL hands.\n4. Draw replacements. Each hand gets independent replacements from its own deck.\n5. All hands are evaluated and paid out.\n6. Use HANDS button to cycle 3/5/10/12/25 hand layouts."
+	rules.text = Translations.tr_key("info.rules_ultimate_x") if _ultimate_x else Translations.tr_key("info.rules_multi")
 	content.add_child(rules)
 
 	if _ultimate_x:
 		# Multiplier table title
 		var mt := Label.new()
-		mt.text = "MULTIPLIER TABLE"
+		mt.text = Translations.tr_key("info.multiplier_table")
 		mt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		mt.add_theme_font_size_override("font_size", 22)
 		mt.add_theme_color_override("font_color", Color("FFEC00"))
@@ -2182,24 +2178,24 @@ func _show_info() -> void:
 		table.add_theme_constant_override("v_separation", 6)
 		content.add_child(table)
 
-		for h in ["WINNING HAND", "NEXT ROUND MULTIPLIER"]:
+		for header_key in ["info.col_winning_hand", "info.col_next_multiplier"]:
 			var lbl := Label.new()
-			lbl.text = h
+			lbl.text = Translations.tr_key(header_key)
 			lbl.add_theme_font_size_override("font_size", 15)
 			lbl.add_theme_color_override("font_color", Color("FFEC00"))
 			lbl.add_theme_font_override("font", bold)
 			table.add_child(lbl)
 
 		var mult_table := [
-			["Jacks or Better", "2x"],
-			["Two Pair", "3x"],
-			["Three of a Kind", "4x"],
-			["Straight", "5x"],
-			["Flush", "6x"],
-			["Full House", "8x"],
-			["Four of a Kind", "10x"],
-			["Straight Flush", "12x"],
-			["Royal Flush", "12x"],
+			[Translations.tr_key("hand.jacks_or_better"), "2x"],
+			[Translations.tr_key("hand.two_pair"), "3x"],
+			[Translations.tr_key("hand.three_of_a_kind"), "4x"],
+			[Translations.tr_key("hand.straight"), "5x"],
+			[Translations.tr_key("hand.flush"), "6x"],
+			[Translations.tr_key("hand.full_house"), "8x"],
+			[Translations.tr_key("hand.four_of_a_kind"), "10x"],
+			[Translations.tr_key("hand.straight_flush"), "12x"],
+			[Translations.tr_key("hand.royal_flush"), "12x"],
 		]
 		for row in mult_table:
 			for cell in row:
@@ -2262,7 +2258,7 @@ func _show_double_warning() -> void:
 	panel.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "DOUBLE OR NOTHING"
+	title.text = Translations.tr_key("double.title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", COL_YELLOW)
@@ -2270,7 +2266,8 @@ func _show_double_warning() -> void:
 
 	var doubled := _double_amount * 2
 	var msg := Label.new()
-	msg.text = "You won %s.\nDouble to %s?" % [SaveManager.format_money(_double_amount), SaveManager.format_money(doubled)]
+	msg.text = Translations.tr_key("double.msg_fmt",
+			[SaveManager.format_money(_double_amount), SaveManager.format_money(doubled)])
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.add_theme_font_size_override("font_size", 20)
 	msg.add_theme_color_override("font_color", Color.WHITE)
@@ -2285,7 +2282,7 @@ func _show_double_warning() -> void:
 	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg")
 
 	var yes_btn := Button.new()
-	yes_btn.text = "YES"
+	yes_btn.text = Translations.tr_key("common.yes")
 	_style_btn(yes_btn, tex_green, Color.WHITE, 22, 120, 44)
 	yes_btn.pressed.connect(func() -> void:
 		_double_warned = true
@@ -2295,7 +2292,7 @@ func _show_double_warning() -> void:
 	btns.add_child(yes_btn)
 
 	var no_btn := Button.new()
-	no_btn.text = "NO"
+	no_btn.text = Translations.tr_key("common.no")
 	_style_btn(no_btn, tex_yellow, COL_BTN_TEXT, 22, 120, 44)
 	no_btn.pressed.connect(func() -> void:
 		_hide_double_overlay()
@@ -2327,7 +2324,7 @@ func _start_double() -> void:
 		mini.hide_result()
 		mini.modulate = Color(0.35, 0.35, 0.45)
 
-	_win_label.text = "PICK A CARD TO BEAT THE DEALER"
+	_win_label.text = Translations.tr_key("double.pick_card")
 	_win_cd["box"].visible = false
 
 	# Show: dealer card face-up, 4 player cards face-down
@@ -2359,7 +2356,7 @@ func _on_double_card_picked(index: int) -> void:
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
 		_animate_credits(SaveManager.credits)
-		_win_label.text = "WIN!"
+		_win_label.text = Translations.tr_key("double.win")
 		_win_cd["box"].visible = true
 		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_double_amount))
 		await _credit_tween.finished
@@ -2371,13 +2368,13 @@ func _on_double_card_picked(index: int) -> void:
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
 		_animate_credits(SaveManager.credits)
-		_win_label.text = "TIE! BET RETURNED"
+		_win_label.text = Translations.tr_key("double.tie")
 		_win_cd["box"].visible = false
 		_double_amount = 0
 		await _credit_tween.finished
 		_end_double()
 	else:
-		_win_label.text = "YOU LOSE!"
+		_win_label.text = Translations.tr_key("double.lose")
 		_win_cd["box"].visible = false
 		_double_amount = 0
 		_end_double()
@@ -2446,10 +2443,9 @@ func _show_primary_result(hand_name: String, multiplier: int, badge_color: Color
 
 
 func _get_badge_color_for_hand(hand_name: String, hand_keys: Array[String]) -> Color:
-	# Match hand_name (uppercase) to paytable key's display name
+	# Match hand_name to paytable key's *localized* display name.
 	for idx in hand_keys.size():
-		var display := hand_keys[idx].replace("_", " ").to_upper()
-		if display == hand_name:
+		if _variant.paytable.get_hand_display_name(hand_keys[idx]) == hand_name:
 			return BADGE_COLORS[mini(idx, BADGE_COLORS.size() - 1)]
 	return Color("FFEC00")
 

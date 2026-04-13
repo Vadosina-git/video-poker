@@ -64,7 +64,7 @@ func _ready() -> void:
 
 	# Text "HELD" on top
 	var held_text := Label.new()
-	held_text.text = "HELD"
+	held_text.text = Translations.tr_key("game.held")
 	held_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	held_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	held_text.add_theme_font_size_override("font_size", 16)
