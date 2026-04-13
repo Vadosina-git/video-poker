@@ -699,7 +699,7 @@ func _animate_credits(target: int) -> void:
 	# Highlight balance during roll-up
 	SaveManager.set_currency_value(_balance_cd, "", 22, COL_YELLOW)
 	_credit_tween = create_tween()
-	_credit_tween.tween_method(_update_credit_display, start, target, 1.0).set_ease(Tween.EASE_OUT)
+	_credit_tween.tween_method(_update_credit_display, start, target, 2.0).set_ease(Tween.EASE_OUT)
 	_credit_tween.tween_callback(_on_credit_animation_done)
 
 
