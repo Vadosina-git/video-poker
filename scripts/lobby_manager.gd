@@ -666,10 +666,19 @@ func _on_gift_pressed() -> void:
 	if not _gift_ready:
 		return
 	var chips: int = ConfigManager.get_gift_chips()
+	var old_credits: int = SaveManager.credits
 	SaveManager.add_credits(chips)
 	SaveManager.last_gift_time = int(Time.get_unix_time_from_system())
 	SaveManager.save_game()
-	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
 	_gift_ready = false
 	_update_gift_state()
 	SoundManager.play("gift_claim")
+	# G.5: Animate balance increment over 5 seconds
+	_animate_balance_increment(old_credits, SaveManager.credits, 5.0)
+
+
+func _animate_balance_increment(from: int, to: int, duration: float) -> void:
+	var tw := create_tween()
+	tw.tween_method(func(val: int) -> void:
+		SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(val))
+	, from, to, duration).set_ease(Tween.EASE_OUT)
