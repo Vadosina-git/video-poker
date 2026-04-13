@@ -2282,6 +2282,14 @@ func _show_double_warning() -> void:
 	var tex_green := load("res://assets/textures/btn_rect_green.svg")
 	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg")
 
+	var no_btn := Button.new()
+	no_btn.text = Translations.tr_key("common.no")
+	_style_btn(no_btn, tex_yellow, COL_BTN_TEXT, 22, 120, 44)
+	no_btn.pressed.connect(func() -> void:
+		_hide_double_overlay()
+	)
+	btns.add_child(no_btn)
+
 	var yes_btn := Button.new()
 	yes_btn.text = Translations.tr_key("common.yes")
 	_style_btn(yes_btn, tex_green, Color.WHITE, 22, 120, 44)
@@ -2291,14 +2299,6 @@ func _show_double_warning() -> void:
 		_start_double()
 	)
 	btns.add_child(yes_btn)
-
-	var no_btn := Button.new()
-	no_btn.text = Translations.tr_key("common.no")
-	_style_btn(no_btn, tex_yellow, COL_BTN_TEXT, 22, 120, 44)
-	no_btn.pressed.connect(func() -> void:
-		_hide_double_overlay()
-	)
-	btns.add_child(no_btn)
 
 
 func _start_double() -> void:
