@@ -134,7 +134,10 @@
       "spin.game_over": "GAME OVER",
       "spin.game_pays_fmt": "GAME PAYS %s",
       "game.not_enough_credits": "NOT ENOUGH CREDITS",
-      "common.back": "BACK"
+      "common.back": "BACK",
+      "game.exit_confirm": "Exit the table?",
+      "game.exit_stay": "STAY",
+      "game.exit_leave": "EXIT"
     },
     "ru": {
       "common.got_it": "ПОНЯТНО",
@@ -269,7 +272,10 @@
       "spin.game_over": "РАУНД ОКОНЧЕН",
       "spin.game_pays_fmt": "ВЫИГРЫШ: %s",
       "game.not_enough_credits": "НЕДОСТАТОЧНО КРЕДИТОВ",
-      "common.back": "НАЗАД"
+      "common.back": "НАЗАД",
+      "game.exit_confirm": "Выйти из-за стола?",
+      "game.exit_stay": "ОСТАТЬСЯ",
+      "game.exit_leave": "ВЫЙТИ"
     },
     "es": {
       "common.got_it": "ENTENDIDO",
@@ -404,7 +410,10 @@
       "spin.game_over": "FIN DEL JUEGO",
       "spin.game_pays_fmt": "PAGO: %s",
       "game.not_enough_credits": "CRÉDITOS INSUFICIENTES",
-      "common.back": "VOLVER"
+      "common.back": "VOLVER",
+      "game.exit_confirm": "¿Salir de la mesa?",
+      "game.exit_stay": "QUEDARSE",
+      "game.exit_leave": "SALIR"
     }
   }
 }
