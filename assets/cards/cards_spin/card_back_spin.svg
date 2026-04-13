@@ -11,7 +11,6 @@
 <g filter="url(#filter0_d_324_104476)">
 <path fill-rule="evenodd" clip-rule="evenodd" d="M112.497 91.4908C113.327 90.7023 113.327 89.3796 112.497 88.5911L91.3782 68.5239C90.6063 67.7904 89.3949 67.7904 88.6229 68.5239L67.5043 88.5911C66.6745 89.3796 66.6745 90.7023 67.5043 91.4908L88.6229 111.558C89.3949 112.291 90.6063 112.291 91.3782 111.558L112.497 91.4908Z" fill="#AB3129"/>
 </g>
-<rect x="3" y="2.04297" width="180" height="180" rx="12" fill="#475590"/>
 <defs>
 <filter id="filter0_d_324_104476" x="66.8828" y="67.9727" width="46.2363" height="45.1367" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
 <feFlood flood-opacity="0" result="BackgroundImageFix"/>

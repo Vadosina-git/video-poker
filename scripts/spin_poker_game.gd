@@ -173,7 +173,7 @@ func _build_ui() -> void:
 
 	# Build 15 card slots (3 rows × 5 cols), square cards (184×184 SVGs)
 	var back_tex: Texture2D = null
-	var card_back_path := "res://assets/cards/card_back.png"
+	var card_back_path := SPIN_CARD_DIR + "card_back_spin.svg"
 	if ResourceLoader.exists(card_back_path):
 		back_tex = load(card_back_path)
 
@@ -384,7 +384,7 @@ func _get_suit_code(card: CardData) -> String:
 
 func _get_card_path(card: CardData) -> String:
 	if card == null:
-		return "res://assets/cards/card_back.png"
+		return SPIN_CARD_DIR + "card_back_spin.svg"
 	if card.is_joker():
 		return SPIN_CARD_DIR + "vp joker red.svg"
 	if _variant.is_wild_card(card) and card.rank == CardData.Rank.TWO:
@@ -403,7 +403,7 @@ func _set_card_texture(row: int, col: int, card: CardData) -> void:
 
 
 func _set_card_back(row: int, col: int) -> void:
-	var path := "res://assets/cards/card_back.png"
+	var path := SPIN_CARD_DIR + "card_back_spin.svg"
 	if ResourceLoader.exists(path):
 		_card_rects[row][col].texture = load(path)
 	_card_rects[row][col].modulate = Color.WHITE
