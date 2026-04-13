@@ -155,7 +155,7 @@ func sweep_to_max(from_bet: int) -> void:
 	for col in range(from_bet + 1, 6):
 		var sweep_col := col
 		_animate_tween.tween_callback(_sweep_column_on.bind(sweep_col, flash_color))
-		_animate_tween.tween_interval(0.1)
+		_animate_tween.tween_interval(0.2)
 		if sweep_col < 5:
 			_animate_tween.tween_callback(_sweep_column_off.bind(sweep_col))
 	# Settle column 5 to final red

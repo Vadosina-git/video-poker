@@ -38,8 +38,11 @@ var _balance_cd: Dictionary  # currency display for balance
 var _balance_show_depth: bool = false
 var _depth_tooltip: Control = null
 var _bet_cd: Dictionary      # currency display for total bet
+var _win_cd: Dictionary      # currency display for win amount
+var _status_box: HBoxContainer  # wrapper for status label + win currency
 var _variant: BaseVariant
 var _animating: bool = false
+var _hold_hint_label: Label = null
 
 # Figma colors
 const COL_YELLOW := Color("FFEC00")
@@ -182,13 +185,21 @@ func _apply_theme() -> void:
 	_topup_btn.add_theme_stylebox_override("hover", topup_style)
 	_topup_btn.add_theme_stylebox_override("pressed", topup_style)
 	_topup_btn.custom_minimum_size = Vector2(28, 24)
-	# Reparent status label out of InfoBar to position freely over cards
+	# Reparent status label out of InfoBar into HBox wrapper for currency display
 	_last_win_label.get_parent().remove_child(_last_win_label)
-	add_child(_last_win_label)
+	_status_box = HBoxContainer.new()
+	_status_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_status_box.add_theme_constant_override("separation", 4)
+	_status_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_last_win_label.add_theme_font_size_override("font_size", 20)
 	_last_win_label.add_theme_color_override("font_color", COL_YELLOW)
 	_last_win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_last_win_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status_box.add_child(_last_win_label)
+	_win_cd = SaveManager.create_currency_display(20, COL_YELLOW)
+	_win_cd["box"].visible = false
+	_status_box.add_child(_win_cd["box"])
+	add_child(_status_box)
 
 	# Cards gap
 	_cards_container.add_theme_constant_override("separation", 8)
@@ -389,9 +400,9 @@ func _position_status_label() -> void:
 	var cards_rect := _cards_container.get_global_rect()
 	var cards_center_x := cards_rect.get_center().x
 	var info_bar_rect := _info_bar.get_global_rect()
-	# Place label at InfoBar's Y, centered horizontally on cards
-	_last_win_label.size = Vector2(400, 30)
-	_last_win_label.global_position = Vector2(
+	# Place status box at InfoBar's Y, centered horizontally on cards
+	_status_box.size = Vector2(400, 30)
+	_status_box.global_position = Vector2(
 		cards_center_x - 200,
 		info_bar_rect.position.y
 	)
@@ -505,7 +516,7 @@ func _flash_bet_display() -> void:
 		_bet_flash_tween.kill()
 	SaveManager.set_currency_value(_bet_cd, "", 26, COL_YELLOW)
 	_bet_flash_tween = create_tween()
-	_bet_flash_tween.tween_interval(0.4)
+	_bet_flash_tween.tween_interval(0.8)
 	_bet_flash_tween.tween_callback(func() -> void:
 		SaveManager.set_currency_value(_bet_cd, "", 22, Color.WHITE)
 	)
@@ -516,6 +527,8 @@ func _set_status(text: String) -> void:
 	_last_win_label.text = text
 	_last_win_label.add_theme_color_override("font_color", COL_YELLOW)
 	_last_win_label.modulate.a = 1.0
+	_win_cd["box"].visible = false
+	_status_box.modulate.a = 1.0
 	# Smaller font for long status messages
 	if text.length() > 15:
 		_last_win_label.add_theme_font_size_override("font_size", 16)
@@ -524,13 +537,59 @@ func _set_status(text: String) -> void:
 
 func _set_win_active(amount: int) -> void:
 	_last_win_amount = amount
-	_set_status("%s %s" % [Translations.tr_key("game.win_label"), SaveManager.format_short(amount)])
+	_last_win_label.text = Translations.tr_key("game.win_label")
+	_last_win_label.add_theme_font_size_override("font_size", 20)
+	_last_win_label.add_theme_color_override("font_color", COL_YELLOW)
+	_last_win_label.modulate.a = 1.0
+	SaveManager.set_currency_value(_win_cd, SaveManager.format_short(amount), 20, COL_YELLOW)
+	_win_cd["box"].visible = true
+	_status_box.modulate.a = 1.0
 
 func _set_win_dimmed() -> void:
-	_last_win_label.text = Translations.tr_key("game.last_win_fmt", [SaveManager.format_short(_last_win_amount)])
+	if _last_win_amount > 0:
+		_last_win_label.text = Translations.tr_key("game.last_win_label")
+		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_last_win_amount), 20, Color(0.7, 0.7, 0.4))
+		_win_cd["box"].visible = true
+	else:
+		_last_win_label.text = ""
+		_win_cd["box"].visible = false
 	_last_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
-	_last_win_label.modulate.a = 0.7
+	_status_box.modulate.a = 0.7
 
+
+
+# --- Hold hint (floating label above cards) ---
+
+func _show_hold_hint() -> void:
+	_hide_hold_hint()
+	_hold_hint_label = Label.new()
+	_hold_hint_label.text = Translations.tr_key("game.hold_cards_then_draw")
+	_hold_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hold_hint_label.add_theme_font_size_override("font_size", 18)
+	_hold_hint_label.add_theme_color_override("font_color", Color("FFEC00"))
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+	_hold_hint_label.add_theme_font_override("font", bold)
+	_hold_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hold_hint_label.z_index = 20
+	add_child(_hold_hint_label)
+	_position_hold_hint.call_deferred()
+
+func _position_hold_hint() -> void:
+	if not _hold_hint_label or not is_instance_valid(_hold_hint_label):
+		return
+	await get_tree().process_frame
+	var rect := _cards_container.get_global_rect()
+	var lbl_size := _hold_hint_label.get_combined_minimum_size()
+	_hold_hint_label.global_position = Vector2(
+		rect.get_center().x - lbl_size.x / 2,
+		rect.position.y - lbl_size.y - 8
+	)
+
+func _hide_hold_hint() -> void:
+	if _hold_hint_label and is_instance_valid(_hold_hint_label):
+		_hold_hint_label.queue_free()
+	_hold_hint_label = null
 
 
 # --- State changes ---
@@ -552,6 +611,7 @@ func _on_state_changed(new_state: int) -> void:
 			_start_idle_blink_timer()
 
 		GameManager.State.DEALING:
+			_hide_hold_hint()
 			_stop_idle_blink()
 			_deal_draw_btn.disabled = true
 			_bet_one_btn.disabled = true
@@ -563,7 +623,7 @@ func _on_state_changed(new_state: int) -> void:
 		GameManager.State.HOLDING:
 			_deal_draw_btn.text = Translations.tr_key("game.draw")
 			_deal_draw_btn.disabled = false
-			_set_status(Translations.tr_key("game.hold_cards_then_draw"))
+			_show_hold_hint()
 			for i in _card_visuals.size():
 				_card_visuals[i].set_interactive(true)
 				if _game_manager.held[i]:
@@ -573,6 +633,7 @@ func _on_state_changed(new_state: int) -> void:
 				_highlight_paytable_row(deal_rank)
 
 		GameManager.State.DRAWING:
+			_hide_hold_hint()
 			_deal_draw_btn.disabled = true
 			for card_vis in _card_visuals:
 				card_vis.set_interactive(false)
