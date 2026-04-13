@@ -116,6 +116,7 @@ func _ready() -> void:
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_game_manager.bet)
 	_bet_one_btn.text = Translations.tr_key("game.bet_one_fmt", [_game_manager.bet])
+	_bet_max_btn.text = Translations.tr_key("game.bet_max")
 	_set_status(Translations.tr_key("game.place_your_bet"))
 
 

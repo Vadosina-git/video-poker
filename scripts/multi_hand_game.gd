@@ -337,6 +337,7 @@ func _apply_theme() -> void:
 	_style_btn(_bet_amount_btn, tex_blue, Color.WHITE, 16, 120, btn_h)
 	_style_btn(_bet_btn, tex_yellow, COL_BTN_TEXT, 14, 80, btn_h)
 	_style_btn(_bet_max_btn, tex_yellow, COL_BTN_TEXT, 14, 100, btn_h)
+	_bet_max_btn.text = Translations.tr_key("game.bet_max")
 
 	# Right group: DOUBLE + DEAL
 	_style_btn(_double_btn, tex_yellow, COL_BTN_TEXT, 13, 90, btn_h)
