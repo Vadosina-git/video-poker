@@ -16,6 +16,8 @@ var _manager: SpinPokerManager
 var _current_denomination: int = 1
 var _animating: bool = false
 var _rush: bool = false
+var _balance_show_depth: bool = false
+var _depth_tooltip: Control = null
 
 # UI refs
 var _game_title: Label
@@ -268,8 +270,12 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_balance_label.text = "CREDIT"
 	_balance_label.add_theme_font_size_override("font_size", 14)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
+	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_label.gui_input.connect(_on_balance_clicked)
 	info_row.add_child(_balance_label)
 	_balance_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_cd["box"].gui_input.connect(_on_balance_clicked)
 	info_row.add_child(_balance_cd["box"])
 
 	var btn_row := HBoxContainer.new()
@@ -873,6 +879,8 @@ func _update_speed_label() -> void:
 
 func _on_bet_changed(new_bet: int) -> void:
 	_update_bet_display(new_bet)
+	if _balance_show_depth:
+		_update_balance(SaveManager.credits)
 
 
 func _on_credits_changed(new_credits: int) -> void:
@@ -892,8 +900,99 @@ func _recommend_denomination() -> int:
 	return best
 
 
+func _calculate_game_depth() -> int:
+	var per_round: int = SpinPokerManager.NUM_LINES * _manager.bet * _current_denomination
+	if per_round <= 0:
+		return 0
+	return SaveManager.credits / per_round
+
+
 func _update_balance(credits: int) -> void:
-	SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits))
+	if _balance_show_depth:
+		var depth := _calculate_game_depth()
+		_balance_label.text = Translations.tr_key("game.games")
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+	else:
+		_balance_label.text = "CREDIT"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
+
+
+func _on_balance_clicked(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if not SaveManager.depth_hint_shown:
+			_show_depth_tooltip()
+			SaveManager.depth_hint_shown = true
+			SaveManager.save_game()
+		_balance_show_depth = not _balance_show_depth
+		_update_balance(SaveManager.credits)
+
+
+func _show_depth_tooltip() -> void:
+	if _depth_tooltip:
+		_depth_tooltip.queue_free()
+	_depth_tooltip = Control.new()
+	_depth_tooltip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_depth_tooltip.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_depth_tooltip)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed:
+			_depth_tooltip.queue_free()
+			_depth_tooltip = null
+	)
+	_depth_tooltip.add_child(dim)
+
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color("062015")
+	ps.set_border_width_all(3)
+	ps.border_color = COL_YELLOW
+	ps.set_corner_radius_all(12)
+	ps.content_margin_left = 28
+	ps.content_margin_right = 28
+	ps.content_margin_top = 20
+	ps.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_depth_tooltip.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+	var title := Label.new()
+	title.text = Translations.tr_key("game_depth.title")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", COL_YELLOW)
+	title.add_theme_font_override("font", bold)
+	vbox.add_child(title)
+
+	var msg := Label.new()
+	msg.text = Translations.tr_key("game_depth.description_multi")
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.add_theme_font_size_override("font_size", 16)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(msg)
+
+	var ok_btn := Button.new()
+	ok_btn.text = Translations.tr_key("common.got_it")
+	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
+	_style_btn(ok_btn, tex_y, COL_BTN_TEXT, 18, 140, 44)
+	ok_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ok_btn.pressed.connect(func() -> void:
+		if _depth_tooltip:
+			_depth_tooltip.queue_free()
+			_depth_tooltip = null
+	)
+	vbox.add_child(ok_btn)
 
 
 func _update_bet_display(bet: int) -> void:
