@@ -29,7 +29,7 @@ func _on_machine_selected(variant_id: String) -> void:
 	var paytable: Paytable = _paytables[variant_id]
 	var variant := _create_variant(variant_id, paytable)
 	var hand_count: int = SaveManager.hand_count
-	var ultimate_x: bool = SaveManager.ultimate_x
+	var ultra_vp: bool = SaveManager.ultra_vp
 
 	if SaveManager.spin_poker:
 		# Spin Poker mode
@@ -43,12 +43,12 @@ func _on_machine_selected(variant_id: String) -> void:
 			spin_game.back_to_lobby.connect(_show_lobby)
 			return
 
-	if hand_count > 1 or ultimate_x:
+	if hand_count > 1 or ultra_vp:
 		# Multi-hand mode
 		var multi_scene := load("res://scenes/multi_hand_game.tscn")
 		if multi_scene:
 			var multi_game: Control = multi_scene.instantiate()
-			multi_game.setup(variant, hand_count, ultimate_x)
+			multi_game.setup(variant, hand_count, ultra_vp)
 			add_child(multi_game)
 			_make_full_rect(multi_game)
 			_current_scene = multi_game

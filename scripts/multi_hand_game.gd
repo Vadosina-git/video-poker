@@ -72,7 +72,7 @@ const COL_YELLOW := Color("FFEC00")
 const COL_GREEN := Color("07E02F")
 const COL_BTN_TEXT := Color("3F2A00")
 
-# Ultimate X multiplier glyph sizes.
+# Ultra VP multiplier glyph sizes.
 # NEXT is small (it's a hint for the upcoming round), ACTIVE is big (it's the
 # current round's "star" — dominant visual). Animation pins the label's value
 # row bottom to the hand's bottom both before and after the size jump.
@@ -103,12 +103,12 @@ var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 
 
-var _ultimate_x: bool = false
+var _ultra_vp: bool = false
 
-func setup(variant: BaseVariant, num_hands: int, p_ultimate_x: bool = false) -> void:
+func setup(variant: BaseVariant, num_hands: int, p_ultra_vp: bool = false) -> void:
 	_variant = variant
 	_num_hands = num_hands
-	_ultimate_x = p_ultimate_x
+	_ultra_vp = p_ultra_vp
 
 
 func _ready() -> void:
@@ -120,7 +120,7 @@ func _ready() -> void:
 
 	_manager = MultiHandManager.new()
 	add_child(_manager)
-	_manager.setup(_variant, _num_hands, _ultimate_x)
+	_manager.setup(_variant, _num_hands, _ultra_vp)
 
 	# Connect signals
 	_manager.all_hands_dealt.connect(_on_hands_dealt)
@@ -159,7 +159,7 @@ func _ready() -> void:
 	_update_speed_display()
 
 	_update_title()
-	_hands_btn.text = Translations.tr_key("game.ultimate_x_btn") if _ultimate_x else Translations.tr_key("game.hands_n_fmt", [_num_hands])
+	_hands_btn.text = Translations.tr_key("game.ultra_vp_btn") if _ultra_vp else Translations.tr_key("game.hands_n_fmt", [_num_hands])
 	_current_denomination = _recommend_denomination()
 	SaveManager.denomination = _current_denomination
 	_update_bet_amount_btn()
@@ -191,11 +191,11 @@ func _setup_background() -> void:
 	linear_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	bg.add_child(linear_rect)
 
-	# Layer 2: Radial gradient for Ultimate X — light green glow → transparent edge
+	# Layer 2: Radial gradient for Ultra VP — light green glow → transparent edge
 	# Other modes — dark green vignette
 	var radial_grad := GradientTexture2D.new()
 	var rg := Gradient.new()
-	if _ultimate_x:
+	if _ultra_vp:
 		rg.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
 		rg.colors = PackedColorArray([
 			Color("5FD88A"),      # light green center
@@ -403,7 +403,7 @@ func _build_hands_area() -> void:
 	_extra_grid.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_extra_grid.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_extra_grid.columns = _get_grid_cols()
-	_extra_grid.add_theme_constant_override("h_separation", 20 if _ultimate_x else 16)
+	_extra_grid.add_theme_constant_override("h_separation", 20 if _ultra_vp else 16)
 	_extra_grid.add_theme_constant_override("v_separation", 10)
 	extra_rect.add_child(_extra_grid)
 
@@ -426,19 +426,19 @@ func _build_hands_area() -> void:
 		# GridContainer wraps at `columns` — spacer takes one cell position
 		_extra_grid.columns = cols  # keep cols, we'll handle spacer sizing
 
-	# Ultimate X: clear mult zones arrays (will be populated in order: primary first, then extras)
-	if _ultimate_x:
+	# Ultra VP: clear mult zones arrays (will be populated in order: primary first, then extras)
+	if _ultra_vp:
 		_clear_mult_zones()
 
 	# Build primary zone FIRST so it's at index 0
-	if _ultimate_x:
+	if _ultra_vp:
 		_build_mult_zone(80, true)  # zone added to primary_container below
 
 	for i in num_extra:
 		var mh: MiniHandDisplay = MiniHandScene.instantiate()
 		mh._variant = _variant
 		mh._overlay_parent = self
-		if _ultimate_x:
+		if _ultra_vp:
 			# Wrap in HBox with mult zone on the left
 			var wrap := HBoxContainer.new()
 			wrap.add_theme_constant_override("separation", 4)
@@ -461,8 +461,8 @@ func _build_hands_area() -> void:
 	_primary_container.add_theme_constant_override("separation", 12)
 	_primary_container.alignment = BoxContainer.ALIGNMENT_CENTER
 
-	# Ultimate X: add the previously built primary mult zone to primary_container FIRST (left side)
-	if _ultimate_x and _mult_zones.size() > 0:
+	# Ultra VP: add the previously built primary mult zone to primary_container FIRST (left side)
+	if _ultra_vp and _mult_zones.size() > 0:
 		_primary_container.add_child(_mult_zones[0])
 		_primary_container.move_child(_mult_zones[0], 0)
 
@@ -478,8 +478,8 @@ func _build_hands_area() -> void:
 	for card in _primary_cards:
 		card.set_held_bottom()
 
-	# Info card (Ultimate X only) — right of primary hand
-	if _ultimate_x:
+	# Info card (Ultra VP only) — right of primary hand
+	if _ultra_vp:
 		_build_info_card()
 		_update_multiplier_labels.call_deferred()
 
@@ -622,7 +622,7 @@ func _on_hands_pressed() -> void:
 	if _manager.state == MultiHandManager.State.WIN_DISPLAY:
 		_manager._to_idle()
 	# Cycle to next hand count
-	var counts: Array = UX_HAND_COUNTS if _ultimate_x else HAND_COUNTS
+	var counts: Array = UX_HAND_COUNTS if _ultra_vp else HAND_COUNTS
 	var current_idx := counts.find(_num_hands)
 	var next_idx := (current_idx + 1) % counts.size() if current_idx >= 0 else 0
 	var new_count: int = counts[next_idx]
@@ -657,8 +657,8 @@ func _switch_hand_count(new_count: int) -> void:
 	_num_hands = new_count
 	SaveManager.hand_count = new_count
 	SaveManager.save_game()
-	_hands_btn.text = Translations.tr_key("game.ultimate_x_btn") if _ultimate_x else Translations.tr_key("game.hands_n_fmt", [_num_hands])
-	_manager.setup(_variant, _num_hands, _ultimate_x)
+	_hands_btn.text = Translations.tr_key("game.ultra_vp_btn") if _ultra_vp else Translations.tr_key("game.hands_n_fmt", [_num_hands])
+	_manager.setup(_variant, _num_hands, _ultra_vp)
 	# Load saved UX state for new hand count
 	_load_ux_state()
 
@@ -669,17 +669,17 @@ func _switch_hand_count(new_count: int) -> void:
 	_extra_grid.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_extra_grid.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_extra_grid.columns = _get_grid_cols()
-	_extra_grid.add_theme_constant_override("h_separation", 20 if _ultimate_x else 16)
+	_extra_grid.add_theme_constant_override("h_separation", 20 if _ultra_vp else 16)
 	_extra_grid.add_theme_constant_override("v_separation", 10)
 	_extra_grid.modulate.a = 0.0
 	extra_rect.add_child(_extra_grid)
 
-	# Ultimate X: keep primary zone/labels (index 0), remove old extra zones/labels.
+	# Ultra VP: keep primary zone/labels (index 0), remove old extra zones/labels.
 	# NOTE: the zones in _mult_zones[1..] were children of the extra_grid and
 	# are already freed by _extra_grid.free() above — so their references here
 	# are dangling. We must NOT assign them to typed variables (that throws
 	# "Trying to assign invalid previously freed instance" in Godot 4).
-	if _ultimate_x:
+	if _ultra_vp:
 		while _mult_zones.size() > 1:
 			_mult_zones.pop_back()  # already freed with the grid
 		while _next_displays.size() > 1:
@@ -695,7 +695,7 @@ func _switch_hand_count(new_count: int) -> void:
 		var mh: MiniHandDisplay = MiniHandScene.instantiate()
 		mh._variant = _variant
 		mh._overlay_parent = self
-		if _ultimate_x:
+		if _ultra_vp:
 			var wrap := HBoxContainer.new()
 			wrap.add_theme_constant_override("separation", 4)
 			var zone := _build_mult_zone(60, false)
@@ -734,7 +734,7 @@ func _switch_hand_count(new_count: int) -> void:
 	await tw_in.finished
 
 	# Refresh multiplier labels for new layout
-	if _ultimate_x:
+	if _ultra_vp:
 		_update_multiplier_labels()
 
 	_switching_hands = false
@@ -763,7 +763,7 @@ func _update_balance(credits: int) -> void:
 
 
 func _calculate_game_depth() -> int:
-	var ux_active := _ultimate_x and _manager.bet == MultiHandManager.MAX_BET
+	var ux_active := _ultra_vp and _manager.bet == MultiHandManager.MAX_BET
 	var bet_mult := 2 if ux_active else 1
 	var per_round: int = _manager.bet * _num_hands * SaveManager.denomination * bet_mult
 	if per_round <= 0:
@@ -850,13 +850,13 @@ func _show_depth_tooltip() -> void:
 	vbox.add_child(ok_btn)
 
 func _update_bet_display(bet: int) -> void:
-	var ux_active := _ultimate_x and bet == MultiHandManager.MAX_BET
+	var ux_active := _ultra_vp and bet == MultiHandManager.MAX_BET
 	var bet_mult := 2 if ux_active else 1
 	var total: int = bet * _num_hands * SaveManager.denomination * bet_mult
 	SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(total))
 	_flash_bet_display()
 	# Refresh multiplier display when bet changes
-	if _ultimate_x:
+	if _ultra_vp:
 		_refresh_ux_visibility()
 
 
@@ -875,9 +875,9 @@ const MIN_GAME_DEPTH := 30
 func _recommend_denomination() -> int:
 	var balance := SaveManager.credits
 	var best: int = BET_AMOUNTS[0]
-	var ux_mult := 2 if _ultimate_x else 1
+	var ux_mult := 2 if _ultra_vp else 1
 	for amount in BET_AMOUNTS:
-		# worst case total_bet = denomination * max_bet * num_hands * (2 for Ultimate X)
+		# worst case total_bet = denomination * max_bet * num_hands * (2 for Ultra VP)
 		if balance / (amount * MultiHandManager.MAX_BET * _num_hands * ux_mult) >= MIN_GAME_DEPTH:
 			best = amount
 		else:
@@ -1038,8 +1038,8 @@ func _on_deal_draw_pressed() -> void:
 			await get_tree().create_timer(0.08).timeout
 		_manager.draw()
 	else:
-		# Starting new round — animate NEXT → ACTIVE first (Ultimate X)
-		if _ultimate_x and _manager.bet == MultiHandManager.MAX_BET:
+		# Starting new round — animate NEXT → ACTIVE first (Ultra VP)
+		if _ultra_vp and _manager.bet == MultiHandManager.MAX_BET:
 			_animating = true
 			_deal_draw_btn.disabled = true
 			_bet_btn.disabled = true
@@ -1064,7 +1064,7 @@ func _on_hands_drawn(all_hands: Array) -> void:
 
 	# 1b. Show primary hand result immediately (don't wait for extra hands)
 	var hand_keys := _variant.paytable.get_hand_order()
-	var ux_active := _ultimate_x and _manager.bet == MultiHandManager.MAX_BET
+	var ux_active := _ultra_vp and _manager.bet == MultiHandManager.MAX_BET
 	var p_rank := _variant.evaluate(primary)
 	var p_base: int = _variant.get_payout(p_rank, _manager.bet)
 	_primary_win_mask = [false, false, false, false, false]
@@ -1072,16 +1072,16 @@ func _on_hands_drawn(all_hands: Array) -> void:
 		var p_name: String = _variant.get_hand_name(p_rank)
 		var p_badge_color := _get_badge_color_for_hand(p_name, hand_keys)
 		var p_active_m: int = 1
-		if _ultimate_x and _manager.hand_multipliers.size() > 0:
+		if _ultra_vp and _manager.hand_multipliers.size() > 0:
 			p_active_m = _manager.hand_multipliers[0]
 		_show_primary_result(p_name, p_base, p_badge_color, p_active_m)
 		_primary_win_mask = _variant.get_hold_mask(primary, p_rank)
 	# Primary-hand cards are NEVER dimmed (unlike extras). Always full brightness.
 	for ci in 5:
 		_primary_cards[ci].modulate = Color.WHITE
-	# Ultimate X: show NEXT multiplier for primary hand immediately
+	# Ultra VP: show NEXT multiplier for primary hand immediately
 	if ux_active:
-		var p_earned := MultiHandManager.get_ultimate_x_multiplier(p_rank)
+		var p_earned := MultiHandManager.get_ultra_vp_multiplier(p_rank)
 		_manager.next_multipliers[0] = p_earned
 		_show_single_next_multiplier(0, p_earned)
 
@@ -1114,16 +1114,16 @@ func _on_hands_drawn(all_hands: Array) -> void:
 				var base_mult: int = _variant.get_payout(hand_rank, _manager.bet)
 				var badge_color := _get_badge_color_for_hand(hand_name, hand_keys)
 				var active_m: int = 1
-				if _ultimate_x and (idx + 1) < _manager.hand_multipliers.size():
+				if _ultra_vp and (idx + 1) < _manager.hand_multipliers.size():
 					active_m = _manager.hand_multipliers[idx + 1]
 				mini.show_result(hand_name, base_mult, badge_color, active_m)
 				mini.set_win_mask(_variant.get_hold_mask(hand, hand_rank))
 			else:
 				mini.show_result("", 0, Color.TRANSPARENT)
 				mini.set_win_mask([false, false, false, false, false])
-			# Ultimate X: show NEXT multiplier for this hand immediately
+			# Ultra VP: show NEXT multiplier for this hand immediately
 			if ux_active:
-				var earned := MultiHandManager.get_ultimate_x_multiplier(hand_rank)
+				var earned := MultiHandManager.get_ultra_vp_multiplier(hand_rank)
 				_manager.next_multipliers[h] = earned
 				_show_single_next_multiplier(h, earned)
 		if not _is_rushing():
@@ -1163,7 +1163,7 @@ func _ux_state_key() -> String:
 
 
 func _save_ux_state() -> void:
-	if not _ultimate_x:
+	if not _ultra_vp:
 		return
 	_ux_states[_ux_state_key()] = {
 		"hand_multipliers": _manager.hand_multipliers.duplicate(),
@@ -1172,7 +1172,7 @@ func _save_ux_state() -> void:
 
 
 func _load_ux_state() -> void:
-	if not _ultimate_x:
+	if not _ultra_vp:
 		return
 	var key := _ux_state_key()
 	if key in _ux_states:
@@ -1206,7 +1206,7 @@ func _update_info_card_status() -> void:
 
 
 func _refresh_ux_visibility() -> void:
-	if not _ultimate_x:
+	if not _ultra_vp:
 		return
 	_update_info_card_status()
 	_ensure_mult_labels()
@@ -1233,7 +1233,7 @@ func _hide_next_multipliers() -> void:
 
 
 func _update_next_multipliers() -> void:
-	if not _ultimate_x:
+	if not _ultra_vp:
 		return
 	if _next_displays.size() < _num_hands:
 		return
@@ -1266,8 +1266,8 @@ func _show_single_next_multiplier(idx: int, earned_mult: int) -> void:
 
 func _update_title() -> void:
 	var title := _variant.paytable.name.to_upper()
-	if _ultimate_x:
-		title = "ULTIMATE X — " + title
+	if _ultra_vp:
+		title = "ULTRA VP — " + title
 	_game_title.text = title
 
 
@@ -1427,7 +1427,7 @@ func _position_next_label(idx: int) -> void:
 ## transitions, font/texture load), and the labels otherwise get stranded at
 ## their original positions. This keeps them glued to the hand each frame.
 func _process(_delta: float) -> void:
-	if not _ultimate_x:
+	if not _ultra_vp:
 		return
 	for i in _num_hands:
 		if i >= _next_displays.size():
@@ -1487,7 +1487,7 @@ func _ensure_mult_labels() -> void:
 
 
 func _update_multiplier_labels() -> void:
-	if not _ultimate_x:
+	if not _ultra_vp:
 		return
 	if _next_displays.size() < _num_hands or _active_displays.size() < _num_hands:
 		return
@@ -1524,12 +1524,12 @@ func _update_multiplier_labels() -> void:
 
 
 ## Animate NEXT → ACTIVE for all hands in parallel.
-## Single-label Ultimate X animation. One label per hand is reused for both
+## Single-label Ultra VP animation. One label per hand is reused for both
 ## NEXT ("NEXT HAND / value", top of zone) and ACTIVE ("value x", bottom of zone).
 ## The animation tweens the label's position from top to bottom, then rebuilds
 ## its content from two-row to one-row in place — NO separate label, NO handoff.
 func _animate_multipliers_next_to_active() -> void:
-	if not _ultimate_x or _manager.bet != MultiHandManager.MAX_BET:
+	if not _ultra_vp or _manager.bet != MultiHandManager.MAX_BET:
 		return
 	if _next_displays.size() < _num_hands:
 		return
@@ -1699,7 +1699,7 @@ func _build_info_card() -> void:
 	_info_card.add_child(vbox)
 
 	var title := Label.new()
-	title.text = Translations.tr_key("info_card.ultimate_x_title")
+	title.text = Translations.tr_key("info_card.ultra_vp_title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", Color("FFEC00"))
@@ -1806,7 +1806,7 @@ func _animate_credits(target: int) -> void:
 	# Highlight balance during roll-up
 	SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE)
 	_credit_tween = create_tween()
-	var dur := 1.5 if _ultimate_x else 1.0
+	var dur := 1.5 if _ultra_vp else 1.0
 	_credit_tween.tween_method(_update_credit_display, start, target, dur).set_ease(Tween.EASE_OUT)
 	_credit_tween.tween_callback(_on_credit_animation_done)
 
@@ -1815,7 +1815,7 @@ func _update_credit_display(value: int) -> void:
 	_displayed_credits = value
 	if _balance_show_depth:
 		# In depth mode, show games count instead of credits
-		var ux_active := _ultimate_x and _manager.bet == MultiHandManager.MAX_BET
+		var ux_active := _ultra_vp and _manager.bet == MultiHandManager.MAX_BET
 		var bet_mult := 2 if ux_active else 1
 		var per_round: int = _manager.bet * _num_hands * SaveManager.denomination * bet_mult
 		var depth := (value / per_round) if per_round > 0 else 0
@@ -1849,17 +1849,17 @@ func _unlock_buttons() -> void:
 	_bet_max_btn.disabled = false
 
 func _on_bet_one_pressed() -> void:
-	if _ultimate_x:
+	if _ultra_vp:
 		_save_ux_state()
 	_manager.bet_one()
-	if _ultimate_x:
+	if _ultra_vp:
 		# bet_one only changes bet (no deal) — safe to refresh labels
 		_load_ux_state()
 		_update_multiplier_labels()
 
 
 func _on_bet_max_pressed() -> void:
-	if _ultimate_x:
+	if _ultra_vp:
 		_save_ux_state()
 		# Restore state for MAX bet key (where NEXT mults are stored)
 		var max_key := "%d_%d" % [_num_hands, MultiHandManager.MAX_BET]
@@ -2147,7 +2147,7 @@ func _show_info() -> void:
 
 	# Title
 	var title := Label.new()
-	title.text = Translations.tr_key("info.title_ultimate_x") if _ultimate_x else Translations.tr_key("info.title_multi")
+	title.text = Translations.tr_key("info.title_ultra_vp") if _ultra_vp else Translations.tr_key("info.title_multi")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", Color("FFEC00"))
@@ -2159,10 +2159,10 @@ func _show_info() -> void:
 	rules.autowrap_mode = TextServer.AUTOWRAP_WORD
 	rules.add_theme_font_size_override("font_size", 16)
 	rules.add_theme_color_override("font_color", Color.WHITE)
-	rules.text = Translations.tr_key("info.rules_ultimate_x") if _ultimate_x else Translations.tr_key("info.rules_multi")
+	rules.text = Translations.tr_key("info.rules_ultra_vp") if _ultra_vp else Translations.tr_key("info.rules_multi")
 	content.add_child(rules)
 
-	if _ultimate_x:
+	if _ultra_vp:
 		# Multiplier table title
 		var mt := Label.new()
 		mt.text = Translations.tr_key("info.multiplier_table")
@@ -2481,8 +2481,8 @@ var _badge_hand_keys: Array[String] = []
 
 func _build_paytable_badges() -> void:
 	_clear_paytable_badges()
-	# Ultimate X — no badges
-	if _ultimate_x:
+	# Ultra VP — no badges
+	if _ultra_vp:
 		return
 
 	var hand_keys := _variant.paytable.get_hand_order()

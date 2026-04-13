@@ -8,7 +8,7 @@ var last_variant: String = "jacks_or_better"
 var hand_count: int = 1  # 1=single, 3=triple, 5=five, 10=ten, 12=twelve, 25=twenty-five
 var speed_level: int = 1  # 0-3, default 1 (second speed)
 var bet_level: int = 1    # 1-5, default 1
-var ultimate_x: bool = false  # Ultimate X mode flag
+var ultra_vp: bool = false  # Ultra VP mode flag
 var spin_poker: bool = false   # Spin Poker mode flag
 var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
 var language: String = "system"  # "system" | "en" | "ru" | "es"
@@ -151,7 +151,7 @@ func save_game() -> void:
 		"hand_count": hand_count,
 		"speed_level": speed_level,
 		"bet_level": bet_level,
-		"ultimate_x": ultimate_x,
+		"ultra_vp": ultra_vp,
 		"spin_poker": spin_poker,
 		"depth_hint_shown": depth_hint_shown,
 		"language": language,
@@ -178,7 +178,7 @@ func load_game() -> void:
 	hand_count = int(data.get("hand_count", 1))
 	speed_level = int(data.get("speed_level", 1))
 	bet_level = int(data.get("bet_level", 1))
-	ultimate_x = bool(data.get("ultimate_x", false))
+	ultra_vp = bool(data.get("ultra_vp", data.get("ultimate_x", false)))
 	spin_poker = bool(data.get("spin_poker", false))
 	depth_hint_shown = bool(data.get("depth_hint_shown", false))
 	language = String(data.get("language", "system"))

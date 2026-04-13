@@ -40,12 +40,12 @@ const MODE_COLORS := {
 }
 
 const PLAY_MODES := [
-	{"label_key": "lobby.mode_single_play", "hands": 1, "ultimate_x": false, "spin_poker": false},
-	{"label_key": "lobby.mode_triple_play", "hands": 3, "ultimate_x": false, "spin_poker": false},
-	{"label_key": "lobby.mode_five_play", "hands": 5, "ultimate_x": false, "spin_poker": false},
-	{"label_key": "lobby.mode_ten_play", "hands": 10, "ultimate_x": false, "spin_poker": false},
-	{"label_key": "lobby.mode_ultimate_x", "hands": 5, "ultimate_x": true, "spin_poker": false},
-	{"label_key": "lobby.mode_spin_poker", "hands": 1, "ultimate_x": false, "spin_poker": true},
+	{"label_key": "lobby.mode_single_play", "hands": 1, "ultra_vp": false, "spin_poker": false},
+	{"label_key": "lobby.mode_triple_play", "hands": 3, "ultra_vp": false, "spin_poker": false},
+	{"label_key": "lobby.mode_five_play", "hands": 5, "ultra_vp": false, "spin_poker": false},
+	{"label_key": "lobby.mode_ten_play", "hands": 10, "ultra_vp": false, "spin_poker": false},
+	{"label_key": "lobby.mode_ultra_vp", "hands": 5, "ultra_vp": true, "spin_poker": false},
+	{"label_key": "lobby.mode_spin_poker", "hands": 1, "ultra_vp": false, "spin_poker": true},
 ]
 var _active_mode: int = 0
 var _sidebar_buttons: Array[Button] = []
@@ -135,10 +135,10 @@ func _build_sidebar() -> void:
 	)
 	_sidebar.custom_minimum_size.x = 360
 
-	# Find active mode from SaveManager (match hands + ultimate_x flag)
+	# Find active mode from SaveManager (match hands + ultra_vp flag)
 	for j in PLAY_MODES.size():
 		var m: Dictionary = PLAY_MODES[j]
-		if m["hands"] == SaveManager.hand_count and m["ultimate_x"] == SaveManager.ultimate_x and m.get("spin_poker", false) == SaveManager.spin_poker:
+		if m["hands"] == SaveManager.hand_count and m["ultra_vp"] == SaveManager.ultra_vp and m.get("spin_poker", false) == SaveManager.spin_poker:
 			_active_mode = j
 			break
 
@@ -156,7 +156,7 @@ func _build_sidebar() -> void:
 func _on_mode_selected(index: int) -> void:
 	_active_mode = index
 	SaveManager.hand_count = PLAY_MODES[index]["hands"]
-	SaveManager.ultimate_x = PLAY_MODES[index]["ultimate_x"]
+	SaveManager.ultra_vp = PLAY_MODES[index]["ultra_vp"]
 	SaveManager.spin_poker = PLAY_MODES[index].get("spin_poker", false)
 	SaveManager.save_game()
 	for i in _sidebar_buttons.size():

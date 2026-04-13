@@ -16,23 +16,23 @@ var state: State = State.IDLE
 var variant: BaseVariant
 var num_hands: int = 3
 var bet: int = 1
-var ultimate_x: bool = false
+var ultra_vp: bool = false
 
 var primary_hand: Array[CardData] = []
 var held: Array[bool] = [false, false, false, false, false]
 var all_hands: Array = []
 var all_results: Array = []
-# Ultimate X: multiplier for each hand (index 0 = primary, 1+ = extras)
+# Ultra VP: multiplier for each hand (index 0 = primary, 1+ = extras)
 var hand_multipliers: Array[int] = []  # Active multipliers applied this round
 var next_multipliers: Array[int] = []   # Earned from last round, shown as "NEXT"
 
 var _extra_decks: Array[Deck] = []
 
 
-func setup(p_variant: BaseVariant, p_num_hands: int, p_ultimate_x: bool = false) -> void:
+func setup(p_variant: BaseVariant, p_num_hands: int, p_ultra_vp: bool = false) -> void:
 	variant = p_variant
 	num_hands = p_num_hands
-	ultimate_x = p_ultimate_x
+	ultra_vp = p_ultra_vp
 	bet = clampi(SaveManager.bet_level, 1, MAX_BET)
 	_extra_decks.clear()
 	for i in (num_hands - 1):
@@ -45,8 +45,8 @@ func setup(p_variant: BaseVariant, p_num_hands: int, p_ultimate_x: bool = false)
 		next_multipliers.append(1)
 
 
-## Ultimate X multiplier table based on hand rank
-static func get_ultimate_x_multiplier(hand_rank: HandEvaluator.HandRank) -> int:
+## Ultra VP multiplier table based on hand rank
+static func get_ultra_vp_multiplier(hand_rank: HandEvaluator.HandRank) -> int:
 	match hand_rank:
 		HandEvaluator.HandRank.JACKS_OR_BETTER: return 2
 		HandEvaluator.HandRank.TWO_PAIR: return 3
@@ -95,14 +95,14 @@ func deal() -> void:
 	if state != State.IDLE:
 		return
 
-	var ux_active: bool = ultimate_x and bet == MAX_BET
+	var ux_active: bool = ultra_vp and bet == MAX_BET
 	var bet_multiplier := 2 if ux_active else 1
 	var cost: int = bet * num_hands * SaveManager.denomination * bet_multiplier
 	if not SaveManager.deduct_credits(cost):
 		return
 	credits_changed.emit(SaveManager.credits)
 
-	# Ultimate X: activate next_multipliers for this round (only at MAX BET)
+	# Ultra VP: activate next_multipliers for this round (only at MAX BET)
 	if ux_active:
 		hand_multipliers = next_multipliers.duplicate()
 	else:
@@ -174,7 +174,7 @@ func _evaluate_all() -> void:
 
 	all_results.clear()
 	var total_payout: int = 0
-	var ux_active: bool = ultimate_x and bet == MAX_BET
+	var ux_active: bool = ultra_vp and bet == MAX_BET
 	# Earned multipliers for next round
 	var earned_multipliers: Array[int] = []
 
@@ -195,7 +195,7 @@ func _evaluate_all() -> void:
 		total_payout += payout
 		# Calculate earned multiplier for next round (only at MAX BET)
 		if ux_active:
-			earned_multipliers.append(get_ultimate_x_multiplier(hand_rank))
+			earned_multipliers.append(get_ultra_vp_multiplier(hand_rank))
 
 	# Store earned multipliers as next_multipliers (to be activated on next deal)
 	if ux_active:
