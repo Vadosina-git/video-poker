@@ -1733,6 +1733,7 @@ func _build_info_card() -> void:
 	style.content_margin_bottom = 12
 	_info_card.add_theme_stylebox_override("panel", style)
 	_info_card.custom_minimum_size = _get_primary_card_size()
+	_info_card.custom_minimum_size.y = 120
 	_info_card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_info_card.gui_input.connect(_on_info_card_clicked)
 
@@ -1849,7 +1850,7 @@ func _animate_credits(target: int) -> void:
 	# Highlight balance during roll-up
 	SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE)
 	_credit_tween = create_tween()
-	var dur := 1.5 if _ultra_vp else 1.0
+	var dur := 3.0 if _ultra_vp else 2.0
 	_credit_tween.tween_method(_update_credit_display, start, target, dur).set_ease(Tween.EASE_OUT)
 	_credit_tween.tween_callback(_on_credit_animation_done)
 
@@ -2711,7 +2712,7 @@ func _make_badge(hand_name: String, multiplier: int, border_color: Color) -> Pan
 	style.content_margin_bottom = 3
 	badge.add_theme_stylebox_override("panel", style)
 
-	badge.custom_minimum_size.x = 170
+	badge.custom_minimum_size.x = 180
 	badge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	var label := Label.new()
 	label.text = "%s\nX%d" % [hand_name, multiplier]
