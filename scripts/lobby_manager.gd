@@ -4,87 +4,20 @@ signal machine_selected(variant_id: String)
 
 var MachineCardScene: PackedScene = null
 
+## Per-machine config: ID + colors + lock flag.
+## Display name and mini-description come from translations.json (keys
+## `machine.{id}.name` / `machine.{id}.mini`).
 const MACHINE_CONFIG := [
-	{
-		"id": "deuces_and_joker",
-		"name": "Deuces & Joker",
-		"color": Color(0.05, 0.5, 0.45),
-		"accent": Color(0.8, 0.15, 0.15),
-		"mini": "5 wild cards (4 Deuces + Joker)\nMin hand: Three of a Kind\n4 Deuces+Joker at Max Bet: 10,000\nNatural Royal: 4000\nHighest jackpot among all variants",
-		"locked": false,
-	},
-	{
-		"id": "jacks_or_better",
-		"name": "Jacks or Better",
-		"color": Color(0.2, 0.3, 0.8),
-		"accent": Color(0.85, 0.7, 0.2),
-		"mini": "The classic 9/6 full pay variant\nMin hand: Pair of Jacks+\nRoyal Flush: 4000 (Max Bet)\nFull House: 9 | Flush: 6\nRTP: 99.54% | Low variance",
-		"locked": false,
-	},
-	{
-		"id": "bonus_poker",
-		"name": "Bonus Poker",
-		"color": Color(0.75, 0.15, 0.15),
-		"accent": Color(0.75, 0.75, 0.8),
-		"mini": "Enhanced Four of a Kind payouts by rank\n4 Aces: 80 | 4 Twos-Fours: 40\nFull House: 8 | Flush: 5\nRTP: 99.17% | Low variance",
-		"locked": false,
-	},
-	{
-		"id": "deuces_wild",
-		"name": "Deuces Wild",
-		"color": Color(0.1, 0.7, 0.2),
-		"accent": Color(1.0, 0.9, 0.1),
-		"mini": "All four 2s are wild cards\nMin hand: Three of a Kind\n4 Deuces: 200 | Natural Royal: 4000\n5 of a Kind possible!\nRTP: 99.73% | Low variance",
-		"locked": false,
-	},
-	{
-		"id": "double_bonus",
-		"name": "Double Bonus",
-		"color": Color(0.6, 0.1, 0.1),
-		"accent": Color(0.75, 0.75, 0.8),
-		"mini": "Doubled Four of a Kind payouts\n4 Aces: 160 | 4 2s-4s: 80 | 4 5s-Ks: 50\nTwo Pair pays only 1\nRTP: 100.17% | Medium-High variance",
-		"locked": false,
-	},
-	{
-		"id": "bonus_poker_deluxe",
-		"name": "Bonus Poker Deluxe",
-		"color": Color(0.5, 0.1, 0.5),
-		"accent": Color(0.85, 0.7, 0.2),
-		"mini": "All Four of a Kind pays 80\nSimpler than Bonus Poker\nTwo Pair pays only 1\nFull House: 9 | Flush: 6\nRTP: 99.64% | Medium variance",
-		"locked": false,
-	},
-	{
-		"id": "double_double_bonus",
-		"name": "Double Double Bonus",
-		"color": Color(0.45, 0.05, 0.15),
-		"accent": Color(0.85, 0.7, 0.2),
-		"mini": "Kicker bonus on Four of a Kind!\n4 Aces + 2/3/4 kicker: 400\n4 2s-4s + A/2/3/4 kicker: 160\nTwo Pair pays only 1\nRTP: 100.07% | High variance",
-		"locked": false,
-	},
-	{
-		"id": "triple_double_bonus",
-		"name": "Triple Double Bonus",
-		"color": Color(0.08, 0.08, 0.08),
-		"accent": Color(0.85, 0.7, 0.2),
-		"mini": "Extreme kicker payouts!\n4 Aces + 2/3/4: 800 (=4000 at Max Bet)\n4 2s-4s + A/2/3/4: 400\nThree of a Kind pays only 2\nRTP: 99.58% | Very High variance",
-		"locked": false,
-	},
-	{
-		"id": "aces_and_faces",
-		"name": "Aces and Faces",
-		"color": Color(0.1, 0.5, 0.2),
-		"accent": Color(0.75, 0.75, 0.8),
-		"mini": "Bonus quads for Aces & Face cards\n4 Aces: 80 | 4 J/Q/K: 40 | 4 2s-10s: 25\nFull House: 8 | Flush: 5\nRTP: 99.26% | Low-Medium variance",
-		"locked": false,
-	},
-	{
-		"id": "joker_poker",
-		"name": "Joker Poker",
-		"color": Color(0.4, 0.1, 0.6),
-		"accent": Color(1.0, 0.9, 0.1),
-		"mini": "53-card deck with 1 Joker (wild)\nMin hand: Pair of Kings+\n5 of a Kind: 200 | Wild Royal: 100\nRTP: 100.65% | Low-Medium variance",
-		"locked": false,
-	},
+	{"id": "deuces_and_joker",   "color": Color(0.05, 0.5, 0.45), "accent": Color(0.8, 0.15, 0.15), "locked": false},
+	{"id": "jacks_or_better",    "color": Color(0.2, 0.3, 0.8),   "accent": Color(0.85, 0.7, 0.2),  "locked": false},
+	{"id": "bonus_poker",        "color": Color(0.75, 0.15, 0.15),"accent": Color(0.75, 0.75, 0.8), "locked": false},
+	{"id": "deuces_wild",        "color": Color(0.1, 0.7, 0.2),   "accent": Color(1.0, 0.9, 0.1),   "locked": false},
+	{"id": "double_bonus",       "color": Color(0.6, 0.1, 0.1),   "accent": Color(0.75, 0.75, 0.8), "locked": false},
+	{"id": "bonus_poker_deluxe", "color": Color(0.5, 0.1, 0.5),   "accent": Color(0.85, 0.7, 0.2),  "locked": false},
+	{"id": "double_double_bonus","color": Color(0.45, 0.05, 0.15),"accent": Color(0.85, 0.7, 0.2),  "locked": false},
+	{"id": "triple_double_bonus","color": Color(0.08, 0.08, 0.08),"accent": Color(0.85, 0.7, 0.2),  "locked": false},
+	{"id": "aces_and_faces",     "color": Color(0.1, 0.5, 0.2),   "accent": Color(0.75, 0.75, 0.8), "locked": false},
+	{"id": "joker_poker",        "color": Color(0.4, 0.1, 0.6),   "accent": Color(1.0, 0.9, 0.1),   "locked": false},
 ]
 
 @onready var _grid: GridContainer = %MachineGrid
@@ -107,12 +40,12 @@ const MODE_COLORS := {
 }
 
 const PLAY_MODES := [
-	{"label": "SINGLE PLAY", "hands": 1, "ultimate_x": false},
-	{"label": "TRIPLE PLAY", "hands": 3, "ultimate_x": false},
-	{"label": "FIVE PLAY", "hands": 5, "ultimate_x": false},
-	{"label": "TEN PLAY", "hands": 10, "ultimate_x": false},
-	{"label": "ULTIMATE X", "hands": 5, "ultimate_x": true},
-	{"label": "25 PLAY", "hands": 25, "ultimate_x": false},
+	{"label_key": "lobby.mode_single_play", "hands": 1, "ultimate_x": false, "spin_poker": false},
+	{"label_key": "lobby.mode_triple_play", "hands": 3, "ultimate_x": false, "spin_poker": false},
+	{"label_key": "lobby.mode_five_play", "hands": 5, "ultimate_x": false, "spin_poker": false},
+	{"label_key": "lobby.mode_ten_play", "hands": 10, "ultimate_x": false, "spin_poker": false},
+	{"label_key": "lobby.mode_ultimate_x", "hands": 5, "ultimate_x": true, "spin_poker": false},
+	{"label_key": "lobby.mode_spin_poker", "hands": 1, "ultimate_x": false, "spin_poker": true},
 ]
 var _active_mode: int = 0
 var _sidebar_buttons: Array[Button] = []
@@ -122,13 +55,14 @@ func _ready() -> void:
 	MachineCardScene = load("res://scenes/lobby/machine_card.tscn")
 	_paytables = Paytable.load_all()
 	_apply_theme()
-	_cash_label.text = "CASH:"
+	_cash_label.text = Translations.tr_key("lobby.cash")
 	_cash_cd = SaveManager.create_currency_display(40, Color.WHITE)
 	_cash_label.get_parent().add_child(_cash_cd["box"])
 	_cash_label.get_parent().move_child(_cash_cd["box"], _cash_label.get_index() + 1)
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
-	_credits_label.text = "CREDITS: %d" % SaveManager.credits
+	_credits_label.text = Translations.tr_key("lobby.credits_fmt", [SaveManager.credits])
 	_build_carousel()
+	_build_settings_button()
 
 
 func _apply_theme() -> void:
@@ -155,6 +89,7 @@ func _apply_theme() -> void:
 
 	# Title "VIDEO POKER": yellow, bold, centered
 	var title := %LobbyTitle as Label
+	title.text = Translations.tr_key("lobby.title")
 	title.add_theme_font_size_override("font_size", 56)
 	title.add_theme_color_override("font_color", Color("FFEC00"))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -202,14 +137,15 @@ func _build_sidebar() -> void:
 
 	# Find active mode from SaveManager (match hands + ultimate_x flag)
 	for j in PLAY_MODES.size():
-		if PLAY_MODES[j]["hands"] == SaveManager.hand_count and PLAY_MODES[j]["ultimate_x"] == SaveManager.ultimate_x:
+		var m: Dictionary = PLAY_MODES[j]
+		if m["hands"] == SaveManager.hand_count and m["ultimate_x"] == SaveManager.ultimate_x and m.get("spin_poker", false) == SaveManager.spin_poker:
 			_active_mode = j
 			break
 
 	_sidebar_buttons.clear()
 	for i in PLAY_MODES.size():
 		var btn := Button.new()
-		btn.text = PLAY_MODES[i]["label"]
+		btn.text = Translations.tr_key(PLAY_MODES[i]["label_key"])
 		btn.custom_minimum_size = Vector2(320, 80)
 		_style_sidebar_btn(btn, i == _active_mode)
 		btn.pressed.connect(_on_mode_selected.bind(i))
@@ -221,6 +157,7 @@ func _on_mode_selected(index: int) -> void:
 	_active_mode = index
 	SaveManager.hand_count = PLAY_MODES[index]["hands"]
 	SaveManager.ultimate_x = PLAY_MODES[index]["ultimate_x"]
+	SaveManager.spin_poker = PLAY_MODES[index].get("spin_poker", false)
 	SaveManager.save_game()
 	for i in _sidebar_buttons.size():
 		_style_sidebar_btn(_sidebar_buttons[i], i == _active_mode)
@@ -280,13 +217,15 @@ func _build_carousel() -> void:
 		var rtp: float = 0.0
 		if config["id"] in _paytables:
 			rtp = _paytables[config["id"]].rtp
+		var display_name := Translations.tr_key("machine.%s.name" % config["id"])
+		var mini_text := Translations.tr_key("machine.%s.mini" % config["id"])
 		card_node.setup(
 			config["id"],
-			config["name"],
+			display_name,
 			config["color"],
 			config["accent"],
 			rtp,
-			config["mini"],
+			mini_text,
 			config["locked"],
 		)
 		card_node.play_pressed.connect(_on_play_pressed)
@@ -308,4 +247,127 @@ func _on_play_pressed(variant_id: String) -> void:
 
 func refresh_credits() -> void:
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
-	_credits_label.text = "CREDITS: %d" % SaveManager.credits
+	_credits_label.text = Translations.tr_key("lobby.credits_fmt", [SaveManager.credits])
+
+
+# --- Settings popup ----------------------------------------------------------
+
+var _settings_btn: Button
+var _settings_overlay: Control = null
+
+func _build_settings_button() -> void:
+	_settings_btn = Button.new()
+	_settings_btn.text = "⚙"
+	_settings_btn.add_theme_font_size_override("font_size", 40)
+	_settings_btn.add_theme_color_override("font_color", Color.WHITE)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	_settings_btn.add_theme_stylebox_override("normal", style)
+	_settings_btn.add_theme_stylebox_override("hover", style)
+	_settings_btn.add_theme_stylebox_override("pressed", style)
+	_settings_btn.custom_minimum_size = Vector2(56, 56)
+	_settings_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_settings_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_settings_btn.pressed.connect(_show_settings)
+	# Add to top bar (after the cash currency display)
+	var top_bar := $VBoxContainer/TopBar as HBoxContainer
+	top_bar.add_child(_settings_btn)
+
+
+func _show_settings() -> void:
+	if _settings_overlay:
+		return
+	_settings_overlay = Control.new()
+	_settings_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_settings_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_settings_overlay.z_index = 100
+	add_child(_settings_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.85)
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			_hide_settings()
+	)
+	_settings_overlay.add_child(dim)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.05, 0.05, 0.18, 0.96)
+	pstyle.set_border_width_all(3)
+	pstyle.border_color = Color("FFEC00")
+	pstyle.set_corner_radius_all(12)
+	pstyle.content_margin_left = 32
+	pstyle.content_margin_right = 32
+	pstyle.content_margin_top = 24
+	pstyle.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", pstyle)
+	_settings_overlay.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = Translations.tr_key("settings.title")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", Color("FFEC00"))
+	vbox.add_child(title)
+
+	var lang_label := Label.new()
+	lang_label.text = Translations.tr_key("settings.language")
+	lang_label.add_theme_font_size_override("font_size", 24)
+	lang_label.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(lang_label)
+
+	# Language buttons
+	var current := Translations.get_saved_language()
+	for code in Translations.get_available_codes():
+		var lang_btn := Button.new()
+		lang_btn.text = Translations.display_name_for_code(code)
+		lang_btn.custom_minimum_size = Vector2(280, 56)
+		_style_lang_btn(lang_btn, code == current)
+		lang_btn.pressed.connect(_on_language_chosen.bind(code))
+		vbox.add_child(lang_btn)
+
+	# Close button
+	var close_btn := Button.new()
+	close_btn.text = Translations.tr_key("settings.close")
+	close_btn.custom_minimum_size = Vector2(280, 48)
+	_style_lang_btn(close_btn, false)
+	close_btn.pressed.connect(_hide_settings)
+	vbox.add_child(close_btn)
+
+
+func _style_lang_btn(btn: Button, active: bool) -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.53) if active else Color(0.12, 0.12, 0.35)
+	style.set_border_width_all(3)
+	style.border_color = Color(0.85, 0.7, 0.2) if active else Color(0.3, 0.3, 0.5)
+	style.set_corner_radius_all(8)
+	btn.add_theme_stylebox_override("normal", style)
+	var hover := style.duplicate()
+	hover.bg_color = style.bg_color.lightened(0.15)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_font_size_override("font_size", 22)
+	btn.add_theme_color_override("font_color", Color("FFEC00") if active else Color.WHITE)
+
+
+func _hide_settings() -> void:
+	if _settings_overlay:
+		_settings_overlay.queue_free()
+		_settings_overlay = null
+
+
+func _on_language_chosen(code: String) -> void:
+	if code == Translations.get_saved_language():
+		_hide_settings()
+		return
+	Translations.set_language(code)
+	# Force a full game reload so every cached label / built scene updates.
+	get_tree().call_deferred("reload_current_scene")

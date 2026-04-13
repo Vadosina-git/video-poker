@@ -44,6 +44,14 @@ func get_replacement(position: int) -> CardData:
 	return _cards[5 + position]
 
 
+func get_card(index: int) -> CardData:
+	return _cards[index]
+
+
+func card_count() -> int:
+	return _cards.size()
+
+
 ## For multi-hand: shuffle this deck independently, then build a 5-card hand
 ## where held positions keep cards from primary_hand, and non-held positions
 ## get unique cards from this deck (skipping any card that matches a held card).

@@ -31,6 +31,18 @@ func _on_machine_selected(variant_id: String) -> void:
 	var hand_count: int = SaveManager.hand_count
 	var ultimate_x: bool = SaveManager.ultimate_x
 
+	if SaveManager.spin_poker:
+		# Spin Poker mode
+		var spin_scene := load("res://scenes/spin_poker_game.tscn")
+		if spin_scene:
+			var spin_game: Control = spin_scene.instantiate()
+			spin_game.setup(variant)
+			add_child(spin_game)
+			_make_full_rect(spin_game)
+			_current_scene = spin_game
+			spin_game.back_to_lobby.connect(_show_lobby)
+			return
+
 	if hand_count > 1 or ultimate_x:
 		# Multi-hand mode
 		var multi_scene := load("res://scenes/multi_hand_game.tscn")

@@ -9,7 +9,9 @@ var hand_count: int = 1  # 1=single, 3=triple, 5=five, 10=ten, 12=twelve, 25=twe
 var speed_level: int = 1  # 0-3, default 1 (second speed)
 var bet_level: int = 1    # 1-5, default 1
 var ultimate_x: bool = false  # Ultimate X mode flag
+var spin_poker: bool = false   # Spin Poker mode flag
 var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
+var language: String = "system"  # "system" | "en" | "ru" | "es"
 var settings := {
 	"sound_fx": true,
 	"music": true,
@@ -150,7 +152,9 @@ func save_game() -> void:
 		"speed_level": speed_level,
 		"bet_level": bet_level,
 		"ultimate_x": ultimate_x,
+		"spin_poker": spin_poker,
 		"depth_hint_shown": depth_hint_shown,
+		"language": language,
 		"settings": settings,
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -175,7 +179,9 @@ func load_game() -> void:
 	speed_level = int(data.get("speed_level", 1))
 	bet_level = int(data.get("bet_level", 1))
 	ultimate_x = bool(data.get("ultimate_x", false))
+	spin_poker = bool(data.get("spin_poker", false))
 	depth_hint_shown = bool(data.get("depth_hint_shown", false))
+	language = String(data.get("language", "system"))
 	var saved_settings: Dictionary = data.get("settings", {})
 	for key in saved_settings:
 		if key in settings:
