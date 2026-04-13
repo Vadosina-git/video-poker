@@ -319,21 +319,18 @@ func _show_settings() -> void:
 	title.add_theme_color_override("font_color", Color("FFEC00"))
 	vbox.add_child(title)
 
-	var lang_label := Label.new()
-	lang_label.text = Translations.tr_key("settings.language")
-	lang_label.add_theme_font_size_override("font_size", 24)
-	lang_label.add_theme_color_override("font_color", Color.WHITE)
-	vbox.add_child(lang_label)
-
-	# Language buttons
+	# LANGUAGE row — single button that opens a sub-popup with options.
+	# Format: "LANGUAGE: English". Tapping it reveals the full picker.
 	var current := Translations.get_saved_language()
-	for code in Translations.get_available_codes():
-		var lang_btn := Button.new()
-		lang_btn.text = Translations.display_name_for_code(code)
-		lang_btn.custom_minimum_size = Vector2(280, 56)
-		_style_lang_btn(lang_btn, code == current)
-		lang_btn.pressed.connect(_on_language_chosen.bind(code))
-		vbox.add_child(lang_btn)
+	var lang_btn := Button.new()
+	lang_btn.text = "%s: %s" % [
+		Translations.tr_key("settings.language"),
+		Translations.display_name_for_code(current),
+	]
+	lang_btn.custom_minimum_size = Vector2(280, 56)
+	_style_lang_btn(lang_btn, false)
+	lang_btn.pressed.connect(_show_language_picker)
+	vbox.add_child(lang_btn)
 
 	# Close button
 	var close_btn := Button.new()
@@ -359,12 +356,79 @@ func _style_lang_btn(btn: Button, active: bool) -> void:
 
 
 func _hide_settings() -> void:
+	_hide_language_picker()
 	if _settings_overlay:
 		_settings_overlay.queue_free()
 		_settings_overlay = null
 
 
+# --- Language picker (sub-popup of settings) ---
+
+var _lang_picker_overlay: Control = null
+
+func _show_language_picker() -> void:
+	if _lang_picker_overlay:
+		return
+	_lang_picker_overlay = Control.new()
+	_lang_picker_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_lang_picker_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_lang_picker_overlay.z_index = 110  # above the settings popup
+	add_child(_lang_picker_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.7)
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			_hide_language_picker()
+	)
+	_lang_picker_overlay.add_child(dim)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.05, 0.05, 0.18, 0.98)
+	pstyle.set_border_width_all(3)
+	pstyle.border_color = Color("FFEC00")
+	pstyle.set_corner_radius_all(12)
+	pstyle.content_margin_left = 32
+	pstyle.content_margin_right = 32
+	pstyle.content_margin_top = 24
+	pstyle.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", pstyle)
+	_lang_picker_overlay.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = Translations.tr_key("settings.language")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", Color("FFEC00"))
+	vbox.add_child(title)
+
+	var current := Translations.get_saved_language()
+	for code in Translations.get_available_codes():
+		var btn := Button.new()
+		btn.text = Translations.display_name_for_code(code)
+		btn.custom_minimum_size = Vector2(280, 56)
+		_style_lang_btn(btn, code == current)
+		btn.pressed.connect(_on_language_chosen.bind(code))
+		vbox.add_child(btn)
+
+
+func _hide_language_picker() -> void:
+	if _lang_picker_overlay:
+		_lang_picker_overlay.queue_free()
+		_lang_picker_overlay = null
+
+
 func _on_language_chosen(code: String) -> void:
+	_hide_language_picker()
 	if code == Translations.get_saved_language():
 		_hide_settings()
 		return

@@ -755,10 +755,10 @@ func _is_rushing() -> bool:
 func _update_balance(credits: int) -> void:
 	if _balance_show_depth:
 		var depth := _calculate_game_depth()
-		_balance_label.text = "GAMES:"
+		_balance_label.text = Translations.tr_key("game.games")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
 	else:
-		_balance_label.text = "BALANCE:"
+		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
 
 
