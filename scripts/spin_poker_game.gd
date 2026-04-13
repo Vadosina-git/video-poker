@@ -56,10 +56,10 @@ var _win_badge: PanelContainer = null
 var _speed_level: int = 1
 const SPEED_LABELS := ["1x", "2x", "3x", "MAX"]
 const SPEED_CONFIGS := [
-	{"spin_ms": 120, "stop_delay_ms": 200},
-	{"spin_ms": 80,  "stop_delay_ms": 150},
-	{"spin_ms": 50,  "stop_delay_ms": 100},
-	{"spin_ms": 25,  "stop_delay_ms": 50},
+	{"spin_ms": 60, "base_spin_ms": 700, "col_stop_ms": 180},
+	{"spin_ms": 45, "base_spin_ms": 450, "col_stop_ms": 140},
+	{"spin_ms": 30, "base_spin_ms": 250, "col_stop_ms": 90},
+	{"spin_ms": 20, "base_spin_ms": 0,   "col_stop_ms": 0},
 ]
 
 # Card path helpers
@@ -529,36 +529,48 @@ func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
 
 
 func _animate_spin_deal(mid_row: Array[CardData]) -> void:
-	var delay_ms: int = SPEED_CONFIGS[_speed_level]["stop_delay_ms"]
+	var cfg: Dictionary = SPEED_CONFIGS[_speed_level]
+	var base_ms: int = cfg["base_spin_ms"]
+	var col_ms: int = cfg["col_stop_ms"]
 
-	if _rush or _speed_level >= 3:
+	if _rush or base_ms == 0:
 		for col in 5:
 			_set_card_texture(1, col, mid_row[col])
 		return
 
 	var spin_active := [true, true, true, true, true]
-	var random_cards := _build_random_card_paths(25)
+	var random_cards := _build_random_card_paths(40)
 
+	# Start rapid texture cycling on all 5 columns
 	var spin_timer := Timer.new()
-	spin_timer.wait_time = SPEED_CONFIGS[_speed_level]["spin_ms"] / 1000.0
+	spin_timer.wait_time = cfg["spin_ms"] / 1000.0
 	spin_timer.autostart = true
 	add_child(spin_timer)
 	var frame_idx := [0]
 	spin_timer.timeout.connect(func() -> void:
 		for col in 5:
 			if spin_active[col]:
-				var idx: int = (frame_idx[0] + col * 3) % random_cards.size()
+				var idx: int = (frame_idx[0] + col * 5) % random_cards.size()
 				var path: String = random_cards[idx]
 				if ResourceLoader.exists(path):
 					_card_rects[1][col].texture = load(path)
 		frame_idx[0] += 1
 	)
 
+	# Base spin: all columns spin together
+	await get_tree().create_timer(base_ms / 1000.0).timeout
+
+	# Sequential column stops, left to right
 	for col in 5:
-		await get_tree().create_timer(delay_ms / 1000.0).timeout
+		if _rush:
+			spin_active[col] = false
+			_set_card_texture(1, col, mid_row[col])
+			continue
 		spin_active[col] = false
 		_set_card_texture(1, col, mid_row[col])
 		SoundManager.play("deal")
+		if col < 4:
+			await get_tree().create_timer(col_ms / 1000.0).timeout
 
 	spin_timer.stop()
 	spin_timer.queue_free()
@@ -582,9 +594,11 @@ func _on_draw_spin_complete(grid: Array) -> void:
 
 
 func _animate_spin_draw(grid: Array) -> void:
-	var delay_ms: int = SPEED_CONFIGS[_speed_level]["stop_delay_ms"]
+	var cfg: Dictionary = SPEED_CONFIGS[_speed_level]
+	var base_ms: int = cfg["base_spin_ms"]
+	var col_ms: int = cfg["col_stop_ms"]
 
-	if _rush or _speed_level >= 3:
+	if _rush or base_ms == 0:
 		for row in 3:
 			for col in 5:
 				_set_card_texture(row, col, grid[row][col])
@@ -595,9 +609,9 @@ func _animate_spin_draw(grid: Array) -> void:
 		if not _manager.held[col]:
 			spin_active[col] = true
 
-	var random_cards := _build_random_card_paths(25)
+	var random_cards := _build_random_card_paths(40)
 	var spin_timer := Timer.new()
-	spin_timer.wait_time = SPEED_CONFIGS[_speed_level]["spin_ms"] / 1000.0
+	spin_timer.wait_time = cfg["spin_ms"] / 1000.0
 	spin_timer.autostart = true
 	add_child(spin_timer)
 	var frame_idx := [0]
@@ -605,21 +619,31 @@ func _animate_spin_draw(grid: Array) -> void:
 		for col in 5:
 			if spin_active[col]:
 				for row in 3:
-					var idx: int = (frame_idx[0] + col * 3 + row * 7) % random_cards.size()
+					var idx: int = (frame_idx[0] + col * 5 + row * 11) % random_cards.size()
 					var path: String = random_cards[idx]
 					if ResourceLoader.exists(path):
 						_card_rects[row][col].texture = load(path)
 		frame_idx[0] += 1
 	)
 
+	# Base spin: all unheld columns spin together
+	await get_tree().create_timer(base_ms / 1000.0).timeout
+
+	# Sequential column stops, left to right
 	for col in 5:
 		if not spin_active[col]:
 			continue
-		await get_tree().create_timer(delay_ms / 1000.0).timeout
+		if _rush:
+			spin_active[col] = false
+			for row in 3:
+				_set_card_texture(row, col, grid[row][col])
+			continue
 		spin_active[col] = false
 		for row in 3:
 			_set_card_texture(row, col, grid[row][col])
 		SoundManager.play("deal")
+		if col < 4:
+			await get_tree().create_timer(col_ms / 1000.0).timeout
 
 	spin_timer.stop()
 	spin_timer.queue_free()
