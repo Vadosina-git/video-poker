@@ -350,11 +350,13 @@ func _build_button_groups() -> void:
 	_bottom_bar.move_child(_info_btn, _speed_btn.get_index())
 	var spacer_l := Control.new()
 	spacer_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer_l.custom_minimum_size.x = 4
 	_bottom_bar.add_child(spacer_l)
 	_bottom_bar.move_child(spacer_l, _speed_btn.get_index() + 1)
 
 	var spacer_r := Control.new()
 	spacer_r.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer_r.custom_minimum_size.x = 4
 	_bottom_bar.add_child(spacer_r)
 	_bottom_bar.move_child(spacer_r, _bet_max_btn.get_index() + 1)
 	# DOUBLE button before DEAL
@@ -2553,7 +2555,7 @@ func _build_paytable_badges() -> void:
 
 	# Create left column
 	_left_badges = VBoxContainer.new()
-	_left_badges.add_theme_constant_override("separation", 4)
+	_left_badges.add_theme_constant_override("separation", 2)
 	_left_badges.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_left_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_left_badges.visible = false
@@ -2561,7 +2563,7 @@ func _build_paytable_badges() -> void:
 
 	# Create right column
 	_right_badges = VBoxContainer.new()
-	_right_badges.add_theme_constant_override("separation", 4)
+	_right_badges.add_theme_constant_override("separation", 2)
 	_right_badges.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_right_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_right_badges.visible = false
