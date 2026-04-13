@@ -206,39 +206,38 @@ func _build_ui() -> void:
 		right_col.add_child(lbl)
 		_right_line_labels.append(lbl)
 
-	# ── Status bar
+	# ── Status + game pays: inline labels (no separate bar, prevents layout jumps)
 	_status_label = Label.new()
 	_status_label.text = "PLACE YOUR BET"
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status_label.add_theme_font_size_override("font_size", 14)
+	_status_label.add_theme_font_size_override("font_size", 13)
 	_status_label.add_theme_color_override("font_color", Color.WHITE)
 	_status_label.add_theme_font_override("font", bold)
-	var status_bg := PanelContainer.new()
-	var sstyle := StyleBoxFlat.new()
-	sstyle.bg_color = Color(0, 0, 0, 0.8)
-	sstyle.content_margin_left = 16
-	sstyle.content_margin_right = 16
-	sstyle.content_margin_top = 4
-	sstyle.content_margin_bottom = 4
-	status_bg.add_theme_stylebox_override("panel", sstyle)
-	status_bg.add_child(_status_label)
-	root_vbox.add_child(status_bg)
 
-	# ── Game pays label
 	_game_pays_label = Label.new()
 	_game_pays_label.text = ""
 	_game_pays_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_game_pays_label.add_theme_font_size_override("font_size", 16)
+	_game_pays_label.add_theme_font_size_override("font_size", 14)
 	_game_pays_label.add_theme_color_override("font_color", COL_YELLOW)
 	_game_pays_label.add_theme_font_override("font", bold)
 	_game_pays_label.visible = false
-	root_vbox.add_child(_game_pays_label)
 
 	# ── Bottom bar
 	_build_bottom_bar(root_vbox, bold)
 
 
 func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
+	# Status row: status left, game pays right (fixed height, no layout jumps)
+	var status_row := HBoxContainer.new()
+	status_row.add_theme_constant_override("separation", 16)
+	status_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	root_vbox.add_child(status_row)
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_row.add_child(_status_label)
+	_game_pays_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_row.add_child(_game_pays_label)
+
+	# Info row: WIN | BET | CREDIT
 	var info_row := HBoxContainer.new()
 	info_row.add_theme_constant_override("separation", 12)
 	info_row.alignment = BoxContainer.ALIGNMENT_CENTER
