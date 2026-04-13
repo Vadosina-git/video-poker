@@ -60,10 +60,10 @@ var _idle_timer: SceneTreeTimer = null
 var _speed_level: int = 1
 const SPEED_LABELS := ["1x", "2x", "3x", "MAX"]
 const SPEED_CONFIGS := [
-	{"spin_ms": 60, "base_spin_ms": 700, "col_stop_ms": 180},
-	{"spin_ms": 45, "base_spin_ms": 450, "col_stop_ms": 140},
-	{"spin_ms": 30, "base_spin_ms": 250, "col_stop_ms": 90},
-	{"spin_ms": 20, "base_spin_ms": 0,   "col_stop_ms": 0},
+	{"spin_ms": 50, "base_spin_ms": 3500, "col_stop_ms": 900, "inertia_ms": 700},
+	{"spin_ms": 40, "base_spin_ms": 2200, "col_stop_ms": 600, "inertia_ms": 500},
+	{"spin_ms": 30, "base_spin_ms": 1200, "col_stop_ms": 350, "inertia_ms": 300},
+	{"spin_ms": 20, "base_spin_ms": 0,    "col_stop_ms": 0,   "inertia_ms": 0},
 ]
 
 # Card path helpers — spin poker uses square SVG cards from cards_spin/
@@ -163,8 +163,8 @@ func _build_ui() -> void:
 	panel_style.content_margin_top = 3
 	panel_style.content_margin_bottom = 3
 	_grid_panel.add_theme_stylebox_override("panel", panel_style)
-	_grid_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_grid_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_grid_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_grid_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	grid_area.add_child(_grid_panel)
 
 	_grid_container = GridContainer.new()
@@ -185,7 +185,9 @@ func _build_ui() -> void:
 			var tex_rect := TextureRect.new()
 			tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tex_rect.custom_minimum_size = Vector2(120, 120)
+			tex_rect.custom_minimum_size = Vector2(80, 80)
+			tex_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			tex_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			tex_rect.texture = back_tex
 			tex_rect.mouse_filter = Control.MOUSE_FILTER_STOP if row == 1 else Control.MOUSE_FILTER_IGNORE
 			if row == 1:
@@ -582,15 +584,25 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 	# Base spin: all columns spin together
 	await get_tree().create_timer(base_ms / 1000.0).timeout
 
-	# Sequential column stops, left to right
+	# Sequential column stops with inertia deceleration
+	var inertia_ms: int = cfg["inertia_ms"]
 	for col in 5:
 		if _rush:
 			spin_active[col] = false
 			_set_card_texture(1, col, mid_row[col])
 			continue
 		spin_active[col] = false
+		# Inertia: slow flicker then land on final card
+		if inertia_ms > 0:
+			var steps := 4
+			var step_ms := inertia_ms / steps
+			for s in steps:
+				var idx: int = randi() % random_cards.size()
+				if ResourceLoader.exists(random_cards[idx]):
+					_card_rects[1][col].texture = load(random_cards[idx])
+				await get_tree().create_timer(step_ms / 1000.0).timeout
 		_set_card_texture(1, col, mid_row[col])
-		SoundManager.play("deal")
+		SoundManager.play("spin_stop")
 		if col < 4:
 			await get_tree().create_timer(col_ms / 1000.0).timeout
 
@@ -651,7 +663,8 @@ func _animate_spin_draw(grid: Array) -> void:
 	# Base spin: all unheld columns spin together
 	await get_tree().create_timer(base_ms / 1000.0).timeout
 
-	# Sequential column stops, left to right
+	# Sequential column stops with inertia
+	var inertia_ms: int = cfg["inertia_ms"]
 	for col in 5:
 		if not spin_active[col]:
 			continue
@@ -661,9 +674,19 @@ func _animate_spin_draw(grid: Array) -> void:
 				_set_card_texture(row, col, grid[row][col])
 			continue
 		spin_active[col] = false
+		# Inertia: slow flicker then land
+		if inertia_ms > 0:
+			var steps := 4
+			var step_ms := inertia_ms / steps
+			for s in steps:
+				for row in 3:
+					var idx: int = randi() % random_cards.size()
+					if ResourceLoader.exists(random_cards[idx]):
+						_card_rects[row][col].texture = load(random_cards[idx])
+				await get_tree().create_timer(step_ms / 1000.0).timeout
 		for row in 3:
 			_set_card_texture(row, col, grid[row][col])
-		SoundManager.play("deal")
+		SoundManager.play("spin_stop")
 		if col < 4:
 			await get_tree().create_timer(col_ms / 1000.0).timeout
 
