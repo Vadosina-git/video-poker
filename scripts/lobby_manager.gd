@@ -340,6 +340,24 @@ func _show_settings() -> void:
 	close_btn.pressed.connect(_hide_settings)
 	vbox.add_child(close_btn)
 
+	# Delete account button (red, at bottom)
+	var del_btn := Button.new()
+	del_btn.text = Translations.tr_key("settings.delete_account")
+	del_btn.custom_minimum_size = Vector2(280, 48)
+	var del_style := StyleBoxFlat.new()
+	del_style.bg_color = Color(0.6, 0.1, 0.1)
+	del_style.set_border_width_all(2)
+	del_style.border_color = Color(0.8, 0.2, 0.2)
+	del_style.set_corner_radius_all(8)
+	del_btn.add_theme_stylebox_override("normal", del_style)
+	var del_hover := del_style.duplicate()
+	del_hover.bg_color = Color(0.7, 0.15, 0.15)
+	del_btn.add_theme_stylebox_override("hover", del_hover)
+	del_btn.add_theme_font_size_override("font_size", 18)
+	del_btn.add_theme_color_override("font_color", Color.WHITE)
+	del_btn.pressed.connect(_delete_account_step1)
+	vbox.add_child(del_btn)
+
 
 func _style_lang_btn(btn: Button, active: bool) -> void:
 	var style := StyleBoxFlat.new()
@@ -353,6 +371,147 @@ func _style_lang_btn(btn: Button, active: bool) -> void:
 	btn.add_theme_stylebox_override("hover", hover)
 	btn.add_theme_font_size_override("font_size", 22)
 	btn.add_theme_color_override("font_color", Color("FFEC00") if active else Color.WHITE)
+
+
+func _delete_account_step1() -> void:
+	_hide_settings()
+	var overlay := Control.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 110
+	add_child(overlay)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.8)
+	overlay.add_child(dim)
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.3, 0.05, 0.05, 0.95)
+	ps.set_border_width_all(3)
+	ps.border_color = Color(0.8, 0.2, 0.2)
+	ps.set_corner_radius_all(12)
+	ps.content_margin_left = 32
+	ps.content_margin_right = 32
+	ps.content_margin_top = 24
+	ps.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	overlay.add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+	var msg := Label.new()
+	msg.text = Translations.tr_key("settings.delete_confirm_1")
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.add_theme_font_size_override("font_size", 20)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD
+	msg.custom_minimum_size.x = 400
+	vbox.add_child(msg)
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 16)
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(btns)
+	var cancel := Button.new()
+	cancel.text = Translations.tr_key("settings.delete_cancel")
+	cancel.custom_minimum_size = Vector2(140, 44)
+	_style_lang_btn(cancel, false)
+	cancel.pressed.connect(func() -> void: overlay.queue_free())
+	btns.add_child(cancel)
+	var cont := Button.new()
+	cont.text = Translations.tr_key("settings.delete_continue")
+	cont.custom_minimum_size = Vector2(140, 44)
+	_style_lang_btn(cont, true)
+	cont.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_delete_account_step2()
+	)
+	btns.add_child(cont)
+
+
+func _delete_account_step2() -> void:
+	var overlay := Control.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 110
+	add_child(overlay)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.8)
+	overlay.add_child(dim)
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(0.4, 0.05, 0.05, 0.95)
+	ps.set_border_width_all(3)
+	ps.border_color = Color(1, 0.2, 0.2)
+	ps.set_corner_radius_all(12)
+	ps.content_margin_left = 32
+	ps.content_margin_right = 32
+	ps.content_margin_top = 24
+	ps.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	overlay.add_child(panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+	var msg := Label.new()
+	msg.text = Translations.tr_key("settings.delete_confirm_2")
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.add_theme_font_size_override("font_size", 20)
+	msg.add_theme_color_override("font_color", Color(1, 0.6, 0.6))
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD
+	msg.custom_minimum_size.x = 400
+	vbox.add_child(msg)
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 16)
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(btns)
+	var cancel := Button.new()
+	cancel.text = Translations.tr_key("settings.delete_cancel")
+	cancel.custom_minimum_size = Vector2(140, 44)
+	_style_lang_btn(cancel, false)
+	cancel.pressed.connect(func() -> void: overlay.queue_free())
+	btns.add_child(cancel)
+	var del := Button.new()
+	del.text = Translations.tr_key("settings.delete_confirm")
+	del.custom_minimum_size = Vector2(140, 44)
+	var del_style := StyleBoxFlat.new()
+	del_style.bg_color = Color(0.7, 0.1, 0.1)
+	del_style.set_border_width_all(2)
+	del_style.border_color = Color(1, 0.3, 0.3)
+	del_style.set_corner_radius_all(8)
+	del.add_theme_stylebox_override("normal", del_style)
+	del.add_theme_font_size_override("font_size", 22)
+	del.add_theme_color_override("font_color", Color.WHITE)
+	del.pressed.connect(func() -> void:
+		overlay.queue_free()
+		_perform_account_delete()
+	)
+	btns.add_child(del)
+
+
+func _perform_account_delete() -> void:
+	# Clear save file
+	if FileAccess.file_exists(SaveManager.SAVE_PATH):
+		DirAccess.remove_absolute(SaveManager.SAVE_PATH)
+	# Reset to defaults
+	SaveManager.credits = ConfigManager.get_starting_balance()
+	SaveManager.denomination = 1
+	SaveManager.hand_count = 1
+	SaveManager.ultra_vp = false
+	SaveManager.spin_poker = false
+	SaveManager.speed_level = 1
+	SaveManager.bet_level = 1
+	SaveManager.depth_hint_shown = false
+	SaveManager.save_game()
+	# Refresh lobby
+	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
+	_credits_label.text = "CREDITS: %d" % SaveManager.credits
 
 
 func _hide_settings() -> void:

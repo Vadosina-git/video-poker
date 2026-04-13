@@ -137,7 +137,13 @@
       "common.back": "BACK",
       "game.exit_confirm": "Exit the table?",
       "game.exit_stay": "STAY",
-      "game.exit_leave": "EXIT"
+      "game.exit_leave": "EXIT",
+      "settings.delete_account": "DELETE ACCOUNT",
+      "settings.delete_confirm_1": "Are you sure? All data will be deleted.",
+      "settings.delete_confirm_2": "This action is irreversible. Balance, stats and progress will be reset.",
+      "settings.delete_cancel": "CANCEL",
+      "settings.delete_confirm": "DELETE",
+      "settings.delete_continue": "CONTINUE"
     },
     "ru": {
       "common.got_it": "ПОНЯТНО",
@@ -275,7 +281,13 @@
       "common.back": "НАЗАД",
       "game.exit_confirm": "Выйти из-за стола?",
       "game.exit_stay": "ОСТАТЬСЯ",
-      "game.exit_leave": "ВЫЙТИ"
+      "game.exit_leave": "ВЫЙТИ",
+      "settings.delete_account": "УДАЛИТЬ АККАУНТ",
+      "settings.delete_confirm_1": "Вы уверены? Все данные будут удалены.",
+      "settings.delete_confirm_2": "Это действие необратимо. Баланс, статистика и прогресс будут сброшены.",
+      "settings.delete_cancel": "ОТМЕНА",
+      "settings.delete_confirm": "УДАЛИТЬ",
+      "settings.delete_continue": "ПРОДОЛЖИТЬ"
     },
     "es": {
       "common.got_it": "ENTENDIDO",
@@ -413,7 +425,13 @@
       "common.back": "VOLVER",
       "game.exit_confirm": "¿Salir de la mesa?",
       "game.exit_stay": "QUEDARSE",
-      "game.exit_leave": "SALIR"
+      "game.exit_leave": "SALIR",
+      "settings.delete_account": "ELIMINAR CUENTA",
+      "settings.delete_confirm_1": "¿Estás seguro? Todos los datos serán eliminados.",
+      "settings.delete_confirm_2": "Esta acción es irreversible. El saldo, las estadísticas y el progreso se restablecerán.",
+      "settings.delete_cancel": "CANCELAR",
+      "settings.delete_confirm": "ELIMINAR",
+      "settings.delete_continue": "CONTINUAR"
     }
   }
 }
