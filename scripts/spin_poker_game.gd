@@ -725,7 +725,7 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 		var display_total: int = total_payout / maxi(SaveManager.denomination, 1)
 		_game_pays_label.text = Translations.tr_key("spin.game_pays_fmt", [str(display_total)])
 		_game_pays_label.visible = true
-		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
+		SaveManager.set_currency_value(_win_cd, SaveManager.format_money(total_payout))
 		_status_label.text = Translations.tr_key("spin.game_over")
 		_highlight_all_winning()
 		if _winning_lines.size() > 0:

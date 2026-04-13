@@ -1920,6 +1920,14 @@ func _on_credit_animation_done() -> void:
 	if total_payout > 0:
 		_double_btn.disabled = false
 		_double_amount = total_payout
+		# G.4: Pulse balance for 3 seconds after win
+		_pulse_balance(3.0)
+
+
+func _pulse_balance(duration: float) -> void:
+	var tw := create_tween().set_loops(int(duration / 0.6))
+	tw.tween_property(_balance_cd["box"], "modulate", Color(1.3, 1.3, 0.8), 0.3)
+	tw.tween_property(_balance_cd["box"], "modulate", Color.WHITE, 0.3)
 
 
 func _delay_unlock_buttons() -> void:
@@ -2748,8 +2756,8 @@ func _make_badge(hand_name: String, multiplier: int, border_color: Color) -> Pan
 	style.set_corner_radius_all(4)
 	style.content_margin_left = 10
 	style.content_margin_right = 10
-	style.content_margin_top = 3
-	style.content_margin_bottom = 3
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
 	badge.add_theme_stylebox_override("panel", style)
 
 	badge.custom_minimum_size.x = 180

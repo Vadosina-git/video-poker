@@ -186,7 +186,10 @@ func _style_sidebar_btn(btn: Button, active: bool) -> void:
 var _drag_active := false
 var _drag_start_x := 0.0
 var _drag_scroll_start := 0
+var _drag_last_x := 0.0
+var _drag_velocity := 0.0
 var _scroll_ref: ScrollContainer = null
+var _inertia_tween: Tween = null
 
 func _setup_drag_scroll(scroll: ScrollContainer) -> void:
 	_scroll_ref = scroll
@@ -197,15 +200,28 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			# Check if click is within scroll area
 			var scroll_rect := _scroll_ref.get_global_rect()
 			if scroll_rect.has_point(event.global_position):
 				_drag_active = true
 				_drag_start_x = event.global_position.x
+				_drag_last_x = event.global_position.x
 				_drag_scroll_start = _scroll_ref.scroll_horizontal
+				_drag_velocity = 0.0
+				if _inertia_tween:
+					_inertia_tween.kill()
 		else:
+			if _drag_active and absf(_drag_velocity) > 50:
+				# Inertia: continue scrolling with deceleration
+				var target := _scroll_ref.scroll_horizontal + int(_drag_velocity * 0.5)
+				target = clampi(target, 0, maxi(_scroll_ref.get_h_scroll_bar().max_value - int(_scroll_ref.size.x), 0))
+				if _inertia_tween:
+					_inertia_tween.kill()
+				_inertia_tween = create_tween()
+				_inertia_tween.tween_property(_scroll_ref, "scroll_horizontal", target, 0.4).set_ease(Tween.EASE_OUT)
 			_drag_active = false
 	elif event is InputEventMouseMotion and _drag_active:
+		_drag_velocity = _drag_last_x - event.global_position.x
+		_drag_last_x = event.global_position.x
 		var delta: float = _drag_start_x - event.global_position.x
 		_scroll_ref.scroll_horizontal = _drag_scroll_start + int(delta)
 
