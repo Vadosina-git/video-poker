@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "sounds_path": "res://assets/sounds/",
+  "events": {
+    "button_press": "sfx_button_press.mp3", "card_deal": "sfx_card_deal.mp3", "card_flip": "sfx_card_flip.mp3",
+    "card_hold": "sfx_card_hold.mp3", "bet_change": "sfx_bet_change.mp3", "win_small": "sfx_win_small.mp3",
+    "win_medium": "sfx_win_medium.mp3", "win_large": "sfx_win_large.mp3", "win_royal_flush": "sfx_win_royal_flush.mp3",
+    "win_jackpot": "sfx_win_jackpot.mp3", "lose": "sfx_lose.mp3", "double_win": "sfx_double_win.mp3",
+    "double_lose": "sfx_double_lose.mp3", "balance_increment": "sfx_balance_increment.mp3",
+    "gift_claim": "sfx_gift_claim.mp3", "shop_purchase": "sfx_shop_purchase.mp3",
+    "spin_reel": "sfx_spin_reel.mp3", "spin_stop": "sfx_spin_stop.mp3",
+    "multiplier_activate": "sfx_multiplier_activate.mp3", "lobby_ambient": "sfx_lobby_ambient.mp3",
+    "deal_button_blink": "sfx_deal_blink.mp3"
+  }
+}

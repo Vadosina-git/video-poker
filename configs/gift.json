@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "interval_hours": 2,
+  "chips_amount": 500,
+  "notification": {"title_key": "gift.notification.title", "body_key": "gift.notification.body"},
+  "claim_animation_duration_sec": 5,
+  "show_lobby_indicator": true
+}

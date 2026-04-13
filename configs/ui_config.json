@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "chip_format": "{icon}{amount}",
+  "number_format": "comma_separated",
+  "balance_font_size": 28,
+  "paytable_top_hand_font_size": 22,
+  "paytable_top_hand_color": "#FF6666",
+  "exit_icon_size": 48,
+  "control_bar_padding_px": 12,
+  "multihand_badge_height_px": 32,
+  "multihand_badge_line_spacing_px": 2,
+  "ultra_info_panel_fixed_height_px": 120
+}

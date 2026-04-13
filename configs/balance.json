@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "modes": {
+    "single_play": {"denominations": [1, 2, 5, 10, 25, 50, 100], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 200},
+    "triple_play": {"denominations": [1, 2, 5, 10, 25], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 600},
+    "five_play": {"denominations": [1, 2, 5, 10], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 1000},
+    "ten_play": {"denominations": [1, 2, 5, 10], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 2000},
+    "ultra_vp": {"denominations": [1, 2, 5, 10, 25], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 800},
+    "spin_poker": {"denominations": [1, 2, 5, 10], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 1000}
+  }
+}

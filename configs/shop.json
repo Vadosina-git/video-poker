@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "currency_icon": "chip",
+  "iap_items": [
+    {"id": "pack_01", "sort_order": 1, "price_usd": 0.99, "chips": 5000, "bonus_chips": 0, "badge": null, "image": "shop_pack_01.svg"},
+    {"id": "pack_02", "sort_order": 2, "price_usd": 2.99, "chips": 18000, "bonus_chips": 2000, "badge": "SPECIAL_VALUE", "image": "shop_pack_02.svg"},
+    {"id": "pack_03", "sort_order": 3, "price_usd": 4.99, "chips": 40000, "bonus_chips": 10000, "badge": "BEST_VALUE", "image": "shop_pack_03.svg"},
+    {"id": "pack_04", "sort_order": 4, "price_usd": 9.99, "chips": 100000, "bonus_chips": 30000, "badge": "BEST_SELLER", "image": "shop_pack_04.svg"},
+    {"id": "pack_05", "sort_order": 5, "price_usd": 19.99, "chips": 250000, "bonus_chips": 100000, "badge": "BEST_VALUE", "image": "shop_pack_05.svg"}
+  ],
+  "badge_labels": {"SPECIAL_VALUE": "shop.badge.special_value", "BEST_VALUE": "shop.badge.best_value", "BEST_SELLER": "shop.badge.best_seller"},
+  "images_path": "res://assets/shop/",
+  "bonus_display": {"show_strikethrough_base": true, "show_total_highlighted": true, "show_bonus_percent": true}
+}

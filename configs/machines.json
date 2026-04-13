@@ -1,0 +1,225 @@
+{
+  "version": 1,
+  "machines": {
+    "jacks_or_better": {
+      "label_key": "machine.jacks_or_better",
+      "deck_size": 52,
+      "wild_cards": [],
+      "min_winning_hand": "jacks_or_better",
+      "hands": [
+        {"id": "royal_flush", "label_key": "hand.royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [50, 100, 150, 200, 250]},
+        {"id": "four_of_a_kind", "label_key": "hand.four_of_a_kind", "pays": [25, 50, 75, 100, 125]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [9, 18, 27, 36, 45]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [6, 12, 18, 24, 30]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [4, 8, 12, 16, 20]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [3, 6, 9, 12, 15]},
+        {"id": "two_pair", "label_key": "hand.two_pair", "pays": [2, 4, 6, 8, 10]},
+        {"id": "jacks_or_better", "label_key": "hand.jacks_or_better", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {
+        "royal_flush": 2,
+        "straight_flush": 2,
+        "four_of_a_kind": 7,
+        "full_house": 5,
+        "flush": 4,
+        "straight": 3,
+        "three_of_a_kind": 2,
+        "two_pair": 1,
+        "jacks_or_better": 1
+      }
+    },
+    "bonus_poker": {
+      "label_key": "machine.bonus_poker",
+      "deck_size": 52,
+      "wild_cards": [],
+      "min_winning_hand": "jacks_or_better",
+      "hands": [
+        {"id": "royal_flush", "label_key": "hand.royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [50, 100, 150, 200, 250]},
+        {"id": "four_aces", "label_key": "hand.four_aces", "pays": [80, 160, 240, 320, 400]},
+        {"id": "four_twos_threes_fours", "label_key": "hand.four_twos_threes_fours", "pays": [40, 80, 120, 160, 200]},
+        {"id": "four_fives_kings", "label_key": "hand.four_fives_kings", "pays": [25, 50, 75, 100, 125]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [8, 16, 24, 32, 40]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [5, 10, 15, 20, 25]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [4, 8, 12, 16, 20]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [3, 6, 9, 12, 15]},
+        {"id": "two_pair", "label_key": "hand.two_pair", "pays": [2, 4, 6, 8, 10]},
+        {"id": "jacks_or_better", "label_key": "hand.jacks_or_better", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {}
+    },
+    "bonus_poker_deluxe": {
+      "label_key": "machine.bonus_poker_deluxe",
+      "deck_size": 52,
+      "wild_cards": [],
+      "min_winning_hand": "jacks_or_better",
+      "hands": [
+        {"id": "royal_flush", "label_key": "hand.royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [50, 100, 150, 200, 250]},
+        {"id": "four_of_a_kind", "label_key": "hand.four_of_a_kind", "pays": [80, 160, 240, 320, 400]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [9, 18, 27, 36, 45]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [6, 12, 18, 24, 30]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [4, 8, 12, 16, 20]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [3, 6, 9, 12, 15]},
+        {"id": "two_pair", "label_key": "hand.two_pair", "pays": [1, 2, 3, 4, 5]},
+        {"id": "jacks_or_better", "label_key": "hand.jacks_or_better", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {}
+    },
+    "double_bonus": {
+      "label_key": "machine.double_bonus",
+      "deck_size": 52,
+      "wild_cards": [],
+      "min_winning_hand": "jacks_or_better",
+      "hands": [
+        {"id": "royal_flush", "label_key": "hand.royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [50, 100, 150, 200, 250]},
+        {"id": "four_aces", "label_key": "hand.four_aces", "pays": [160, 320, 480, 640, 800]},
+        {"id": "four_twos_threes_fours", "label_key": "hand.four_twos_threes_fours", "pays": [80, 160, 240, 320, 400]},
+        {"id": "four_fives_kings", "label_key": "hand.four_fives_kings", "pays": [50, 100, 150, 200, 250]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [10, 20, 30, 40, 50]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [7, 14, 21, 28, 35]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [5, 10, 15, 20, 25]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [3, 6, 9, 12, 15]},
+        {"id": "two_pair", "label_key": "hand.two_pair", "pays": [1, 2, 3, 4, 5]},
+        {"id": "jacks_or_better", "label_key": "hand.jacks_or_better", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {}
+    },
+    "double_double_bonus": {
+      "label_key": "machine.double_double_bonus",
+      "deck_size": 52,
+      "wild_cards": [],
+      "min_winning_hand": "jacks_or_better",
+      "hands": [
+        {"id": "royal_flush", "label_key": "hand.royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [50, 100, 150, 200, 250]},
+        {"id": "four_aces_with_234_kicker", "label_key": "hand.four_aces_with_234_kicker", "pays": [400, 800, 1200, 1600, 2000]},
+        {"id": "four_aces", "label_key": "hand.four_aces", "pays": [160, 320, 480, 640, 800]},
+        {"id": "four_twos_threes_fours_with_a234_kicker", "label_key": "hand.four_twos_threes_fours_with_a234_kicker", "pays": [160, 320, 480, 640, 800]},
+        {"id": "four_twos_threes_fours", "label_key": "hand.four_twos_threes_fours", "pays": [80, 160, 240, 320, 400]},
+        {"id": "four_fives_kings", "label_key": "hand.four_fives_kings", "pays": [50, 100, 150, 200, 250]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [9, 18, 27, 36, 45]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [6, 12, 18, 24, 30]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [4, 8, 12, 16, 20]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [3, 6, 9, 12, 15]},
+        {"id": "two_pair", "label_key": "hand.two_pair", "pays": [1, 2, 3, 4, 5]},
+        {"id": "jacks_or_better", "label_key": "hand.jacks_or_better", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {}
+    },
+    "triple_double_bonus": {
+      "label_key": "machine.triple_double_bonus",
+      "deck_size": 52,
+      "wild_cards": [],
+      "min_winning_hand": "jacks_or_better",
+      "hands": [
+        {"id": "royal_flush", "label_key": "hand.royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [50, 100, 150, 200, 250]},
+        {"id": "four_aces_with_234_kicker", "label_key": "hand.four_aces_with_234_kicker", "pays": [800, 1600, 2400, 3200, 4000]},
+        {"id": "four_aces", "label_key": "hand.four_aces", "pays": [160, 320, 480, 640, 800]},
+        {"id": "four_twos_threes_fours_with_a234_kicker", "label_key": "hand.four_twos_threes_fours_with_a234_kicker", "pays": [400, 800, 1200, 1600, 2000]},
+        {"id": "four_twos_threes_fours", "label_key": "hand.four_twos_threes_fours", "pays": [80, 160, 240, 320, 400]},
+        {"id": "four_fives_kings", "label_key": "hand.four_fives_kings", "pays": [50, 100, 150, 200, 250]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [9, 18, 27, 36, 45]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [7, 14, 21, 28, 35]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [4, 8, 12, 16, 20]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [2, 4, 6, 8, 10]},
+        {"id": "two_pair", "label_key": "hand.two_pair", "pays": [1, 2, 3, 4, 5]},
+        {"id": "jacks_or_better", "label_key": "hand.jacks_or_better", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {}
+    },
+    "aces_and_faces": {
+      "label_key": "machine.aces_and_faces",
+      "deck_size": 52,
+      "wild_cards": [],
+      "min_winning_hand": "jacks_or_better",
+      "hands": [
+        {"id": "royal_flush", "label_key": "hand.royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [50, 100, 150, 200, 250]},
+        {"id": "four_aces", "label_key": "hand.four_aces", "pays": [80, 160, 240, 320, 400]},
+        {"id": "four_jacks_queens_kings", "label_key": "hand.four_jacks_queens_kings", "pays": [40, 80, 120, 160, 200]},
+        {"id": "four_twos_tens", "label_key": "hand.four_twos_tens", "pays": [25, 50, 75, 100, 125]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [8, 16, 24, 32, 40]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [5, 10, 15, 20, 25]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [4, 8, 12, 16, 20]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [3, 6, 9, 12, 15]},
+        {"id": "two_pair", "label_key": "hand.two_pair", "pays": [2, 4, 6, 8, 10]},
+        {"id": "jacks_or_better", "label_key": "hand.jacks_or_better", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {}
+    },
+    "deuces_wild": {
+      "label_key": "machine.deuces_wild",
+      "deck_size": 52,
+      "wild_cards": ["2H", "2D", "2C", "2S"],
+      "min_winning_hand": "three_of_a_kind",
+      "hands": [
+        {"id": "natural_royal_flush", "label_key": "hand.natural_royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "four_deuces", "label_key": "hand.four_deuces", "pays": [200, 400, 600, 800, 1000]},
+        {"id": "wild_royal_flush", "label_key": "hand.wild_royal_flush", "pays": [25, 50, 75, 100, 125]},
+        {"id": "five_of_a_kind", "label_key": "hand.five_of_a_kind", "pays": [15, 30, 45, 60, 75]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [9, 18, 27, 36, 45]},
+        {"id": "four_of_a_kind", "label_key": "hand.four_of_a_kind", "pays": [4, 8, 12, 16, 20]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [4, 8, 12, 16, 20]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [3, 6, 9, 12, 15]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [2, 4, 6, 8, 10]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {
+        "natural_royal_flush": 2,
+        "four_deuces": 4,
+        "wild_royal_flush": 3,
+        "five_of_a_kind": 3,
+        "straight_flush": 2,
+        "four_of_a_kind": 6,
+        "full_house": 5,
+        "flush": 4,
+        "straight": 3,
+        "three_of_a_kind": 2
+      }
+    },
+    "joker_poker": {
+      "label_key": "machine.joker_poker",
+      "deck_size": 53,
+      "wild_cards": ["JOKER"],
+      "min_winning_hand": "kings_or_better",
+      "hands": [
+        {"id": "natural_royal_flush", "label_key": "hand.natural_royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "five_of_a_kind", "label_key": "hand.five_of_a_kind", "pays": [200, 400, 600, 800, 1000]},
+        {"id": "wild_royal_flush", "label_key": "hand.wild_royal_flush", "pays": [100, 200, 300, 400, 500]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [50, 100, 150, 200, 250]},
+        {"id": "four_of_a_kind", "label_key": "hand.four_of_a_kind", "pays": [20, 40, 60, 80, 100]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [7, 14, 21, 28, 35]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [5, 10, 15, 20, 25]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [3, 6, 9, 12, 15]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [2, 4, 6, 8, 10]},
+        {"id": "two_pair", "label_key": "hand.two_pair", "pays": [1, 2, 3, 4, 5]},
+        {"id": "kings_or_better", "label_key": "hand.kings_or_better", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {}
+    },
+    "deuces_and_joker": {
+      "label_key": "machine.deuces_and_joker",
+      "deck_size": 53,
+      "wild_cards": ["2H", "2D", "2C", "2S", "JOKER"],
+      "min_winning_hand": "three_of_a_kind",
+      "hands": [
+        {"id": "five_wilds", "label_key": "hand.five_wilds", "pays": [0, 0, 0, 0, 10000], "note": "Pays ONLY on max bet"},
+        {"id": "natural_royal_flush", "label_key": "hand.natural_royal_flush", "pays": [250, 500, 750, 1000, 4000]},
+        {"id": "four_deuces", "label_key": "hand.four_deuces", "pays": [25, 50, 75, 100, 125]},
+        {"id": "wild_royal_flush", "label_key": "hand.wild_royal_flush", "pays": [12, 24, 36, 48, 60]},
+        {"id": "five_of_a_kind", "label_key": "hand.five_of_a_kind", "pays": [9, 18, 27, 36, 45]},
+        {"id": "straight_flush", "label_key": "hand.straight_flush", "pays": [6, 12, 18, 24, 30]},
+        {"id": "four_of_a_kind", "label_key": "hand.four_of_a_kind", "pays": [3, 6, 9, 12, 15]},
+        {"id": "full_house", "label_key": "hand.full_house", "pays": [3, 6, 9, 12, 15]},
+        {"id": "flush", "label_key": "hand.flush", "pays": [3, 6, 9, 12, 15]},
+        {"id": "straight", "label_key": "hand.straight", "pays": [2, 4, 6, 8, 10]},
+        {"id": "three_of_a_kind", "label_key": "hand.three_of_a_kind", "pays": [1, 2, 3, 4, 5]}
+      ],
+      "ultra_multipliers": {}
+    }
+  }
+}
