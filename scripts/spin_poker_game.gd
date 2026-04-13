@@ -39,25 +39,22 @@ var _bet_display_cd: Dictionary
 var _card_rects: Array = [[], [], []]  # _card_rects[row][col]
 var _grid_container: Control
 var _grid_panel: PanelContainer
-var _held_indicators: Array = []  # 5 Labels for HELD on middle row
+var _held_indicators: Array = []  # 5 Control nodes (held_rect.svg + HELD label)
 
 # Line indicators (left/right side labels)
 var _left_line_labels: Array[Label] = []
 var _right_line_labels: Array[Label] = []
 
-# Win line drawing
-var _line_draw_node: Control  # Custom draw node for colored lines
-var _winning_lines: Array = []  # Array of {line_idx, hand_name, payout}
+# Win line drawing + badge
+var _line_draw_node: Control
+var _winning_lines: Array = []
 var _current_win_cycle: int = -1
 var _blink_tween: Tween
-
-# Spin animation
-var _spin_timers: Array = []  # Per-column spin timers
-var _spin_target_cards: Array = []  # Target cards per column
-var _columns_stopped: int = 0
+var _win_badge: PanelContainer = null
 
 # Speed
 var _speed_level: int = 1
+const SPEED_LABELS := ["1x", "2x", "3x", "MAX"]
 const SPEED_CONFIGS := [
 	{"spin_ms": 120, "stop_delay_ms": 200},
 	{"spin_ms": 80,  "stop_delay_ms": 150},
@@ -98,12 +95,12 @@ func _ready() -> void:
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
 	_update_bet_amount_btn()
+	_update_speed_label()
 
 
 # ─── UI CONSTRUCTION ──────────────────────────────────────────────────
 
 func _build_ui() -> void:
-	# Background
 	var bg := ColorRect.new()
 	bg.color = BG_COLOR
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -112,17 +109,18 @@ func _build_ui() -> void:
 
 	var root_vbox := VBoxContainer.new()
 	root_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root_vbox.add_theme_constant_override("separation", 4)
+	root_vbox.add_theme_constant_override("separation", 2)
 	add_child(root_vbox)
+
+	var bold := SystemFont.new()
+	bold.font_weight = 700
 
 	# ── Top: title
 	_game_title = Label.new()
 	_game_title.text = "SPIN POKER — %s" % _variant.paytable.name.to_upper()
 	_game_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_game_title.add_theme_font_size_override("font_size", 22)
+	_game_title.add_theme_font_size_override("font_size", 18)
 	_game_title.add_theme_color_override("font_color", COL_YELLOW)
-	var bold := SystemFont.new()
-	bold.font_weight = 700
 	_game_title.add_theme_font_override("font", bold)
 	root_vbox.add_child(_game_title)
 
@@ -137,7 +135,7 @@ func _build_ui() -> void:
 	var left_col := VBoxContainer.new()
 	left_col.add_theme_constant_override("separation", 0)
 	left_col.alignment = BoxContainer.ALIGNMENT_CENTER
-	left_col.custom_minimum_size.x = 32
+	left_col.custom_minimum_size.x = 28
 	grid_area.add_child(left_col)
 	for i in 10:
 		var lbl := _make_line_label(i)
@@ -148,27 +146,26 @@ func _build_ui() -> void:
 	_grid_panel = PanelContainer.new()
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = GRID_BG
-	panel_style.set_border_width_all(3)
+	panel_style.set_border_width_all(2)
 	panel_style.border_color = Color(0.6, 0.6, 0.7)
 	panel_style.set_corner_radius_all(4)
-	panel_style.content_margin_left = 4
-	panel_style.content_margin_right = 4
-	panel_style.content_margin_top = 4
-	panel_style.content_margin_bottom = 4
+	panel_style.content_margin_left = 2
+	panel_style.content_margin_right = 2
+	panel_style.content_margin_top = 2
+	panel_style.content_margin_bottom = 2
 	_grid_panel.add_theme_stylebox_override("panel", panel_style)
-	_grid_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_grid_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	grid_area.add_child(_grid_panel)
 
 	_grid_container = GridContainer.new()
 	_grid_container.columns = 5
-	_grid_container.add_theme_constant_override("h_separation", 3)
-	_grid_container.add_theme_constant_override("v_separation", 3)
+	_grid_container.add_theme_constant_override("h_separation", 1)
+	_grid_container.add_theme_constant_override("v_separation", 1)
 	_grid_panel.add_child(_grid_container)
 
-	# Build 15 card slots (3 rows × 5 cols, row by row)
-	var card_back_path := "res://assets/cards/card_back.png"
+	# Build 15 card slots (3 rows × 5 cols)
 	var back_tex: Texture2D = null
+	var card_back_path := "res://assets/cards/card_back.png"
 	if ResourceLoader.exists(card_back_path):
 		back_tex = load(card_back_path)
 
@@ -178,18 +175,18 @@ func _build_ui() -> void:
 			var tex_rect := TextureRect.new()
 			tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tex_rect.custom_minimum_size = Vector2(100, 140)
+			tex_rect.custom_minimum_size = Vector2(70, 98)
 			tex_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			tex_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
-			tex_rect.texture = back_tex
+			tex_rect.texture = back_tex  # All start as card backs
 			tex_rect.mouse_filter = Control.MOUSE_FILTER_STOP if row == 1 else Control.MOUSE_FILTER_IGNORE
 			if row == 1:
-				var c := col  # capture
+				var c := col
 				tex_rect.gui_input.connect(_on_card_clicked.bind(c))
 			_grid_container.add_child(tex_rect)
 			_card_rects[row].append(tex_rect)
 
-	# Line draw overlay (for drawing colored lines through grid)
+	# Line draw overlay
 	_line_draw_node = Control.new()
 	_line_draw_node.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_line_draw_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -200,7 +197,7 @@ func _build_ui() -> void:
 	var right_col := VBoxContainer.new()
 	right_col.add_theme_constant_override("separation", 0)
 	right_col.alignment = BoxContainer.ALIGNMENT_CENTER
-	right_col.custom_minimum_size.x = 32
+	right_col.custom_minimum_size.x = 28
 	grid_area.add_child(right_col)
 	for i in range(10, 20):
 		var lbl := _make_line_label(i)
@@ -211,7 +208,7 @@ func _build_ui() -> void:
 	_status_label = Label.new()
 	_status_label.text = "PLACE YOUR BET"
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status_label.add_theme_font_size_override("font_size", 16)
+	_status_label.add_theme_font_size_override("font_size", 14)
 	_status_label.add_theme_color_override("font_color", Color.WHITE)
 	_status_label.add_theme_font_override("font", bold)
 	var status_bg := PanelContainer.new()
@@ -219,8 +216,8 @@ func _build_ui() -> void:
 	sstyle.bg_color = Color(0, 0, 0, 0.8)
 	sstyle.content_margin_left = 16
 	sstyle.content_margin_right = 16
-	sstyle.content_margin_top = 6
-	sstyle.content_margin_bottom = 6
+	sstyle.content_margin_top = 4
+	sstyle.content_margin_bottom = 4
 	status_bg.add_theme_stylebox_override("panel", sstyle)
 	status_bg.add_child(_status_label)
 	root_vbox.add_child(status_bg)
@@ -229,20 +226,19 @@ func _build_ui() -> void:
 	_game_pays_label = Label.new()
 	_game_pays_label.text = ""
 	_game_pays_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_game_pays_label.add_theme_font_size_override("font_size", 18)
+	_game_pays_label.add_theme_font_size_override("font_size", 16)
 	_game_pays_label.add_theme_color_override("font_color", COL_YELLOW)
 	_game_pays_label.add_theme_font_override("font", bold)
 	_game_pays_label.visible = false
 	root_vbox.add_child(_game_pays_label)
 
-	# ── Bottom: info row + buttons
+	# ── Bottom bar
 	_build_bottom_bar(root_vbox, bold)
 
 
 func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
-	# Info row: WIN | BET
 	var info_row := HBoxContainer.new()
-	info_row.add_theme_constant_override("separation", 16)
+	info_row.add_theme_constant_override("separation", 12)
 	info_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	root_vbox.add_child(info_row)
 
@@ -275,9 +271,8 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_balance_cd = SaveManager.create_currency_display(16, COL_YELLOW)
 	info_row.add_child(_balance_cd["box"])
 
-	# Button row
 	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 8)
+	btn_row.add_theme_constant_override("separation", 6)
 	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	root_vbox.add_child(btn_row)
 
@@ -287,43 +282,43 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 
 	_back_btn = Button.new()
 	_back_btn.text = "BACK"
-	_style_btn(_back_btn, tex_blue, Color.WHITE, 14, 80, 40)
+	_style_btn(_back_btn, tex_blue, Color.WHITE, 13, 70, 36)
 	_back_btn.pressed.connect(func() -> void: back_to_lobby.emit())
 	btn_row.add_child(_back_btn)
 
 	_see_pays_btn = Button.new()
 	_see_pays_btn.text = "SEE PAYS"
-	_style_btn(_see_pays_btn, tex_blue, Color.WHITE, 14, 100, 40)
+	_style_btn(_see_pays_btn, tex_blue, Color.WHITE, 13, 90, 36)
 	_see_pays_btn.pressed.connect(_show_paytable)
 	btn_row.add_child(_see_pays_btn)
 
 	_bet_amount_btn = Button.new()
 	_bet_amount_btn.text = ""
-	_style_btn(_bet_amount_btn, tex_blue, Color.WHITE, 14, 100, 40)
+	_style_btn(_bet_amount_btn, tex_blue, Color.WHITE, 13, 90, 36)
 	_bet_amount_btn.pressed.connect(_on_bet_amount_pressed)
 	btn_row.add_child(_bet_amount_btn)
 
 	_deal_draw_btn = Button.new()
 	_deal_draw_btn.text = "DEAL\nSPIN"
-	_style_btn(_deal_draw_btn, tex_green, Color.WHITE, 16, 110, 48)
+	_style_btn(_deal_draw_btn, tex_green, Color.WHITE, 14, 100, 44)
 	_deal_draw_btn.pressed.connect(_on_deal_draw_pressed)
 	btn_row.add_child(_deal_draw_btn)
 
 	_bet_btn = Button.new()
 	_bet_btn.text = "BET"
-	_style_btn(_bet_btn, tex_yellow, COL_BTN_TEXT, 14, 80, 40)
+	_style_btn(_bet_btn, tex_yellow, COL_BTN_TEXT, 13, 70, 36)
 	_bet_btn.pressed.connect(_on_bet_one_pressed)
 	btn_row.add_child(_bet_btn)
 
 	_bet_max_btn = Button.new()
 	_bet_max_btn.text = "BET MAX"
-	_style_btn(_bet_max_btn, tex_yellow, COL_BTN_TEXT, 14, 100, 40)
+	_style_btn(_bet_max_btn, tex_yellow, COL_BTN_TEXT, 13, 90, 36)
 	_bet_max_btn.pressed.connect(_on_bet_max_pressed)
 	btn_row.add_child(_bet_max_btn)
 
 	_speed_btn = Button.new()
-	_speed_btn.text = "SPEED"
-	_style_btn(_speed_btn, tex_blue, Color.WHITE, 12, 80, 40)
+	_speed_btn.text = "SPEED 1x"
+	_style_btn(_speed_btn, tex_blue, Color.WHITE, 12, 80, 36)
 	_speed_btn.pressed.connect(_on_speed_pressed)
 	btn_row.add_child(_speed_btn)
 
@@ -332,10 +327,10 @@ func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_
 	if tex:
 		var style := StyleBoxTexture.new()
 		style.texture = tex
-		style.content_margin_left = 12
-		style.content_margin_right = 12
-		style.content_margin_top = 6
-		style.content_margin_bottom = 6
+		style.content_margin_left = 10
+		style.content_margin_right = 10
+		style.content_margin_top = 4
+		style.content_margin_bottom = 4
 		style.texture_margin_left = 10
 		style.texture_margin_right = 10
 		style.texture_margin_top = 10
@@ -361,9 +356,9 @@ func _make_line_label(line_idx: int) -> Label:
 	var lbl := Label.new()
 	lbl.text = "%d" % (line_idx + 1)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_font_size_override("font_size", 9)
 	lbl.add_theme_color_override("font_color", SpinPokerManager.LINE_COLORS[line_idx])
-	lbl.custom_minimum_size = Vector2(28, 0)
+	lbl.custom_minimum_size = Vector2(24, 0)
 	return lbl
 
 
@@ -386,21 +381,13 @@ func _set_card_texture(row: int, col: int, card: CardData) -> void:
 	var path := _get_card_path(card)
 	if ResourceLoader.exists(path):
 		_card_rects[row][col].texture = load(path)
+	_card_rects[row][col].modulate = Color.WHITE
 
 
 func _set_card_back(row: int, col: int) -> void:
 	var path := "res://assets/cards/card_back.png"
 	if ResourceLoader.exists(path):
 		_card_rects[row][col].texture = load(path)
-
-
-func _set_placeholder(row: int, col: int) -> void:
-	# Purple placeholder for top/bottom rows before draw
-	_card_rects[row][col].texture = null
-	_card_rects[row][col].modulate = Color(0.6, 0.4, 0.8, 0.3)
-
-
-func _reset_card_modulate(row: int, col: int) -> void:
 	_card_rects[row][col].modulate = Color.WHITE
 
 
@@ -410,7 +397,7 @@ func _reset_all_modulate() -> void:
 			_card_rects[row][col].modulate = Color.WHITE
 
 
-# ─── HELD INDICATORS ──────────────────────────────────────────────────
+# ─── HELD INDICATORS (multihand style: held_rect.svg + HELD text) ────
 
 func _show_held(col: int, show: bool) -> void:
 	if col >= _held_indicators.size():
@@ -419,25 +406,41 @@ func _show_held(col: int, show: bool) -> void:
 
 
 func _build_held_indicators() -> void:
-	# Built after layout is ready (deferred)
 	for indicator in _held_indicators:
 		if is_instance_valid(indicator):
 			indicator.queue_free()
 	_held_indicators.clear()
 	for col in 5:
-		var lbl := Label.new()
-		lbl.text = "HELD"
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.add_theme_font_size_override("font_size", 12)
-		lbl.add_theme_color_override("font_color", COL_YELLOW)
-		var bold := SystemFont.new()
-		bold.font_weight = 700
-		lbl.add_theme_font_override("font", bold)
-		lbl.visible = false
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lbl.z_index = 5
-		add_child(lbl)
-		_held_indicators.append(lbl)
+		var container := Control.new()
+		container.visible = false
+		container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		container.z_index = 5
+
+		# Background: held_rect.svg
+		var held_tex_rect := TextureRect.new()
+		var held_tex_path := "res://assets/textures/held_rect.svg"
+		if ResourceLoader.exists(held_tex_path):
+			held_tex_rect.texture = load(held_tex_path)
+		held_tex_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+		held_tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		held_tex_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		container.add_child(held_tex_rect)
+
+		# Text "HELD"
+		var held_text := Label.new()
+		held_text.text = "HELD"
+		held_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		held_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		held_text.add_theme_font_size_override("font_size", 13)
+		held_text.add_theme_color_override("font_color", Color("3F2A00"))
+		var hbold := SystemFont.new()
+		hbold.font_weight = 700
+		held_text.add_theme_font_override("font", hbold)
+		held_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+		container.add_child(held_text)
+
+		add_child(container)
+		_held_indicators.append(container)
 	_position_held_indicators.call_deferred()
 
 
@@ -448,9 +451,13 @@ func _position_held_indicators() -> void:
 			break
 		var card_rect: TextureRect = _card_rects[1][col]
 		var rect := card_rect.get_global_rect()
-		var lbl: Label = _held_indicators[col]
-		lbl.size = Vector2(rect.size.x, 20)
-		lbl.global_position = Vector2(rect.position.x, rect.position.y + rect.size.y - 20)
+		var indicator: Control = _held_indicators[col]
+		var h: float = 22.0
+		indicator.size = Vector2(rect.size.x * 0.85, h)
+		indicator.global_position = Vector2(
+			rect.position.x + (rect.size.x - indicator.size.x) / 2,
+			rect.position.y + rect.size.y - h - 2
+		)
 
 
 # ─── STATE HANDLING ───────────────────────────────────────────────────
@@ -500,6 +507,7 @@ func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
 	_rush = false
 	_stop_win_cycle()
 	_clear_line_display()
+	_hide_win_badge()
 	_game_pays_label.visible = false
 	SaveManager.set_currency_value(_win_cd, "0")
 	_reset_all_modulate()
@@ -508,12 +516,12 @@ func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
 	for col in 5:
 		_show_held(col, false)
 
-	# Set top/bottom to placeholder
+	# Top/bottom rows: show card backs
 	for col in 5:
-		_set_placeholder(0, col)
-		_set_placeholder(2, col)
+		_set_card_back(0, col)
+		_set_card_back(2, col)
 
-	# Animate middle row: spin each column left to right
+	# Animate middle row
 	await _animate_spin_deal(mid_row)
 	_build_held_indicators()
 	_animating = false
@@ -524,17 +532,13 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 	var delay_ms: int = SPEED_CONFIGS[_speed_level]["stop_delay_ms"]
 
 	if _rush or _speed_level >= 3:
-		# Instant: just show cards
 		for col in 5:
-			_reset_card_modulate(1, col)
 			_set_card_texture(1, col, mid_row[col])
 		return
 
-	# Start all columns spinning (rapid texture cycling)
 	var spin_active := [true, true, true, true, true]
 	var random_cards := _build_random_card_paths(25)
 
-	# Spin timer: cycle textures rapidly
 	var spin_timer := Timer.new()
 	spin_timer.wait_time = SPEED_CONFIGS[_speed_level]["spin_ms"] / 1000.0
 	spin_timer.autostart = true
@@ -543,7 +547,6 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 	spin_timer.timeout.connect(func() -> void:
 		for col in 5:
 			if spin_active[col]:
-				_reset_card_modulate(1, col)
 				var idx: int = (frame_idx[0] + col * 3) % random_cards.size()
 				var path: String = random_cards[idx]
 				if ResourceLoader.exists(path):
@@ -551,11 +554,9 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 		frame_idx[0] += 1
 	)
 
-	# Stop columns left to right
 	for col in 5:
 		await get_tree().create_timer(delay_ms / 1000.0).timeout
 		spin_active[col] = false
-		_reset_card_modulate(1, col)
 		_set_card_texture(1, col, mid_row[col])
 		SoundManager.play("deal")
 
@@ -568,11 +569,9 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 func _on_draw_spin_complete(grid: Array) -> void:
 	_animating = true
 
-	# First: duplicate held cards to top/bottom instantly
+	# Held columns: duplicate mid card to top/bottom instantly
 	for col in 5:
 		if _manager.held[col]:
-			_reset_card_modulate(0, col)
-			_reset_card_modulate(2, col)
 			_set_card_texture(0, col, grid[0][col])
 			_set_card_texture(2, col, grid[2][col])
 
@@ -588,7 +587,6 @@ func _animate_spin_draw(grid: Array) -> void:
 	if _rush or _speed_level >= 3:
 		for row in 3:
 			for col in 5:
-				_reset_card_modulate(row, col)
 				_set_card_texture(row, col, grid[row][col])
 		return
 
@@ -607,7 +605,6 @@ func _animate_spin_draw(grid: Array) -> void:
 		for col in 5:
 			if spin_active[col]:
 				for row in 3:
-					_reset_card_modulate(row, col)
 					var idx: int = (frame_idx[0] + col * 3 + row * 7) % random_cards.size()
 					var path: String = random_cards[idx]
 					if ResourceLoader.exists(path):
@@ -621,7 +618,6 @@ func _animate_spin_draw(grid: Array) -> void:
 		await get_tree().create_timer(delay_ms / 1000.0).timeout
 		spin_active[col] = false
 		for row in 3:
-			_reset_card_modulate(row, col)
 			_set_card_texture(row, col, grid[row][col])
 		SoundManager.play("deal")
 
@@ -654,9 +650,7 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 		_game_pays_label.visible = true
 		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
 		_status_label.text = "GAME OVER"
-		# Highlight all winning cards
 		_highlight_all_winning()
-		# Start cycling through individual winning lines
 		if _winning_lines.size() > 0:
 			_start_win_cycle()
 	else:
@@ -665,11 +659,9 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 
 
 func _highlight_all_winning() -> void:
-	# Dim all cards first
 	for row in 3:
 		for col in 5:
 			_card_rects[row][col].modulate = Color(0.4, 0.4, 0.5)
-	# Brighten cards that appear in any winning line
 	var bright_positions := {}
 	for w in _winning_lines:
 		var line_idx: int = w["line_idx"]
@@ -699,10 +691,11 @@ func _show_winning_line(idx: int) -> void:
 	if idx < 0 or idx >= _winning_lines.size():
 		return
 	var w: Dictionary = _winning_lines[idx]
-	var line_idx: int = w["line_idx"]
 	var payout_coins: int = w["payout"] / maxi(SaveManager.denomination, 1)
 	_status_label.text = "%s PAYS %d" % [w["hand_name"], payout_coins]
 	_line_draw_node.queue_redraw()
+	# Show badge on center card (col 2) of this line
+	_show_win_badge(w)
 
 
 func _stop_win_cycle() -> void:
@@ -711,13 +704,69 @@ func _stop_win_cycle() -> void:
 		_blink_tween = null
 	_current_win_cycle = -1
 	_winning_lines.clear()
+	_hide_win_badge()
 	_line_draw_node.queue_redraw()
 
 
 func _clear_line_display() -> void:
 	_winning_lines.clear()
 	_current_win_cycle = -1
+	_hide_win_badge()
 	_line_draw_node.queue_redraw()
+
+
+# ─── WIN BADGE (on center reel card of winning line) ──────────────────
+
+func _show_win_badge(w: Dictionary) -> void:
+	_hide_win_badge()
+	var line_idx: int = w["line_idx"]
+	var color: Color = SpinPokerManager.LINE_COLORS[line_idx]
+	var payout_coins: int = w["payout"] / maxi(SaveManager.denomination, 1)
+
+	_win_badge = PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.02, 0.12, 0.92)
+	style.set_border_width_all(2)
+	style.border_color = color
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	_win_badge.add_theme_stylebox_override("panel", style)
+	_win_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_win_badge.z_index = 10
+
+	var label := Label.new()
+	label.text = "%s\n%d" % [w["hand_name"], payout_coins]
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 10)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	_win_badge.add_child(label)
+
+	add_child(_win_badge)
+	# Position on center reel (col 2) at the row this line passes through
+	var center_row: int = SpinPokerManager.LINES[line_idx][2]
+	var card_rect: TextureRect = _card_rects[center_row][2]
+	_position_badge_on_card.call_deferred(card_rect)
+
+
+func _position_badge_on_card(card_rect: TextureRect) -> void:
+	await get_tree().process_frame
+	if not is_instance_valid(_win_badge):
+		return
+	var rect := card_rect.get_global_rect()
+	var badge_size := _win_badge.get_combined_minimum_size()
+	_win_badge.global_position = Vector2(
+		rect.get_center().x - badge_size.x / 2,
+		rect.get_center().y - badge_size.y / 2
+	)
+
+
+func _hide_win_badge() -> void:
+	if _win_badge and is_instance_valid(_win_badge):
+		_win_badge.queue_free()
+	_win_badge = null
 
 
 # ─── LINE DRAWING ─────────────────────────────────────────────────────
@@ -725,7 +774,6 @@ func _clear_line_display() -> void:
 func _draw_lines() -> void:
 	if _winning_lines.size() == 0 or _current_win_cycle < 0:
 		return
-	# Draw current winning line
 	var w: Dictionary = _winning_lines[_current_win_cycle]
 	var line_idx: int = w["line_idx"]
 	var color: Color = SpinPokerManager.LINE_COLORS[line_idx]
@@ -733,8 +781,6 @@ func _draw_lines() -> void:
 	for col in 5:
 		var row: int = SpinPokerManager.LINES[line_idx][col]
 		var card_rect: TextureRect = _card_rects[row][col]
-		var center := card_rect.get_rect().get_center()
-		# Convert from card_rect local → grid_container local → line_draw_node local
 		var global_center := card_rect.global_position + card_rect.size / 2
 		var local_pos := _line_draw_node.get_global_transform().affine_inverse() * global_center
 		points.append(local_pos)
@@ -759,15 +805,12 @@ func _on_card_clicked(event: InputEvent, col: int) -> void:
 		if _manager.state == SpinPokerManager.State.HOLDING:
 			_manager.toggle_hold(col)
 			_show_held(col, _manager.held[col])
-			# Duplicate held card to top/bottom visually
 			if _manager.held[col]:
-				_reset_card_modulate(0, col)
-				_reset_card_modulate(2, col)
 				_set_card_texture(0, col, _manager.middle_row[col])
 				_set_card_texture(2, col, _manager.middle_row[col])
 			else:
-				_set_placeholder(0, col)
-				_set_placeholder(2, col)
+				_set_card_back(0, col)
+				_set_card_back(2, col)
 
 
 func _on_bet_one_pressed() -> void:
@@ -791,6 +834,11 @@ func _on_speed_pressed() -> void:
 	_speed_level = (_speed_level + 1) % SPEED_CONFIGS.size()
 	SaveManager.speed_level = _speed_level
 	SaveManager.save_game()
+	_update_speed_label()
+
+
+func _update_speed_label() -> void:
+	_speed_btn.text = "SPEED %s" % SPEED_LABELS[_speed_level]
 
 
 func _on_bet_changed(new_bet: int) -> void:
@@ -822,7 +870,7 @@ func _update_bet_amount_btn() -> void:
 		_bet_btn_cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_bet_btn_cd["box"].set_anchors_preset(Control.PRESET_FULL_RECT)
 		_bet_amount_btn.add_child(_bet_btn_cd["box"])
-	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_auto(_current_denomination, 76, 16))
+	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_auto(_current_denomination, 66, 16))
 
 
 # ─── INPUT ────────────────────────────────────────────────────────────
