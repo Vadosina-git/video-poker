@@ -92,6 +92,8 @@ func _ready() -> void:
 	_speed_level = SaveManager.speed_level
 	_current_denomination = SaveManager.denomination
 	_build_ui()
+	_current_denomination = _recommend_denomination()
+	SaveManager.denomination = _current_denomination
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
 	_update_bet_amount_btn()
@@ -821,6 +823,11 @@ func _on_deal_draw_pressed() -> void:
 	if _manager.state == SpinPokerManager.State.SPINNING or _manager.state == SpinPokerManager.State.DRAW_SPINNING:
 		_rush = true
 		return
+	# Check credits before deal
+	if _manager.state == SpinPokerManager.State.IDLE or _manager.state == SpinPokerManager.State.WIN_DISPLAY:
+		if _manager.get_total_bet() > SaveManager.credits:
+			_status_label.text = "NOT ENOUGH CREDITS"
+			return
 	_manager.deal_or_draw()
 
 
@@ -874,6 +881,17 @@ func _on_credits_changed(new_credits: int) -> void:
 
 
 # ─── UI UPDATES ───────────────────────────────────────────────────────
+
+func _recommend_denomination() -> int:
+	var best: int = BET_AMOUNTS[0]
+	for amount in BET_AMOUNTS:
+		var worst_cost: int = SpinPokerManager.NUM_LINES * SpinPokerManager.MAX_BET * amount
+		if worst_cost <= SaveManager.credits:
+			best = amount
+		else:
+			break
+	return best
+
 
 func _update_balance(credits: int) -> void:
 	SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits))

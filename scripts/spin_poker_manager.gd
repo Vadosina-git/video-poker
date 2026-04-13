@@ -85,9 +85,7 @@ func bet_one() -> void:
 		return
 	if state == State.WIN_DISPLAY:
 		_to_idle()
-	bet = wrapi(bet, 1, MAX_BET + 1)
-	if bet > MAX_BET:
-		bet = 1
+	bet = (bet % MAX_BET) + 1
 	bet_changed.emit(bet)
 
 
