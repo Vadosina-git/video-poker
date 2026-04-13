@@ -33,6 +33,8 @@ var _num_hands: int = 3
 var _blink_tween: Tween = null
 var _bet_flash_tween: Tween
 var _balance_cd: Dictionary
+var _balance_show_depth: bool = false
+var _depth_tooltip: Control = null
 var _bet_cd: Dictionary
 var _win_cd: Dictionary
 
@@ -41,6 +43,26 @@ var _primary_cards: Array = []  # Array of card_visual TextureRect
 var _primary_container: HBoxContainer
 var _animating: bool = false
 var _primary_win_mask: Array = [false, false, false, false, false]
+var _double_btn: Button
+var _double_amount: int = 0
+var _double_warned: bool = false
+var _in_double: bool = false
+var _double_cards: Array = []
+var _double_dealer_card: CardData = null
+var _info_card: PanelContainer
+var _info_card_active_label: Label
+var _info_btn: Button
+var _info_overlay: Control
+# Per-hand multiplier safe zones (index 0 = primary, 1+ = extras)
+var _mult_zones: Array[Control] = []
+var _next_displays: Array[Control] = []
+var _active_displays: Array[Control] = []
+# Rows that were temporarily detached from a NEXT VBox during animation and
+# reparented to self — tracked here so we can always clean them up, even if
+# a previous animation was interrupted.
+var _anim_detached_rows: Array[Control] = []
+# State persistence: key = "{hand_count}_{bet}" → {hand_multipliers, next_multipliers}
+var _ux_states: Dictionary = {}
 
 # Extra hands (above primary, non-interactive mini displays)
 var _extra_displays: Array = []  # Array of MiniHandDisplay
@@ -49,6 +71,22 @@ var _extra_displays: Array = []  # Array of MiniHandDisplay
 const COL_YELLOW := Color("FFEC00")
 const COL_GREEN := Color("07E02F")
 const COL_BTN_TEXT := Color("3F2A00")
+
+# Ultimate X multiplier glyph sizes.
+# NEXT is small (it's a hint for the upcoming round), ACTIVE is big (it's the
+# current round's "star" — dominant visual). Animation pins the label's value
+# row bottom to the hand's bottom both before and after the size jump.
+const UX_ACTIVE_H_PRIMARY := 44.0
+const UX_ACTIVE_H_EXTRA := 34.0
+const UX_NEXT_VAL_H_PRIMARY := 26.0
+const UX_NEXT_VAL_H_EXTRA := 22.0
+const UX_NEXT_HDR_H_PRIMARY := 26.0
+const UX_NEXT_HDR_H_EXTRA := 22.0
+# Bottom margin of ACTIVE row inside its zone.
+const UX_ACTIVE_BOTTOM_MARGIN := 6.0
+# Horizontal gap between the multiplier label's right edge and the left edge
+# of the first card of its hand. Keep it small — the label should sit snug.
+const UX_LABEL_RIGHT_GAP := 2.0
 
 # Speed
 var _speed_level: int = 1
@@ -60,14 +98,17 @@ const SPEED_CONFIGS := [
 ]
 
 # Bet picker
-const BET_AMOUNTS := [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+const BET_AMOUNTS := [1, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000, 10000, 50000]
 var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 
 
-func setup(variant: BaseVariant, num_hands: int) -> void:
+var _ultimate_x: bool = false
+
+func setup(variant: BaseVariant, num_hands: int, p_ultimate_x: bool = false) -> void:
 	_variant = variant
 	_num_hands = num_hands
+	_ultimate_x = p_ultimate_x
 
 
 func _ready() -> void:
@@ -79,7 +120,7 @@ func _ready() -> void:
 
 	_manager = MultiHandManager.new()
 	add_child(_manager)
-	_manager.setup(_variant, _num_hands)
+	_manager.setup(_variant, _num_hands, _ultimate_x)
 
 	# Connect signals
 	_manager.all_hands_dealt.connect(_on_hands_dealt)
@@ -89,14 +130,25 @@ func _ready() -> void:
 	_manager.bet_changed.connect(_on_bet_changed)
 	_manager.state_changed.connect(_on_state_changed)
 
+	# Double button
+	_double_btn = Button.new()
+	_double_btn.text = "DOUBLE"
+	_double_btn.disabled = true
+	_double_btn.pressed.connect(_on_double_pressed)
+
+	# Info button
+	_info_btn = Button.new()
+	_info_btn.text = "i"
+	_info_btn.pressed.connect(_show_info)
+
 	# Buttons
 	_back_btn.pressed.connect(func() -> void: back_to_lobby.emit())
 	_speed_btn.pressed.connect(_on_speed_pressed)
-	_bet_btn.pressed.connect(_manager.bet_one)
+	_bet_btn.pressed.connect(_on_bet_one_pressed)
 	_bet_amount_btn.pressed.connect(_on_bet_amount_pressed)
-	_bet_max_btn.pressed.connect(_manager.bet_max)
+	_bet_max_btn.pressed.connect(_on_bet_max_pressed)
 	_deal_draw_btn.pressed.connect(_on_deal_draw_pressed)
-	_hands_btn.pressed.connect(func() -> void: pass)  # Future: cycle hand count
+	_hands_btn.pressed.connect(_on_hands_pressed)
 	_topup_btn.pressed.connect(_show_shop)
 	# Rush detection — catch any click/tap during animations
 
@@ -106,17 +158,77 @@ func _ready() -> void:
 	_build_paytable_badges()
 	_update_speed_display()
 
-	_game_title.text = _variant.paytable.name.to_upper()
+	_update_title()
+	_hands_btn.text = "ULTIMATE X" if _ultimate_x else ("%d HANDS" % _num_hands)
 	_hands_btn.text = "%d HANDS" % _num_hands
 	_current_denomination = _recommend_denomination()
 	SaveManager.denomination = _current_denomination
 	_update_bet_amount_btn()
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
+	_bet_btn.text = "BET %d" % _manager.bet
 	_win_label.text = "WIN:"
 
 
+func _setup_background() -> void:
+	var bg: Control = %Background
+
+	# Layer 1: Linear gradient TOP to BOTTOM — dark emerald → deep forest
+	var linear_grad := GradientTexture2D.new()
+	var lg := Gradient.new()
+	lg.offsets = PackedFloat32Array([0.0, 1.0])
+	lg.colors = PackedColorArray([Color("0A3D2A"), Color("062015")])
+	linear_grad.gradient = lg
+	linear_grad.fill = GradientTexture2D.FILL_LINEAR
+	linear_grad.fill_from = Vector2(0.5, 0.0)
+	linear_grad.fill_to = Vector2(0.5, 1.0)
+	linear_grad.width = 512
+	linear_grad.height = 512
+
+	var linear_rect := TextureRect.new()
+	linear_rect.texture = linear_grad
+	linear_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	linear_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	linear_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	bg.add_child(linear_rect)
+
+	# Layer 2: Radial gradient for Ultimate X — light green glow → transparent edge
+	# Other modes — dark green vignette
+	var radial_grad := GradientTexture2D.new()
+	var rg := Gradient.new()
+	if _ultimate_x:
+		rg.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+		rg.colors = PackedColorArray([
+			Color("5FD88A"),      # light green center
+			Color(0.37, 0.84, 0.54, 0.4),  # fade
+			Color(0.37, 0.84, 0.54, 0),    # transparent edge
+		])
+	else:
+		rg.offsets = PackedFloat32Array([0.0, 0.54, 0.71, 0.89, 1.0])
+		rg.colors = PackedColorArray([
+			Color(0, 0, 0, 0),
+			Color(0, 0, 0, 0),
+			Color(0, 0.05, 0.02, 0.67),
+			Color("021C0E"),
+			Color("021C0E"),
+		])
+	radial_grad.gradient = rg
+	radial_grad.fill = GradientTexture2D.FILL_RADIAL
+	radial_grad.fill_from = Vector2(0.5, 0.5)
+	radial_grad.fill_to = Vector2(1.0, 1.0)
+	radial_grad.width = 512
+	radial_grad.height = 512
+
+	var radial_rect := TextureRect.new()
+	radial_rect.texture = radial_grad
+	radial_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	radial_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	radial_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	bg.add_child(radial_rect)
+
+
 func _apply_theme() -> void:
+	_setup_background()
 	$VBoxContainer.add_theme_constant_override("separation", 2)
 
 	# Title
@@ -140,6 +252,16 @@ func _apply_theme() -> void:
 
 	# Info row: [WIN chip_val | TOTAL BET chip_val] ... [BALANCE chip_val | +]
 	_info_row.add_theme_constant_override("separation", 10)
+	# Wrap info row in margin container (same side margins as bottom bar)
+	var ir_parent := _info_row.get_parent()
+	var ir_idx := _info_row.get_index()
+	var ir_margin := MarginContainer.new()
+	ir_margin.add_theme_constant_override("margin_left", 100)
+	ir_margin.add_theme_constant_override("margin_right", 100)
+	ir_parent.remove_child(_info_row)
+	ir_margin.add_child(_info_row)
+	ir_parent.add_child(ir_margin)
+	ir_parent.move_child(ir_margin, ir_idx)
 	_win_label.add_theme_font_size_override("font_size", 16)
 	_win_label.add_theme_color_override("font_color", COL_YELLOW)
 	_win_label.text = "WIN:"
@@ -156,7 +278,13 @@ func _apply_theme() -> void:
 	_balance_label.add_theme_font_size_override("font_size", 16)
 	_balance_label.add_theme_color_override("font_color", COL_YELLOW)
 	_balance_label.text = "BALANCE:"
+	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_balance_label.gui_input.connect(_on_balance_clicked)
 	_balance_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_balance_cd["box"].mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_balance_cd["box"].gui_input.connect(_on_balance_clicked)
 	_info_row.add_child(_balance_cd["box"])
 	_info_row.move_child(_balance_cd["box"], _balance_label.get_index() + 1)
 
@@ -177,8 +305,17 @@ func _apply_theme() -> void:
 	_topup_btn.add_theme_stylebox_override("pressed", topup_style)
 	_topup_btn.custom_minimum_size = Vector2(28, 24)
 
-	# Button bar — flat, grouped with spacers
+	# Button bar — flat, grouped with spacers, with side margins like single-hand
 	_bottom_bar.add_theme_constant_override("separation", 0)
+	var bb_parent := _bottom_bar.get_parent()
+	var bb_idx := _bottom_bar.get_index()
+	var bb_margin := MarginContainer.new()
+	bb_margin.add_theme_constant_override("margin_left", 100)
+	bb_margin.add_theme_constant_override("margin_right", 100)
+	bb_parent.remove_child(_bottom_bar)
+	bb_margin.add_child(_bottom_bar)
+	bb_parent.add_child(bb_margin)
+	bb_parent.move_child(bb_margin, bb_idx)
 	_build_button_groups.call_deferred()
 
 	# Button textures
@@ -191,7 +328,9 @@ func _apply_theme() -> void:
 
 	var btn_h := 36
 
-	# Left group: SPEED
+	# Left group: INFO + SPEED
+	var tex_info := load("res://assets/textures/info_button.svg")
+	_style_btn(_info_btn, tex_info, Color.BLACK, 16, 40, btn_h)
 	_style_btn(_speed_btn, tex_panel_w, Color.WHITE, 13, 110, btn_h)
 
 	# Center group: HANDS, $amount, BET, BET MAX
@@ -200,13 +339,15 @@ func _apply_theme() -> void:
 	_style_btn(_bet_btn, tex_yellow, COL_BTN_TEXT, 14, 80, btn_h)
 	_style_btn(_bet_max_btn, tex_yellow, COL_BTN_TEXT, 14, 100, btn_h)
 
-	# Right group: DEAL
+	# Right group: DOUBLE + DEAL
+	_style_btn(_double_btn, tex_yellow, COL_BTN_TEXT, 13, 90, btn_h)
 	_style_btn(_deal_draw_btn, tex_green, Color.WHITE, 18, 120, btn_h)
 
 
 func _build_button_groups() -> void:
-	# Insert spacers between button groups in BottomBar:
-	# [SPEED] [spacer] [HANDS] [$amt] [BET] [BET MAX] [spacer] [DEAL]
+	# [INFO] [SPEED] [spacer] [HANDS] [$amt] [BET] [BET MAX] [spacer] [DOUBLE] [DEAL]
+	_bottom_bar.add_child(_info_btn)
+	_bottom_bar.move_child(_info_btn, _speed_btn.get_index())
 	var spacer_l := Control.new()
 	spacer_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bottom_bar.add_child(spacer_l)
@@ -216,6 +357,9 @@ func _build_button_groups() -> void:
 	spacer_r.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bottom_bar.add_child(spacer_r)
 	_bottom_bar.move_child(spacer_r, _bet_max_btn.get_index() + 1)
+	# DOUBLE button before DEAL
+	_bottom_bar.add_child(_double_btn)
+	_bottom_bar.move_child(_double_btn, _deal_draw_btn.get_index())
 
 
 func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_w: int, min_h: int) -> void:
@@ -260,7 +404,7 @@ func _build_hands_area() -> void:
 	_extra_grid.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_extra_grid.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_extra_grid.columns = _get_grid_cols()
-	_extra_grid.add_theme_constant_override("h_separation", 16)
+	_extra_grid.add_theme_constant_override("h_separation", 20 if _ultimate_x else 16)
 	_extra_grid.add_theme_constant_override("v_separation", 10)
 	extra_rect.add_child(_extra_grid)
 
@@ -283,11 +427,28 @@ func _build_hands_area() -> void:
 		# GridContainer wraps at `columns` — spacer takes one cell position
 		_extra_grid.columns = cols  # keep cols, we'll handle spacer sizing
 
+	# Ultimate X: clear mult zones arrays (will be populated in order: primary first, then extras)
+	if _ultimate_x:
+		_clear_mult_zones()
+
+	# Build primary zone FIRST so it's at index 0
+	if _ultimate_x:
+		_build_mult_zone(80, true)  # zone added to primary_container below
+
 	for i in num_extra:
 		var mh: MiniHandDisplay = MiniHandScene.instantiate()
 		mh._variant = _variant
 		mh._overlay_parent = self
-		_extra_grid.add_child(mh)
+		if _ultimate_x:
+			# Wrap in HBox with mult zone on the left
+			var wrap := HBoxContainer.new()
+			wrap.add_theme_constant_override("separation", 4)
+			var zone := _build_mult_zone(60, false)
+			wrap.add_child(zone)
+			wrap.add_child(mh)
+			_extra_grid.add_child(wrap)
+		else:
+			_extra_grid.add_child(mh)
 		_extra_displays.append(mh)
 		mh.show_back()
 
@@ -301,6 +462,11 @@ func _build_hands_area() -> void:
 	_primary_container.add_theme_constant_override("separation", 12)
 	_primary_container.alignment = BoxContainer.ALIGNMENT_CENTER
 
+	# Ultimate X: add the previously built primary mult zone to primary_container FIRST (left side)
+	if _ultimate_x and _mult_zones.size() > 0:
+		_primary_container.add_child(_mult_zones[0])
+		_primary_container.move_child(_mult_zones[0], 0)
+
 	for i in 5:
 		var card: TextureRect = CardScene.instantiate()
 		card.card_index = i
@@ -312,6 +478,11 @@ func _build_hands_area() -> void:
 	# Move HELD labels to bottom of cards for multi-hand
 	for card in _primary_cards:
 		card.set_held_bottom()
+
+	# Info card (Ultimate X only) — right of primary hand
+	if _ultimate_x:
+		_build_info_card()
+		_update_multiplier_labels.call_deferred()
 
 
 func _get_grid_cols() -> int:
@@ -438,6 +609,138 @@ func _update_speed_display() -> void:
 	_speed_btn.text = arrows + "\nSPEED"
 
 
+# --- Hand count cycling ---
+
+const HAND_COUNTS := [3, 5, 10, 12, 25]
+const UX_HAND_COUNTS := [3, 5, 10]
+var _switching_hands: bool = false
+
+func _on_hands_pressed() -> void:
+	if _manager.state != MultiHandManager.State.IDLE and _manager.state != MultiHandManager.State.WIN_DISPLAY:
+		return
+	if _switching_hands:
+		return
+	if _manager.state == MultiHandManager.State.WIN_DISPLAY:
+		_manager._to_idle()
+	# Cycle to next hand count
+	var counts: Array = UX_HAND_COUNTS if _ultimate_x else HAND_COUNTS
+	var current_idx := counts.find(_num_hands)
+	var next_idx := (current_idx + 1) % counts.size() if current_idx >= 0 else 0
+	var new_count: int = counts[next_idx]
+	_switch_hand_count(new_count)
+
+
+func _switch_hand_count(new_count: int) -> void:
+	_switching_hands = true
+	# Save current UX state before switching
+	_save_ux_state()
+
+	# 1. Animate out: bounce → shrink → fade
+	if _extra_grid:
+		_extra_grid.pivot_offset = _extra_grid.size / 2
+		var tw_out := create_tween()
+		tw_out.tween_property(_extra_grid, "scale", Vector2(1.05, 1.05), 0.05).set_ease(Tween.EASE_OUT)
+		tw_out.tween_property(_extra_grid, "scale", Vector2(0.15, 0.15), 0.15).set_ease(Tween.EASE_IN)
+		tw_out.parallel().tween_property(_extra_grid, "modulate:a", 0.0, 0.12).set_delay(0.06)
+		await tw_out.finished
+
+	# 2. Remove old
+	_stop_result_blink()
+	for mini in _extra_displays:
+		mini.hide_result()
+	_extra_displays.clear()
+	if _extra_grid:
+		_extra_grid.get_parent().remove_child(_extra_grid)
+		_extra_grid.free()
+		_extra_grid = null
+
+	# 3. Update state
+	_num_hands = new_count
+	SaveManager.hand_count = new_count
+	SaveManager.save_game()
+	_hands_btn.text = "ULTIMATE X" if _ultimate_x else ("%d HANDS" % _num_hands)
+	_manager.setup(_variant, _num_hands, _ultimate_x)
+	# Load saved UX state for new hand count
+	_load_ux_state()
+
+	# 4. Build new grid (invisible)
+	var extra_rect: Control = %ExtraHandsRect
+	_extra_grid = GridContainer.new()
+	_extra_grid.set_anchors_preset(Control.PRESET_CENTER)
+	_extra_grid.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_extra_grid.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_extra_grid.columns = _get_grid_cols()
+	_extra_grid.add_theme_constant_override("h_separation", 20 if _ultimate_x else 16)
+	_extra_grid.add_theme_constant_override("v_separation", 10)
+	_extra_grid.modulate.a = 0.0
+	extra_rect.add_child(_extra_grid)
+
+	# Ultimate X: keep primary zone/labels (index 0), remove old extra zones/labels.
+	# NOTE: the zones in _mult_zones[1..] were children of the extra_grid and
+	# are already freed by _extra_grid.free() above — so their references here
+	# are dangling. We must NOT assign them to typed variables (that throws
+	# "Trying to assign invalid previously freed instance" in Godot 4).
+	if _ultimate_x:
+		while _mult_zones.size() > 1:
+			_mult_zones.pop_back()  # already freed with the grid
+		while _next_displays.size() > 1:
+			var d = _next_displays.pop_back()  # untyped — might be freed
+			if is_instance_valid(d):
+				(d as Node).queue_free()
+		while _active_displays.size() > 1:
+			var d = _active_displays.pop_back()  # untyped — might be freed
+			if is_instance_valid(d):
+				(d as Node).queue_free()
+
+	for i in (_num_hands - 1):
+		var mh: MiniHandDisplay = MiniHandScene.instantiate()
+		mh._variant = _variant
+		mh._overlay_parent = self
+		if _ultimate_x:
+			var wrap := HBoxContainer.new()
+			wrap.add_theme_constant_override("separation", 4)
+			var zone := _build_mult_zone(60, false)
+			wrap.add_child(zone)
+			wrap.add_child(mh)
+			_extra_grid.add_child(wrap)
+		else:
+			_extra_grid.add_child(mh)
+		_extra_displays.append(mh)
+		mh.show_back()
+
+	# 5. Wait for layout, then size
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_size_extra_hands()
+
+	# 6. Update displays
+	_update_paytable_badges()
+	_current_denomination = _recommend_denomination()
+	SaveManager.denomination = _current_denomination
+	_update_bet_amount_btn()
+	_update_bet_display(_manager.bet)
+	_update_balance(SaveManager.credits)
+
+	# 7. Animate in: fade + grow → bounce settle
+	_extra_grid.pivot_offset = _extra_grid.size / 2
+	_extra_grid.scale = Vector2(0.15, 0.15)
+	_extra_grid.modulate.a = 0.0
+	var tw_in := create_tween()
+	# Fade in first
+	tw_in.tween_property(_extra_grid, "modulate:a", 1.0, 0.084)
+	# Grow from depth (parallel, slightly delayed)
+	tw_in.parallel().tween_property(_extra_grid, "scale", Vector2(1.05, 1.05), 0.15).set_ease(Tween.EASE_OUT).set_delay(0.03)
+	# Bounce settle
+	tw_in.tween_property(_extra_grid, "scale", Vector2(1.0, 1.0), 0.06).set_ease(Tween.EASE_IN_OUT)
+	await tw_in.finished
+
+	# Refresh multiplier labels for new layout
+	if _ultimate_x:
+		_update_multiplier_labels()
+
+	_switching_hands = false
+
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		if _manager.state == MultiHandManager.State.DRAWING or _manager.state == MultiHandManager.State.DEALING:
@@ -451,12 +754,111 @@ func _is_rushing() -> bool:
 # --- Display helpers ---
 
 func _update_balance(credits: int) -> void:
-	SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits))
+	if _balance_show_depth:
+		var depth := _calculate_game_depth()
+		_balance_label.text = "GAMES:"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+	else:
+		_balance_label.text = "BALANCE:"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
+
+
+func _calculate_game_depth() -> int:
+	var ux_active := _ultimate_x and _manager.bet == MultiHandManager.MAX_BET
+	var bet_mult := 2 if ux_active else 1
+	var per_round: int = _manager.bet * _num_hands * SaveManager.denomination * bet_mult
+	if per_round <= 0:
+		return 0
+	return SaveManager.credits / per_round
+
+
+func _on_balance_clicked(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if not SaveManager.depth_hint_shown:
+			_show_depth_tooltip()
+			SaveManager.depth_hint_shown = true
+			SaveManager.save_game()
+		_balance_show_depth = not _balance_show_depth
+		_update_balance(SaveManager.credits)
+
+
+func _show_depth_tooltip() -> void:
+	if _depth_tooltip:
+		_depth_tooltip.queue_free()
+	_depth_tooltip = Control.new()
+	_depth_tooltip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_depth_tooltip.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_depth_tooltip)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed:
+			_depth_tooltip.queue_free()
+			_depth_tooltip = null
+	)
+	_depth_tooltip.add_child(dim)
+
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color("062015")
+	ps.set_border_width_all(3)
+	ps.border_color = COL_YELLOW
+	ps.set_corner_radius_all(12)
+	ps.content_margin_left = 28
+	ps.content_margin_right = 28
+	ps.content_margin_top = 20
+	ps.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_depth_tooltip.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	panel.add_child(vbox)
+
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+	var title := Label.new()
+	title.text = "GAME DEPTH"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", COL_YELLOW)
+	title.add_theme_font_override("font", bold)
+	vbox.add_child(title)
+
+	var msg := Label.new()
+	msg.text = "This number shows how many rounds you can play\nwith your current balance at the current bet\nand hand count.\n\nHigher = longer session."
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.add_theme_font_size_override("font_size", 16)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(msg)
+
+	var ok_btn := Button.new()
+	ok_btn.text = "GOT IT"
+	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
+	_style_btn(ok_btn, tex_y, COL_BTN_TEXT, 18, 140, 44)
+	ok_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ok_btn.pressed.connect(func() -> void:
+		if _depth_tooltip:
+			_depth_tooltip.queue_free()
+			_depth_tooltip = null
+	)
+	vbox.add_child(ok_btn)
 
 func _update_bet_display(bet: int) -> void:
-	var total: int = bet * _num_hands * SaveManager.denomination
+	var ux_active := _ultimate_x and bet == MultiHandManager.MAX_BET
+	var bet_mult := 2 if ux_active else 1
+	var total: int = bet * _num_hands * SaveManager.denomination * bet_mult
 	SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(total))
 	_flash_bet_display()
+	# Refresh multiplier display when bet changes
+	if _ultimate_x:
+		_refresh_ux_visibility()
 
 
 func _flash_bet_display() -> void:
@@ -474,9 +876,10 @@ const MIN_GAME_DEPTH := 30
 func _recommend_denomination() -> int:
 	var balance := SaveManager.credits
 	var best: int = BET_AMOUNTS[0]
+	var ux_mult := 2 if _ultimate_x else 1
 	for amount in BET_AMOUNTS:
-		# worst case total_bet = denomination * max_bet * num_hands
-		if balance / (amount * MultiHandManager.MAX_BET * _num_hands) >= MIN_GAME_DEPTH:
+		# worst case total_bet = denomination * max_bet * num_hands * (2 for Ultimate X)
+		if balance / (amount * MultiHandManager.MAX_BET * _num_hands * ux_mult) >= MIN_GAME_DEPTH:
 			best = amount
 		else:
 			break
@@ -489,11 +892,11 @@ func _update_bet_amount_btn() -> void:
 	_bet_amount_btn.text = ""
 	_bet_amount_btn.icon = null
 	if _bet_btn_cd.is_empty():
-		_bet_btn_cd = SaveManager.create_currency_display(14, Color.WHITE)
+		_bet_btn_cd = SaveManager.create_currency_display(18, Color.WHITE)
 		_bet_btn_cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_bet_btn_cd["box"].set_anchors_preset(Control.PRESET_FULL_RECT)
 		_bet_amount_btn.add_child(_bet_btn_cd["box"])
-	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_short(_current_denomination))
+	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_auto(_current_denomination, 96, 18))
 
 
 
@@ -508,6 +911,10 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = false
 			_bet_max_btn.disabled = false
 			_deal_draw_btn.disabled = false
+			_hands_btn.disabled = false
+			_bet_amount_btn.disabled = false
+			_double_btn.disabled = true
+			_in_double = false
 			_win_label.text = "PLACE YOUR BET"
 			_win_cd["box"].visible = false
 			_win_label.add_theme_color_override("font_color", COL_YELLOW)
@@ -518,6 +925,9 @@ func _on_state_changed(new_state: int) -> void:
 			_deal_draw_btn.disabled = true
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
+			_bet_amount_btn.disabled = true
+			_hands_btn.disabled = true
+			_double_btn.disabled = true
 			_win_label.text = ""
 
 		MultiHandManager.State.HOLDING:
@@ -542,6 +952,7 @@ func _on_state_changed(new_state: int) -> void:
 			_deal_draw_btn.disabled = true
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
+			_hands_btn.disabled = false
 
 
 func _show_mini_held(mini: MiniHandDisplay) -> void:
@@ -628,6 +1039,14 @@ func _on_deal_draw_pressed() -> void:
 			await get_tree().create_timer(0.08).timeout
 		_manager.draw()
 	else:
+		# Starting new round — animate NEXT → ACTIVE first (Ultimate X)
+		if _ultimate_x and _manager.bet == MultiHandManager.MAX_BET:
+			_animating = true
+			_deal_draw_btn.disabled = true
+			_bet_btn.disabled = true
+			_bet_max_btn.disabled = true
+			await _animate_multipliers_next_to_active()
+			_animating = false
 		_manager.deal_or_draw()
 
 
@@ -644,11 +1063,33 @@ func _on_hands_drawn(all_hands: Array) -> void:
 				SoundManager.play("deal")
 				await get_tree().create_timer(delay).timeout
 
+	# 1b. Show primary hand result immediately (don't wait for extra hands)
+	var hand_keys := _variant.paytable.get_hand_order()
+	var ux_active := _ultimate_x and _manager.bet == MultiHandManager.MAX_BET
+	var p_rank := _variant.evaluate(primary)
+	var p_base: int = _variant.get_payout(p_rank, _manager.bet)
+	_primary_win_mask = [false, false, false, false, false]
+	if p_base > 0:
+		var p_name: String = _variant.get_hand_name(p_rank)
+		var p_badge_color := _get_badge_color_for_hand(p_name, hand_keys)
+		var p_active_m: int = 1
+		if _ultimate_x and _manager.hand_multipliers.size() > 0:
+			p_active_m = _manager.hand_multipliers[0]
+		_show_primary_result(p_name, p_base, p_badge_color, p_active_m)
+		_primary_win_mask = _variant.get_hold_mask(primary, p_rank)
+	# Primary-hand cards are NEVER dimmed (unlike extras). Always full brightness.
+	for ci in 5:
+		_primary_cards[ci].modulate = Color.WHITE
+	# Ultimate X: show NEXT multiplier for primary hand immediately
+	if ux_active:
+		var p_earned := MultiHandManager.get_ultimate_x_multiplier(p_rank)
+		_manager.next_multipliers[0] = p_earned
+		_show_single_next_multiplier(0, p_earned)
+
 	# 2. Extra hands bottom-to-top, each hand card by card
 	var cols: int = _get_grid_cols()
 	var num_extra: int = _extra_displays.size()
 	var rows_count: int = ceili(float(num_extra) / cols)
-	var hand_keys := _variant.paytable.get_hand_order()
 	for row in range(rows_count - 1, -1, -1):
 		for col in cols:
 			var idx: int = row * cols + col
@@ -671,13 +1112,21 @@ func _on_hands_drawn(all_hands: Array) -> void:
 			var payout: int = _variant.get_payout(hand_rank, _manager.bet) * SaveManager.denomination
 			var hand_name: String = _variant.get_hand_name(hand_rank)
 			if payout > 0:
-				var multiplier: int = int(payout / SaveManager.denomination) if SaveManager.denomination > 0 else payout
+				var base_mult: int = _variant.get_payout(hand_rank, _manager.bet)
 				var badge_color := _get_badge_color_for_hand(hand_name, hand_keys)
-				mini.show_result(hand_name, multiplier, badge_color)
+				var active_m: int = 1
+				if _ultimate_x and (idx + 1) < _manager.hand_multipliers.size():
+					active_m = _manager.hand_multipliers[idx + 1]
+				mini.show_result(hand_name, base_mult, badge_color, active_m)
 				mini.set_win_mask(_variant.get_hold_mask(hand, hand_rank))
 			else:
 				mini.show_result("", 0, Color.TRANSPARENT)
 				mini.set_win_mask([false, false, false, false, false])
+			# Ultimate X: show NEXT multiplier for this hand immediately
+			if ux_active:
+				var earned := MultiHandManager.get_ultimate_x_multiplier(hand_rank)
+				_manager.next_multipliers[h] = earned
+				_show_single_next_multiplier(h, earned)
 		if not _is_rushing():
 			await get_tree().create_timer(0.05).timeout
 
@@ -692,17 +1141,10 @@ func _on_hands_drawn(all_hands: Array) -> void:
 
 
 func _on_hands_evaluated(results: Array, total_payout: int) -> void:
-	# Extra hand results already shown during draw animation
+	# Extra hand results + NEXT multipliers already shown during draw animation
 	_start_result_blink()
 
-	# Primary hand result overlay + win mask
-	_primary_win_mask = [false, false, false, false, false]
-	if results.size() > 0:
-		var pr: Dictionary = results[0]
-		var p_payout: int = int(pr["payout"])
-		if p_payout > 0:
-			var p_mult: int = int(p_payout / SaveManager.denomination) if SaveManager.denomination > 0 else p_payout
-			_show_primary_result(pr["hand_name"], p_mult)
+	# Primary hand result already shown during draw animation (in _on_hands_drawn)
 
 	# Show total win + animate credits
 	if total_payout > 0:
@@ -715,6 +1157,596 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 		_win_cd["box"].visible = false
 		_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 		_delay_unlock_buttons()
+
+
+func _ux_state_key() -> String:
+	return "%d_%d" % [_num_hands, _manager.bet]
+
+
+func _save_ux_state() -> void:
+	if not _ultimate_x:
+		return
+	_ux_states[_ux_state_key()] = {
+		"hand_multipliers": _manager.hand_multipliers.duplicate(),
+		"next_multipliers": _manager.next_multipliers.duplicate(),
+	}
+
+
+func _load_ux_state() -> void:
+	if not _ultimate_x:
+		return
+	var key := _ux_state_key()
+	if key in _ux_states:
+		var st: Dictionary = _ux_states[key]
+		var saved_hand: Array = st["hand_multipliers"]
+		var saved_next: Array = st["next_multipliers"]
+		_manager.hand_multipliers.clear()
+		_manager.next_multipliers.clear()
+		for i in _num_hands:
+			_manager.hand_multipliers.append(saved_hand[i] if i < saved_hand.size() else 1)
+			_manager.next_multipliers.append(saved_next[i] if i < saved_next.size() else 1)
+	else:
+		# No saved state — reset
+		_manager.hand_multipliers.clear()
+		_manager.next_multipliers.clear()
+		for i in _num_hands:
+			_manager.hand_multipliers.append(1)
+			_manager.next_multipliers.append(1)
+
+
+func _update_info_card_status() -> void:
+	if not _info_card_active_label:
+		return
+	var ux_active := _manager.bet == MultiHandManager.MAX_BET
+	if ux_active:
+		_info_card_active_label.text = "ACTIVE!"
+		_info_card_active_label.add_theme_color_override("font_color", Color("07E02F"))
+	else:
+		_info_card_active_label.text = "PRESS TO\nACTIVATE"
+		_info_card_active_label.add_theme_color_override("font_color", Color("FF4444"))
+
+
+func _refresh_ux_visibility() -> void:
+	if not _ultimate_x:
+		return
+	_update_info_card_status()
+	_ensure_mult_labels()
+	var ux_active := _manager.bet == MultiHandManager.MAX_BET
+	if not ux_active:
+		for lbl in _next_displays:
+			lbl.visible = false
+		for lbl in _active_displays:
+			lbl.visible = false
+	else:
+		_update_multiplier_labels()
+
+
+func _hide_active_multipliers() -> void:
+	_ensure_mult_labels()
+	for lbl in _active_displays:
+		lbl.visible = false
+
+
+func _hide_next_multipliers() -> void:
+	_ensure_mult_labels()
+	for lbl in _next_displays:
+		lbl.visible = false
+
+
+func _update_next_multipliers() -> void:
+	if not _ultimate_x:
+		return
+	if _next_displays.size() < _num_hands:
+		return
+	for i in _num_hands:
+		var next_m: int = _manager.next_multipliers[i] if i < _manager.next_multipliers.size() else 1
+		_show_single_next_multiplier(i, next_m)
+
+
+## Show NEXT multiplier for a single hand with pop-in animation.
+func _show_single_next_multiplier(idx: int, earned_mult: int) -> void:
+	if idx >= _next_displays.size():
+		return
+	var next_disp := _next_displays[idx]
+	if earned_mult > 1:
+		var vh: float = UX_NEXT_VAL_H_PRIMARY if idx == 0 else UX_NEXT_VAL_H_EXTRA
+		var hh: float = UX_NEXT_HDR_H_PRIMARY if idx == 0 else UX_NEXT_HDR_H_EXTRA
+		MultiplierGlyphs.set_next_value_x(next_disp, earned_mult, vh, hh)
+		_position_next_label(idx)
+		# Soft pop-in: scale from 0.55 to 1 and fade from transparent.
+		next_disp.pivot_offset = next_disp.size / 2.0
+		next_disp.scale = Vector2(0.55, 0.55)
+		next_disp.modulate.a = 0.0
+		next_disp.visible = true
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(next_disp, "modulate:a", 1.0, 0.09)
+		tw.tween_property(next_disp, "scale", Vector2.ONE, 0.14)
+	else:
+		next_disp.visible = false
+
+
+func _update_title() -> void:
+	var title := _variant.paytable.name.to_upper()
+	if _ultimate_x:
+		title = "ULTIMATE X — " + title
+	_game_title.text = title
+
+
+## Build a safe zone Control (just reserves space in layout).
+## Multiplier glyph displays are direct children of game root for easy absolute positioning.
+func _build_mult_zone(width: int, is_primary: bool) -> Control:
+	var zone := Control.new()
+	zone.custom_minimum_size = Vector2(width, 0)
+	zone.size_flags_vertical = Control.SIZE_FILL
+	zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	zone.clip_contents = false
+
+	# Glyph containers live at the game root level (absolute positioning).
+	# NO custom_minimum_size — their size must shrink to content so
+	# combined_minimum_size reflects the actual glyph row height, not a padded
+	# constant. (Padding would push the value row up from the card's bottom.)
+	var next_display := VBoxContainer.new()
+	next_display.alignment = BoxContainer.ALIGNMENT_CENTER
+	next_display.add_theme_constant_override("separation", 0)
+	next_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	next_display.visible = false
+	next_display.z_index = 10
+	add_child(next_display)
+	_next_displays.append(next_display)
+
+	var active_display := HBoxContainer.new()
+	active_display.alignment = BoxContainer.ALIGNMENT_CENTER
+	active_display.add_theme_constant_override("separation", 0)
+	active_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	active_display.visible = false
+	active_display.z_index = 10
+	add_child(active_display)
+	_active_displays.append(active_display)
+
+	_mult_zones.append(zone)
+	return zone
+
+
+func _clear_mult_zones() -> void:
+	_cleanup_detached_rows()
+	for lbl in _next_displays:
+		if is_instance_valid(lbl):
+			lbl.queue_free()
+	for lbl in _active_displays:
+		if is_instance_valid(lbl):
+			lbl.queue_free()
+	_mult_zones.clear()
+	_next_displays.clear()
+	_active_displays.clear()
+
+
+## Free any leftover rows that were detached from a NEXT VBox for animation.
+## Safe to call repeatedly — clears the tracking list too.
+func _cleanup_detached_rows() -> void:
+	for c in _anim_detached_rows:
+		if is_instance_valid(c):
+			c.queue_free()
+	_anim_detached_rows.clear()
+
+
+func _get_zone_rect(idx: int) -> Rect2:
+	if idx < 0 or idx >= _mult_zones.size():
+		return Rect2()
+	var zone := _mult_zones[idx]
+	if not is_instance_valid(zone) or not zone.is_inside_tree():
+		return Rect2()
+	return zone.get_global_rect()
+
+
+## Global rect of the FIRST (left-most) card in a hand. Used to anchor
+## multiplier labels directly against the visible card, not the surrounding
+## container (which may be taller/wider than the card itself).
+## Idx 0 = primary, 1..N = extras.
+func _get_hand_rect(idx: int) -> Rect2:
+	if idx == 0:
+		if _primary_cards.size() > 0 and is_instance_valid(_primary_cards[0]) \
+				and (_primary_cards[0] as Control).is_inside_tree():
+			return (_primary_cards[0] as Control).get_global_rect()
+	else:
+		var mi: int = idx - 1
+		if mi < _extra_displays.size():
+			var mini := _extra_displays[mi] as MiniHandDisplay
+			if is_instance_valid(mini) and mini.is_inside_tree():
+				# Use the first mini card's rect — the HBox container may be
+				# slightly taller than the cards due to layout padding.
+				if mini._card_textures.size() > 0:
+					var first_card: TextureRect = mini._card_textures[0]
+					if is_instance_valid(first_card) and first_card.is_inside_tree():
+						return first_card.get_global_rect()
+				return mini.get_global_rect()
+	return Rect2()
+
+
+## Compute a Control's size directly from its descendants' custom_minimum_size.
+## Godot's get_combined_minimum_size() can return stale / zero values right
+## after children are added (the Container hasn't sorted yet), so we walk the
+## tree manually and add up glyph sizes ourselves.
+func _compute_glyph_min_size(c: Control) -> Vector2:
+	if c == null:
+		return Vector2.ZERO
+	var child_count := c.get_child_count()
+	if child_count == 0:
+		return c.custom_minimum_size
+	var total := Vector2.ZERO
+	if c is VBoxContainer:
+		for ch in c.get_children():
+			if ch is Control:
+				var cs := _compute_glyph_min_size(ch)
+				total.x = maxf(total.x, cs.x)
+				total.y += cs.y
+	elif c is HBoxContainer:
+		for ch in c.get_children():
+			if ch is Control:
+				var cs := _compute_glyph_min_size(ch)
+				total.x += cs.x
+				total.y = maxf(total.y, cs.y)
+	else:
+		# Leaf Control (e.g. TextureRect) — its custom_minimum_size was set
+		# explicitly by _add_glyph.
+		total = c.custom_minimum_size
+	return total
+
+
+## Force the label to shrink to its current content's minimum size.
+## Needed because a VBoxContainer whose parent is NOT a Container does not
+## auto-update its .size when content changes — stale size values cause the
+## label to visually extend beyond its content bounds.
+func _shrink_to_content(lbl: Control) -> Vector2:
+	# Manual computation is more reliable than get_combined_minimum_size()
+	# immediately after children were added (before the Container sorts).
+	var m: Vector2 = _compute_glyph_min_size(lbl)
+	if m == Vector2.ZERO:
+		m = lbl.get_combined_minimum_size()
+	lbl.size = m
+	return m
+
+
+## Left-X so the label's right edge sits just left of the hand's first card.
+func _label_right_anchored_x(lbl: Control, hand_rect: Rect2) -> float:
+	var content_w: float = lbl.size.x
+	return hand_rect.position.x - content_w - UX_LABEL_RIGHT_GAP
+
+
+func _position_next_label(idx: int) -> void:
+	if idx >= _next_displays.size():
+		return
+	var lbl := _next_displays[idx]
+	var hand_rect := _get_hand_rect(idx)
+	if hand_rect.size == Vector2.ZERO or hand_rect.size.x < 10.0:
+		return
+	_shrink_to_content(lbl)
+	lbl.global_position = Vector2(_label_right_anchored_x(lbl, hand_rect), hand_rect.position.y)
+
+
+## Continuously sync visible NEXT/ACTIVE labels to the current hand positions.
+## Card layouts can shift across multiple frames (resize animations, grid
+## transitions, font/texture load), and the labels otherwise get stranded at
+## their original positions. This keeps them glued to the hand each frame.
+func _process(_delta: float) -> void:
+	if not _ultimate_x:
+		return
+	for i in _num_hands:
+		if i >= _next_displays.size():
+			break
+		# NEXT label — only sync when visible and not currently being animated
+		# (during the slide-down its children are detached and live on `self`).
+		var next_lbl := _next_displays[i]
+		if is_instance_valid(next_lbl) and next_lbl.visible \
+				and next_lbl.get_child_count() > 0:
+			var hand_rect := _get_hand_rect(i)
+			if hand_rect.size.x >= 10.0:
+				var lw: float = next_lbl.size.x
+				next_lbl.global_position = Vector2(
+					hand_rect.position.x - lw - UX_LABEL_RIGHT_GAP,
+					hand_rect.position.y)
+		# ACTIVE label
+		if i >= _active_displays.size():
+			continue
+		var active_lbl := _active_displays[i]
+		if is_instance_valid(active_lbl) and active_lbl.visible \
+				and active_lbl.get_child_count() > 0:
+			var hrect := _get_hand_rect(i)
+			if hrect.size.x >= 10.0:
+				var lw2: float = active_lbl.size.x
+				var lh2: float = active_lbl.size.y
+				active_lbl.global_position = Vector2(
+					hrect.position.x - lw2 - UX_LABEL_RIGHT_GAP,
+					hrect.position.y + hrect.size.y - lh2)
+
+
+## Y for ACTIVE row top so the row's bottom edge touches the hand's bottom edge.
+func _active_row_y(hand_rect: Rect2, active_h: float) -> float:
+	return hand_rect.position.y + hand_rect.size.y - active_h
+
+
+## Position the given multiplier label at the ACTIVE spot (bottom-left of the hand).
+func _position_active_label_ctrl(lbl: Control, idx: int) -> void:
+	if not is_instance_valid(lbl):
+		return
+	var hand_rect := _get_hand_rect(idx)
+	if hand_rect.size == Vector2.ZERO:
+		return
+	var sz: Vector2 = _shrink_to_content(lbl)
+	lbl.global_position = Vector2(_label_right_anchored_x(lbl, hand_rect), _active_row_y(hand_rect, sz.y))
+
+
+## Convenience: position _next_displays[idx] at ACTIVE spot (for the old
+## single-label animation path).
+func _position_active_label(idx: int) -> void:
+	if idx >= _next_displays.size():
+		return
+	_position_active_label_ctrl(_next_displays[idx], idx)
+
+
+func _ensure_mult_labels() -> void:
+	pass  # No-op; zones are built during layout
+
+
+func _update_multiplier_labels() -> void:
+	if not _ultimate_x:
+		return
+	if _next_displays.size() < _num_hands or _active_displays.size() < _num_hands:
+		return
+	await get_tree().process_frame
+
+	for i in _num_hands:
+		var active: int = _manager.hand_multipliers[i] if i < _manager.hand_multipliers.size() else 1
+		var next_m: int = _manager.next_multipliers[i] if i < _manager.next_multipliers.size() else 1
+		var next_lbl := _next_displays[i]
+		var active_lbl := _active_displays[i]
+		next_lbl.scale = Vector2.ONE
+		next_lbl.modulate.a = 1.0
+		active_lbl.scale = Vector2.ONE
+		active_lbl.modulate.a = 1.0
+
+		# NEXT label (top of card) — only when user earned a multiplier for next round.
+		if next_m > 1:
+			var vh: float = UX_NEXT_VAL_H_PRIMARY if i == 0 else UX_NEXT_VAL_H_EXTRA
+			var hh: float = UX_NEXT_HDR_H_PRIMARY if i == 0 else UX_NEXT_HDR_H_EXTRA
+			MultiplierGlyphs.set_next_value_x(next_lbl, next_m, vh, hh)
+			_position_next_label(i)
+			next_lbl.visible = true
+		else:
+			next_lbl.visible = false
+
+		# ACTIVE label (bottom of card) — persists for entire round until next deal.
+		if active > 1:
+			var ah: float = UX_ACTIVE_H_PRIMARY if i == 0 else UX_ACTIVE_H_EXTRA
+			MultiplierGlyphs.set_value_x(active_lbl, active, ah)
+			_position_active_label_ctrl(active_lbl, i)
+			active_lbl.visible = true
+		else:
+			active_lbl.visible = false
+
+
+## Animate NEXT → ACTIVE for all hands in parallel.
+## Single-label Ultimate X animation. One label per hand is reused for both
+## NEXT ("NEXT HAND / value", top of zone) and ACTIVE ("value x", bottom of zone).
+## The animation tweens the label's position from top to bottom, then rebuilds
+## its content from two-row to one-row in place — NO separate label, NO handoff.
+func _animate_multipliers_next_to_active() -> void:
+	if not _ultimate_x or _manager.bet != MultiHandManager.MAX_BET:
+		return
+	if _next_displays.size() < _num_hands:
+		return
+
+	await get_tree().process_frame
+
+	# Read NEXT multipliers from manager (source of truth).
+	var next_mults: Array[int] = []
+	for i in _num_hands:
+		var m: int = _manager.next_multipliers[i] if i < _manager.next_multipliers.size() else 1
+		next_mults.append(m)
+
+	# Ensure NEXT labels are built + positioned at top (in case the animation
+	# is triggered before _update_multiplier_labels had a chance to run).
+	for i in _num_hands:
+		var next_lbl := _next_displays[i]
+		if not is_instance_valid(next_lbl):
+			continue
+		next_lbl.scale = Vector2.ONE
+		next_lbl.modulate.a = 1.0
+		next_lbl.pivot_offset = Vector2.ZERO
+		if next_mults[i] > 1:
+			var nv_h: float = UX_NEXT_VAL_H_PRIMARY if i == 0 else UX_NEXT_VAL_H_EXTRA
+			var nh_h: float = UX_NEXT_HDR_H_PRIMARY if i == 0 else UX_NEXT_HDR_H_EXTRA
+			MultiplierGlyphs.set_next_value_x(next_lbl, next_mults[i], nv_h, nh_h)
+			_position_next_label(i)
+			next_lbl.visible = true
+		else:
+			next_lbl.visible = false
+
+	# Let layout settle for rebuilt labels.
+	await get_tree().process_frame
+
+	# Clean up any leftover detached rows from a prior (possibly interrupted)
+	# animation so they don't visually duplicate with the ones we're about
+	# to detach now.
+	_cleanup_detached_rows()
+
+	# Detach NEXT VBox children (header row + value row) from each VBox so we
+	# can animate them independently: header stays in place and fades out,
+	# while value row slides down to the hand's bottom.
+	var detached_hdrs: Array[Control] = []
+	var detached_vals: Array[Control] = []
+	detached_hdrs.resize(_num_hands)
+	detached_vals.resize(_num_hands)
+
+	for i in _num_hands:
+		var vbox := _next_displays[i]
+		if not is_instance_valid(vbox) or next_mults[i] <= 1:
+			continue
+		if vbox.get_child_count() < 2:
+			continue
+		var hdr := vbox.get_child(0) as Control
+		var val := vbox.get_child(1) as Control
+		if not hdr or not val:
+			continue
+		var hdr_gpos := hdr.get_global_rect().position
+		var val_gpos := val.get_global_rect().position
+		vbox.remove_child(hdr)
+		vbox.remove_child(val)
+		add_child(hdr)
+		add_child(val)
+		hdr.global_position = hdr_gpos
+		val.global_position = val_gpos
+		hdr.z_index = 10
+		val.z_index = 10
+		detached_hdrs[i] = hdr
+		detached_vals[i] = val
+		_anim_detached_rows.append(hdr)
+		_anim_detached_rows.append(val)
+		vbox.visible = false
+
+	var tween := create_tween().set_parallel(true)
+	var has_any := false
+
+	for i in _num_hands:
+		var active_lbl := _active_displays[i]
+		if not is_instance_valid(active_lbl):
+			continue
+
+		# Fade out the existing ACTIVE label with a small shrink.
+		if active_lbl.visible:
+			has_any = true
+			active_lbl.pivot_offset = active_lbl.size / 2.0
+			tween.tween_property(active_lbl, "modulate:a", 0.0, 0.07)
+			tween.tween_property(active_lbl, "scale", Vector2(0.7, 0.7), 0.07)
+
+		if next_mults[i] <= 1:
+			continue
+		var hand_rect := _get_hand_rect(i)
+		if hand_rect.size == Vector2.ZERO:
+			continue
+		var hdr := detached_hdrs[i]
+		var val := detached_vals[i]
+		if not is_instance_valid(hdr) or not is_instance_valid(val):
+			continue
+		has_any = true
+
+		# Value row slides down; header stays in place and fades out.
+		var val_end_pos := Vector2(val.global_position.x,
+				hand_rect.position.y + hand_rect.size.y - val.size.y)
+		tween.tween_property(val, "global_position", val_end_pos, 0.38)
+		# Header fade — starts LATE, vanishes almost instantly near end of slide.
+		tween.tween_property(hdr, "modulate:a", 0.0, 0.025).set_delay(0.32)
+
+	if not has_any:
+		_cleanup_detached_rows()
+		return
+	await tween.finished
+
+	# Free the detached rows — their job is done.
+	_cleanup_detached_rows()
+
+	# Reset VBox containers (now empty; will be rebuilt next time).
+	for i in _num_hands:
+		var nl := _next_displays[i]
+		if is_instance_valid(nl):
+			nl.visible = false
+			nl.scale = Vector2.ONE
+			nl.modulate.a = 1.0
+
+	# Pop in the new ACTIVE labels — FAST fade + grow.
+	var pop_tween := create_tween().set_parallel(true)
+	var pop_has_any := false
+	for i in _num_hands:
+		var active_lbl := _active_displays[i]
+		if not is_instance_valid(active_lbl):
+			continue
+		if next_mults[i] > 1:
+			var ah: float = UX_ACTIVE_H_PRIMARY if i == 0 else UX_ACTIVE_H_EXTRA
+			MultiplierGlyphs.set_value_x(active_lbl, next_mults[i], ah)
+			_position_active_label_ctrl(active_lbl, i)
+			# Appear in place with pure fade-in — no scale, no position movement.
+			active_lbl.scale = Vector2.ONE
+			active_lbl.pivot_offset = Vector2.ZERO
+			active_lbl.modulate.a = 0.0
+			active_lbl.visible = true
+			pop_has_any = true
+			pop_tween.tween_property(active_lbl, "modulate:a", 1.0, 0.07)
+		else:
+			active_lbl.visible = false
+	if pop_has_any:
+		await pop_tween.finished
+
+
+func _build_info_card() -> void:
+	if _info_card:
+		_info_card.queue_free()
+	_info_card = PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("07107A")
+	style.set_border_width_all(3)
+	style.border_color = Color("FFEC00")
+	style.set_corner_radius_all(8)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 12
+	style.content_margin_bottom = 12
+	_info_card.add_theme_stylebox_override("panel", style)
+	_info_card.custom_minimum_size = _get_primary_card_size()
+	_info_card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_info_card.gui_input.connect(_on_info_card_clicked)
+
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 6)
+	_info_card.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "ULTIMATE\nX"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color("FFEC00"))
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+	title.add_theme_font_override("font", bold)
+	vbox.add_child(title)
+
+	var sep := ColorRect.new()
+	sep.color = Color("FFEC00")
+	sep.custom_minimum_size = Vector2(0, 2)
+	vbox.add_child(sep)
+
+	var desc := Label.new()
+	desc.text = "Win → Next hand\ngets multiplier!\nUp to 12x"
+	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
+	desc.add_theme_font_size_override("font_size", 12)
+	desc.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(desc)
+
+	_info_card_active_label = Label.new()
+	_info_card_active_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_info_card_active_label.add_theme_font_size_override("font_size", 16)
+	_info_card_active_label.add_theme_font_override("font", bold)
+	vbox.add_child(_info_card_active_label)
+	_update_info_card_status()
+
+	_primary_container.add_child(_info_card)
+
+
+func _on_info_card_clicked(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if _manager.state == MultiHandManager.State.IDLE or _manager.state == MultiHandManager.State.WIN_DISPLAY:
+			if _manager.state == MultiHandManager.State.WIN_DISPLAY:
+				_manager._to_idle()
+			_save_ux_state()
+			_manager.bet = MultiHandManager.MAX_BET
+			SaveManager.bet_level = _manager.bet
+			SaveManager.save_game()
+			_load_ux_state()
+			_update_multiplier_labels()
+			_manager.bet_changed.emit(_manager.bet)
+			# Run animation before deal
+			await _animate_multipliers_next_to_active()
+			_manager.deal()
 
 
 func _start_result_blink() -> void:
@@ -775,18 +1807,36 @@ func _animate_credits(target: int) -> void:
 	# Highlight balance during roll-up
 	SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE)
 	_credit_tween = create_tween()
-	_credit_tween.tween_method(_update_credit_display, start, target, 1.0).set_ease(Tween.EASE_OUT)
+	var dur := 1.5 if _ultimate_x else 1.0
+	_credit_tween.tween_method(_update_credit_display, start, target, dur).set_ease(Tween.EASE_OUT)
 	_credit_tween.tween_callback(_on_credit_animation_done)
 
 
 func _update_credit_display(value: int) -> void:
 	_displayed_credits = value
-	SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value))
+	if _balance_show_depth:
+		# In depth mode, show games count instead of credits
+		var ux_active := _ultimate_x and _manager.bet == MultiHandManager.MAX_BET
+		var bet_mult := 2 if ux_active else 1
+		var per_round: int = _manager.bet * _num_hands * SaveManager.denomination * bet_mult
+		var depth := (value / per_round) if per_round > 0 else 0
+		_balance_label.text = "GAMES:"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+	else:
+		_balance_label.text = "BALANCE:"
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value), 0, Color(-1, 0, 0), true)
 
 
 func _on_credit_animation_done() -> void:
 	SaveManager.set_currency_value(_balance_cd, "", 16, COL_YELLOW)
 	_unlock_buttons()
+	# Enable double if there was a total win
+	var total_payout := 0
+	for r in _manager.all_results:
+		total_payout += int(r["payout"])
+	if total_payout > 0:
+		_double_btn.disabled = false
+		_double_amount = total_payout
 
 
 func _delay_unlock_buttons() -> void:
@@ -799,11 +1849,47 @@ func _unlock_buttons() -> void:
 	_bet_btn.disabled = false
 	_bet_max_btn.disabled = false
 
+func _on_bet_one_pressed() -> void:
+	if _ultimate_x:
+		_save_ux_state()
+	_manager.bet_one()
+	if _ultimate_x:
+		# bet_one only changes bet (no deal) — safe to refresh labels
+		_load_ux_state()
+		_update_multiplier_labels()
+
+
+func _on_bet_max_pressed() -> void:
+	if _ultimate_x:
+		_save_ux_state()
+		# Restore state for MAX bet key (where NEXT mults are stored)
+		var max_key := "%d_%d" % [_num_hands, MultiHandManager.MAX_BET]
+		if max_key in _ux_states:
+			var st: Dictionary = _ux_states[max_key]
+			var saved_hand: Array = st["hand_multipliers"]
+			var saved_next: Array = st["next_multipliers"]
+			_manager.hand_multipliers.clear()
+			_manager.next_multipliers.clear()
+			for i in _num_hands:
+				_manager.hand_multipliers.append(saved_hand[i] if i < saved_hand.size() else 1)
+				_manager.next_multipliers.append(saved_next[i] if i < saved_next.size() else 1)
+		_update_multiplier_labels()
+		# Run animation BEFORE bet_max() which calls deal()
+		await _animate_multipliers_next_to_active()
+	_manager.bet_max()
+
+
 func _on_bet_changed(new_bet: int) -> void:
 	_update_bet_display(new_bet)
 	_update_paytable_badges()
+	_bet_btn.text = "BET %d" % new_bet
+	if _balance_show_depth:
+		_update_balance(SaveManager.credits)
 
 func _on_card_clicked(card_index: int) -> void:
+	if _in_double:
+		_on_double_card_picked(card_index)
+		return
 	_manager.toggle_hold(card_index)
 	_primary_cards[card_index].set_held(_manager.held[card_index])
 	# Update extra hands to show held status
@@ -902,7 +1988,7 @@ func _show_bet_picker() -> void:
 		var cd := SaveManager.create_currency_display(16, COL_BTN_TEXT)
 		cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
 		cd["box"].set_anchors_preset(Control.PRESET_FULL_RECT)
-		SaveManager.set_currency_value(cd, SaveManager.format_short(amount))
+		SaveManager.set_currency_value(cd, SaveManager.format_auto(amount, 96, 16))
 		btn.add_child(cd["box"])
 		btn.pressed.connect(func() -> void:
 			_current_denomination = amount
@@ -1005,17 +2091,328 @@ func _hide_shop() -> void:
 		_shop_overlay = null
 
 
+# --- Info screen ---
+
+func _show_info() -> void:
+	if _info_overlay:
+		_info_overlay.queue_free()
+		_info_overlay = null
+
+	_info_overlay = Control.new()
+	_info_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_info_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Multiplier displays use z_index = 10; put the info modal above them so
+	# it fully covers the game UI (otherwise NEXT/ACTIVE glyphs bleed through).
+	_info_overlay.z_index = 100
+	add_child(_info_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.85)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			_hide_info()
+	)
+	_info_overlay.add_child(dim)
+
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.offset_left = 60
+	scroll.offset_right = -60
+	scroll.offset_top = 20
+	scroll.offset_bottom = -20
+	_info_overlay.add_child(scroll)
+
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 16)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(content)
+
+	# Close button
+	var close_btn := Button.new()
+	close_btn.text = "X"
+	close_btn.add_theme_font_size_override("font_size", 24)
+	close_btn.add_theme_color_override("font_color", Color.WHITE)
+	var close_style := StyleBoxFlat.new()
+	close_style.bg_color = Color(0.5, 0.1, 0.1, 0.8)
+	close_style.set_corner_radius_all(4)
+	close_btn.add_theme_stylebox_override("normal", close_style)
+	close_btn.custom_minimum_size = Vector2(40, 40)
+	close_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
+	close_btn.pressed.connect(_hide_info)
+	content.add_child(close_btn)
+
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+
+	# Title
+	var title := Label.new()
+	title.text = "ULTIMATE X VIDEO POKER" if _ultimate_x else "MULTI-HAND VIDEO POKER"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_color_override("font_color", Color("FFEC00"))
+	title.add_theme_font_override("font", bold)
+	content.add_child(title)
+
+	# Rules text
+	var rules := Label.new()
+	rules.autowrap_mode = TextServer.AUTOWRAP_WORD
+	rules.add_theme_font_size_override("font_size", 16)
+	rules.add_theme_color_override("font_color", Color.WHITE)
+	if _ultimate_x:
+		rules.text = "1. Select MAX BET to activate the Ultimate X feature (2x cost).\n2. Deal 5 cards on the primary hand.\n3. Hold the cards you want to keep — they apply to ALL hands.\n4. Draw replacements. Each hand draws independently.\n5. Winning hands pay AND grant a multiplier on that specific hand for the next round.\n6. A hand that doesn't win loses its multiplier (resets to 1x).\n7. Use the HANDS button to cycle 3/5/10 hand layouts.\n8. Feature disabled below MAX BET — play standard multi-hand."
+	else:
+		rules.text = "1. Place your bet (1-5 coins). Max bet pays best for Royal Flush.\n2. Deal 5 cards on the primary hand.\n3. Choose HOLD cards — same hold applies to ALL hands.\n4. Draw replacements. Each hand gets independent replacements from its own deck.\n5. All hands are evaluated and paid out.\n6. Use HANDS button to cycle 3/5/10/12/25 hand layouts."
+	content.add_child(rules)
+
+	if _ultimate_x:
+		# Multiplier table title
+		var mt := Label.new()
+		mt.text = "MULTIPLIER TABLE"
+		mt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		mt.add_theme_font_size_override("font_size", 22)
+		mt.add_theme_color_override("font_color", Color("FFEC00"))
+		mt.add_theme_font_override("font", bold)
+		content.add_child(mt)
+
+		var table := GridContainer.new()
+		table.columns = 2
+		table.add_theme_constant_override("h_separation", 40)
+		table.add_theme_constant_override("v_separation", 6)
+		content.add_child(table)
+
+		for h in ["WINNING HAND", "NEXT ROUND MULTIPLIER"]:
+			var lbl := Label.new()
+			lbl.text = h
+			lbl.add_theme_font_size_override("font_size", 15)
+			lbl.add_theme_color_override("font_color", Color("FFEC00"))
+			lbl.add_theme_font_override("font", bold)
+			table.add_child(lbl)
+
+		var mult_table := [
+			["Jacks or Better", "2x"],
+			["Two Pair", "3x"],
+			["Three of a Kind", "4x"],
+			["Straight", "5x"],
+			["Flush", "6x"],
+			["Full House", "8x"],
+			["Four of a Kind", "10x"],
+			["Straight Flush", "12x"],
+			["Royal Flush", "12x"],
+		]
+		for row in mult_table:
+			for cell in row:
+				var lbl := Label.new()
+				lbl.text = cell
+				lbl.add_theme_font_size_override("font_size", 14)
+				lbl.add_theme_color_override("font_color", Color.WHITE)
+				table.add_child(lbl)
+
+
+func _hide_info() -> void:
+	if _info_overlay:
+		_info_overlay.queue_free()
+		_info_overlay = null
+
+
+# --- Double or Nothing ---
+
+var _double_overlay: Control = null
+
+func _on_double_pressed() -> void:
+	if _double_amount <= 0:
+		return
+	if not _double_warned:
+		_show_double_warning()
+	else:
+		_start_double()
+
+
+func _show_double_warning() -> void:
+	_double_overlay = Control.new()
+	_double_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_double_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_double_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.7)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_double_overlay.add_child(dim)
+
+	var panel := PanelContainer.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color("07107A")
+	ps.set_border_width_all(3)
+	ps.border_color = COL_YELLOW
+	ps.set_corner_radius_all(12)
+	ps.content_margin_left = 30
+	ps.content_margin_right = 30
+	ps.content_margin_top = 20
+	ps.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_double_overlay.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "DOUBLE OR NOTHING"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", COL_YELLOW)
+	vbox.add_child(title)
+
+	var doubled := _double_amount * 2
+	var msg := Label.new()
+	msg.text = "You won %s.\nDouble to %s?" % [SaveManager.format_money(_double_amount), SaveManager.format_money(doubled)]
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.add_theme_font_size_override("font_size", 20)
+	msg.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(msg)
+
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 20)
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(btns)
+
+	var tex_green := load("res://assets/textures/btn_rect_green.svg")
+	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg")
+
+	var yes_btn := Button.new()
+	yes_btn.text = "YES"
+	_style_btn(yes_btn, tex_green, Color.WHITE, 22, 120, 44)
+	yes_btn.pressed.connect(func() -> void:
+		_double_warned = true
+		_hide_double_overlay()
+		_start_double()
+	)
+	btns.add_child(yes_btn)
+
+	var no_btn := Button.new()
+	no_btn.text = "NO"
+	_style_btn(no_btn, tex_yellow, COL_BTN_TEXT, 22, 120, 44)
+	no_btn.pressed.connect(func() -> void:
+		_hide_double_overlay()
+	)
+	btns.add_child(no_btn)
+
+
+func _start_double() -> void:
+	_in_double = true
+	_double_btn.disabled = true
+	_deal_draw_btn.disabled = true
+	_bet_btn.disabled = true
+	_bet_max_btn.disabled = true
+	_hands_btn.disabled = true
+
+	# Deduct winnings from balance
+	SaveManager.deduct_credits(_double_amount)
+	_update_balance(SaveManager.credits)
+
+	# Build a fresh 52-card deck
+	var deck := Deck.new(52)
+	_double_cards = deck.deal_hand()
+	_double_dealer_card = _double_cards[0]
+
+	_hide_primary_result()
+	_stop_result_blink()
+	# Hide extra hands results
+	for mini in _extra_displays:
+		mini.hide_result()
+		mini.modulate = Color(0.35, 0.35, 0.45)
+
+	_win_label.text = "PICK A CARD TO BEAT THE DEALER"
+	_win_cd["box"].visible = false
+
+	# Show: dealer card face-up, 4 player cards face-down
+	for i in 5:
+		_primary_cards[i].set_flip_duration(0.15)
+		_primary_cards[i].set_held(false)
+		if i == 0:
+			_primary_cards[i].set_card(_double_cards[i], true)
+		else:
+			_primary_cards[i].show_back()
+			_primary_cards[i].set_interactive(true)
+
+
+func _on_double_card_picked(index: int) -> void:
+	if index == 0:
+		return
+	for i in 5:
+		_primary_cards[i].set_interactive(false)
+
+	var card: CardData = _double_cards[index]
+	_primary_cards[index].set_card(card, true)
+	await get_tree().create_timer(0.5).timeout
+
+	var player_rank: int = card.rank as int
+	var dealer_rank: int = _double_dealer_card.rank as int
+
+	if player_rank > dealer_rank:
+		_double_amount *= 2
+		SaveManager.add_credits(_double_amount)
+		_displayed_credits = SaveManager.credits - _double_amount
+		_animate_credits(SaveManager.credits)
+		_win_label.text = "WIN!"
+		_win_cd["box"].visible = true
+		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_double_amount))
+		await _credit_tween.finished
+		_double_btn.disabled = false
+		_deal_draw_btn.disabled = false
+		_bet_btn.disabled = false
+		_bet_max_btn.disabled = false
+	elif player_rank == dealer_rank:
+		SaveManager.add_credits(_double_amount)
+		_displayed_credits = SaveManager.credits - _double_amount
+		_animate_credits(SaveManager.credits)
+		_win_label.text = "TIE! BET RETURNED"
+		_win_cd["box"].visible = false
+		_double_amount = 0
+		await _credit_tween.finished
+		_end_double()
+	else:
+		_win_label.text = "YOU LOSE!"
+		_win_cd["box"].visible = false
+		_double_amount = 0
+		_end_double()
+
+
+func _end_double() -> void:
+	await get_tree().create_timer(1.0).timeout
+	_double_btn.disabled = true
+	_deal_draw_btn.disabled = false
+	_bet_btn.disabled = false
+	_bet_max_btn.disabled = false
+	_hands_btn.disabled = false
+	_in_double = false
+	# Restore extra hands
+	for mini in _extra_displays:
+		mini.modulate = Color.WHITE
+
+
+func _hide_double_overlay() -> void:
+	if _double_overlay:
+		_double_overlay.queue_free()
+		_double_overlay = null
+
+
 # --- Primary hand result overlay ---
 
 var _primary_result_overlay: PanelContainer = null
 
-func _show_primary_result(hand_name: String, multiplier: int) -> void:
+func _show_primary_result(hand_name: String, multiplier: int, badge_color: Color = COL_YELLOW, active_mult: int = 1) -> void:
 	_hide_primary_result()
 	_primary_result_overlay = PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.02, 0.02, 0.15, 0.85)
+	style.bg_color = Color(0.05, 0.05, 0.2, 0.9)
 	style.set_border_width_all(2)
-	style.border_color = COL_YELLOW
+	style.border_color = badge_color
 	style.set_corner_radius_all(6)
 	style.content_margin_left = 16
 	style.content_margin_right = 16
@@ -1025,18 +2422,27 @@ func _show_primary_result(hand_name: String, multiplier: int) -> void:
 	_primary_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var label := Label.new()
-	label.text = "%s\nX%d" % [hand_name, multiplier]
+	if active_mult > 1:
+		var total := active_mult * multiplier
+		label.text = "%s\n%d x %d = %d" % [hand_name, active_mult, multiplier, total]
+	else:
+		label.text = "%s\nX%d" % [hand_name, multiplier]
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", COL_YELLOW)
+	label.add_theme_color_override("font_color", Color.WHITE)
 	_primary_result_overlay.add_child(label)
 
+	# Start hidden so the overlay never shows at (0,0) before it's positioned.
+	_primary_result_overlay.visible = false
 	add_child(_primary_result_overlay)
 	await get_tree().process_frame
+	if not is_instance_valid(_primary_result_overlay):
+		return
 	var cards_rect := _primary_container.get_global_rect()
 	var center := cards_rect.get_center()
 	var sz := _primary_result_overlay.get_combined_minimum_size()
 	_primary_result_overlay.position = Vector2(center.x - sz.x / 2, center.y - sz.y / 2)
+	_primary_result_overlay.visible = true
 
 
 func _get_badge_color_for_hand(hand_name: String, hand_keys: Array[String]) -> Color:
@@ -1079,6 +2485,9 @@ var _badge_hand_keys: Array[String] = []
 
 func _build_paytable_badges() -> void:
 	_clear_paytable_badges()
+	# Ultimate X — no badges
+	if _ultimate_x:
+		return
 
 	var hand_keys := _variant.paytable.get_hand_order()
 	var total: int = hand_keys.size()
@@ -1091,6 +2500,7 @@ func _build_paytable_badges() -> void:
 	_left_badges.add_theme_constant_override("separation", 4)
 	_left_badges.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_left_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_left_badges.visible = false
 	add_child(_left_badges)
 
 	# Create right column
@@ -1098,6 +2508,7 @@ func _build_paytable_badges() -> void:
 	_right_badges.add_theme_constant_override("separation", 4)
 	_right_badges.alignment = BoxContainer.ALIGNMENT_BEGIN
 	_right_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_right_badges.visible = false
 	add_child(_right_badges)
 
 	_badge_labels.clear()
@@ -1163,6 +2574,9 @@ func _position_badges() -> void:
 	var max_min_h: float = maxf(left_min_h, right_min_h)
 	if max_min_h > available_h:
 		_shrink_badge_fonts()
+
+	_left_badges.visible = true
+	_right_badges.visible = true
 
 
 func _shrink_badge_fonts() -> void:

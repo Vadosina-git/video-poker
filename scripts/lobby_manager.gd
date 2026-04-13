@@ -107,12 +107,12 @@ const MODE_COLORS := {
 }
 
 const PLAY_MODES := [
-	{"label": "SINGLE PLAY", "hands": 1},
-	{"label": "TRIPLE PLAY", "hands": 3},
-	{"label": "FIVE PLAY", "hands": 5},
-	{"label": "TEN PLAY", "hands": 10},
-	{"label": "12 PLAY", "hands": 12},
-	{"label": "25 PLAY", "hands": 25},
+	{"label": "SINGLE PLAY", "hands": 1, "ultimate_x": false},
+	{"label": "TRIPLE PLAY", "hands": 3, "ultimate_x": false},
+	{"label": "FIVE PLAY", "hands": 5, "ultimate_x": false},
+	{"label": "TEN PLAY", "hands": 10, "ultimate_x": false},
+	{"label": "ULTIMATE X", "hands": 5, "ultimate_x": true},
+	{"label": "25 PLAY", "hands": 25, "ultimate_x": false},
 ]
 var _active_mode: int = 0
 var _sidebar_buttons: Array[Button] = []
@@ -200,9 +200,9 @@ func _build_sidebar() -> void:
 	)
 	_sidebar.custom_minimum_size.x = 360
 
-	# Find active mode from SaveManager
+	# Find active mode from SaveManager (match hands + ultimate_x flag)
 	for j in PLAY_MODES.size():
-		if PLAY_MODES[j]["hands"] == SaveManager.hand_count:
+		if PLAY_MODES[j]["hands"] == SaveManager.hand_count and PLAY_MODES[j]["ultimate_x"] == SaveManager.ultimate_x:
 			_active_mode = j
 			break
 
@@ -220,6 +220,7 @@ func _build_sidebar() -> void:
 func _on_mode_selected(index: int) -> void:
 	_active_mode = index
 	SaveManager.hand_count = PLAY_MODES[index]["hands"]
+	SaveManager.ultimate_x = PLAY_MODES[index]["ultimate_x"]
 	SaveManager.save_game()
 	for i in _sidebar_buttons.size():
 		_style_sidebar_btn(_sidebar_buttons[i], i == _active_mode)
