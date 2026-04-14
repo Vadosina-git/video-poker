@@ -938,8 +938,9 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_amount_btn.disabled = false
 			_double_btn.disabled = true
 			_in_double = false
-			_win_label.text = Translations.tr_key("game.place_your_bet")
-			_win_cd["box"].visible = false
+			_win_label.text = Translations.tr_key("game.win_label")
+			_win_cd["box"].visible = true
+			SaveManager.set_currency_value(_win_cd, "0")
 			_win_label.add_theme_color_override("font_color", COL_YELLOW)
 			for card in _primary_cards:
 				card.set_interactive(false)
@@ -954,7 +955,9 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_amount_btn.disabled = true
 			_hands_btn.disabled = true
 			_double_btn.disabled = true
-			_win_label.text = ""
+			_win_label.text = Translations.tr_key("game.win_label")
+			_win_cd["box"].visible = true
+			SaveManager.set_currency_value(_win_cd, "0")
 
 		MultiHandManager.State.HOLDING:
 			_deal_draw_btn.text = Translations.tr_key("game.draw")
@@ -1395,9 +1398,12 @@ func _build_mult_zone(width: int, is_primary: bool) -> Control:
 	next_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	next_display.visible = false
 	next_display.z_index = 10
-	# I.3: Dark backdrop for contrast
+	# I.3: Dark backdrop for contrast (lighter, rounded)
 	next_display.draw.connect(func() -> void:
-		next_display.draw_rect(Rect2(Vector2.ZERO, next_display.size), Color(0, 0, 0.1, 0.6))
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0, 0, 0.08, 0.35)
+		sb.set_corner_radius_all(6)
+		next_display.draw_style_box(sb, Rect2(Vector2.ZERO, next_display.size))
 	)
 	add_child(next_display)
 	_next_displays.append(next_display)
@@ -1408,9 +1414,12 @@ func _build_mult_zone(width: int, is_primary: bool) -> Control:
 	active_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	active_display.visible = false
 	active_display.z_index = 10
-	# I.3: Dark backdrop for contrast
+	# I.3: Dark backdrop for contrast (lighter, rounded)
 	active_display.draw.connect(func() -> void:
-		active_display.draw_rect(Rect2(Vector2.ZERO, active_display.size), Color(0, 0, 0.1, 0.6))
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0, 0, 0.08, 0.35)
+		sb.set_corner_radius_all(6)
+		active_display.draw_style_box(sb, Rect2(Vector2.ZERO, active_display.size))
 	)
 	add_child(active_display)
 	_active_displays.append(active_display)
@@ -1805,12 +1814,14 @@ func _build_info_card() -> void:
 	_info_card.add_theme_stylebox_override("panel", style)
 	_info_card.custom_minimum_size = _get_primary_card_size()
 	_info_card.custom_minimum_size.y = 120
+	_info_card.clip_contents = true
 	_info_card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_info_card.gui_input.connect(_on_info_card_clicked)
 
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_theme_constant_override("separation", 6)
+	vbox.size_flags_vertical = Control.SIZE_FILL
 	_info_card.add_child(vbox)
 
 	var title := Label.new()
@@ -2637,6 +2648,7 @@ func _show_primary_result(hand_name: String, multiplier: int, badge_color: Color
 	style.content_margin_bottom = 6
 	_primary_result_overlay.add_theme_stylebox_override("panel", style)
 	_primary_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_primary_result_overlay.custom_minimum_size.x = _primary_container.size.x * 0.33
 
 	var label := Label.new()
 	if active_mult > 1:
@@ -2834,7 +2846,7 @@ func _make_badge(hand_name: String, multiplier: int, border_color: Color) -> Pan
 	var label := Label.new()
 	label.text = "%s\nX%d" % [hand_name, multiplier]
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_font_size_override("font_size", 15)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	badge.add_child(label)

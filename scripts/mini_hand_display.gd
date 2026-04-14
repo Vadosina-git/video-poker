@@ -130,6 +130,8 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	_result_overlay.add_theme_stylebox_override("panel", style)
 	_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	_result_overlay.custom_minimum_size.x = size.x * 0.8
+
 	var label := Label.new()
 	if active_mult > 1:
 		var total := active_mult * multiplier
@@ -139,6 +141,7 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 12)
 	label.add_theme_color_override("font_color", Color.WHITE)
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_result_overlay.add_child(label)
 
 	# Add to game scene (not tree root!) so it's cleaned up on scene exit
