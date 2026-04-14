@@ -1311,6 +1311,8 @@ func _load_ux_state() -> void:
 			_manager.next_multipliers.append(1)
 
 
+var _info_pulse_tween: Tween = null
+
 func _update_info_card_status() -> void:
 	if not _info_card_active_label:
 		return
@@ -1318,9 +1320,28 @@ func _update_info_card_status() -> void:
 	if ux_active:
 		_info_card_active_label.text = Translations.tr_key("info_card.active")
 		_info_card_active_label.add_theme_color_override("font_color", Color("07E02F"))
+		_start_info_pulse()
 	else:
 		_info_card_active_label.text = Translations.tr_key("info_card.press_to_activate")
 		_info_card_active_label.add_theme_color_override("font_color", Color("FF4444"))
+		_stop_info_pulse()
+
+
+func _start_info_pulse() -> void:
+	_stop_info_pulse()
+	if not _info_card:
+		return
+	_info_pulse_tween = create_tween().set_loops()
+	_info_pulse_tween.tween_property(_info_card, "modulate:a", 0.85, 1.0).set_ease(Tween.EASE_IN_OUT)
+	_info_pulse_tween.tween_property(_info_card, "modulate:a", 1.0, 1.0).set_ease(Tween.EASE_IN_OUT)
+
+
+func _stop_info_pulse() -> void:
+	if _info_pulse_tween:
+		_info_pulse_tween.kill()
+		_info_pulse_tween = null
+	if _info_card:
+		_info_card.modulate.a = 1.0
 
 
 func _refresh_ux_visibility() -> void:
@@ -2441,11 +2462,23 @@ func _show_info() -> void:
 			var row_data: Array = mult_table[ri]
 			var row_col: Color = row_colors[ri] if ri < row_colors.size() else Color.WHITE
 			for cell in row_data:
+				var cell_panel := PanelContainer.new()
+				var cs := StyleBoxFlat.new()
+				cs.bg_color = Color(0.08, 0.08, 0.2, 0.5)
+				cs.set_border_width_all(1)
+				cs.border_color = Color(0.3, 0.3, 0.5)
+				cs.content_margin_left = 8
+				cs.content_margin_right = 8
+				cs.content_margin_top = 3
+				cs.content_margin_bottom = 3
+				cell_panel.add_theme_stylebox_override("panel", cs)
 				var lbl := Label.new()
 				lbl.text = cell
 				lbl.add_theme_font_size_override("font_size", 14)
 				lbl.add_theme_color_override("font_color", row_col)
-				table.add_child(lbl)
+				cell_panel.add_child(lbl)
+				table.add_child(cell_panel)
+		table.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
 
 func _hide_info() -> void:
