@@ -233,7 +233,7 @@ func _build_ui() -> void:
 
 	# ── Status + game pays: inline labels (no separate bar, prevents layout jumps)
 	_status_label = Label.new()
-	_status_label.text = Translations.tr_key("game.place_your_bet")
+	_status_label.text = ""
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_label.add_theme_font_size_override("font_size", 13)
 	_status_label.add_theme_color_override("font_color", Color.WHITE)
@@ -328,16 +328,12 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_deal_draw_btn.pressed.connect(_on_deal_draw_pressed)
 	btn_row.add_child(_deal_draw_btn)
 
+	# BET and BET MAX removed from Spin Poker (5.7) — bet fixed at max
 	_bet_btn = Button.new()
-	_bet_btn.text = Translations.tr_key("game.bet_one")
-	_style_btn(_bet_btn, tex_yellow, COL_BTN_TEXT, 13, 70, 36)
-	_bet_btn.pressed.connect(_on_bet_one_pressed)
+	_bet_btn.visible = false
 	btn_row.add_child(_bet_btn)
-
 	_bet_max_btn = Button.new()
-	_bet_max_btn.text = Translations.tr_key("game.bet_max")
-	_style_btn(_bet_max_btn, tex_yellow, COL_BTN_TEXT, 13, 90, 36)
-	_bet_max_btn.pressed.connect(_on_bet_max_pressed)
+	_bet_max_btn.visible = false
 	btn_row.add_child(_bet_max_btn)
 
 	_speed_btn = Button.new()
@@ -526,7 +522,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = false
 			_bet_max_btn.disabled = false
 			_bet_amount_btn.disabled = false
-			_status_label.text = Translations.tr_key("game.place_your_bet")
+			_status_label.text = ""
 			_game_pays_label.visible = false
 			_start_idle_blink_timer()
 
@@ -543,7 +539,7 @@ func _on_state_changed(new_state: int) -> void:
 			_deal_draw_btn.disabled = false
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
-			_status_label.text = Translations.tr_key("spin.select_reels")
+			_status_label.text = ""
 
 		SpinPokerManager.State.DRAW_SPINNING:
 			_deal_draw_btn.text = "STOP\nSPIN"
@@ -1278,6 +1274,7 @@ func _on_back_pressed() -> void:
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 50
 	add_child(overlay)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1342,6 +1339,7 @@ func _show_bet_picker() -> void:
 	_bet_picker_overlay = Control.new()
 	_bet_picker_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_bet_picker_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_bet_picker_overlay.z_index = 50
 	add_child(_bet_picker_overlay)
 
 	var dim := ColorRect.new()
@@ -1418,6 +1416,7 @@ func _show_paytable() -> void:
 	_paytable_overlay = Control.new()
 	_paytable_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_paytable_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_paytable_overlay.z_index = 50
 	add_child(_paytable_overlay)
 
 	var dim := ColorRect.new()
