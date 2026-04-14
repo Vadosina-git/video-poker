@@ -123,14 +123,34 @@ func _build_ui() -> void:
 	var bold := SystemFont.new()
 	bold.font_weight = 700
 
-	# ── Top: title
+	# ── Top: [exit icon] [title centered]
+	var title_bar := HBoxContainer.new()
+	title_bar.add_theme_constant_override("separation", 8)
+	root_vbox.add_child(title_bar)
+
+	_back_btn = Button.new()
+	_back_btn.text = ""
+	var exit_tex_path := "res://assets/textures/table_exit.svg"
+	if ResourceLoader.exists(exit_tex_path):
+		_back_btn.icon = load(exit_tex_path)
+		_back_btn.expand_icon = true
+	var _bstyle := StyleBoxFlat.new()
+	_bstyle.bg_color = Color(0, 0, 0, 0)
+	_back_btn.add_theme_stylebox_override("normal", _bstyle)
+	_back_btn.add_theme_stylebox_override("hover", _bstyle)
+	_back_btn.add_theme_stylebox_override("pressed", _bstyle)
+	_back_btn.custom_minimum_size = Vector2(48, 48)
+	_back_btn.pressed.connect(_on_back_pressed)
+	title_bar.add_child(_back_btn)
+
 	_game_title = Label.new()
-	_game_title.text = "SPIN POKER — %s" % _variant.paytable.name.to_upper()  # SPIN POKER stays English (brand name)
+	_game_title.text = "SPIN POKER — %s" % _variant.paytable.name.to_upper()
 	_game_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_title.add_theme_font_size_override("font_size", 18)
 	_game_title.add_theme_color_override("font_color", COL_YELLOW)
 	_game_title.add_theme_font_override("font", bold)
-	root_vbox.add_child(_game_title)
+	_game_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_bar.add_child(_game_title)
 
 	# ── Middle: grid area with line labels — centered, fixed proportions
 	var grid_area := HBoxContainer.new()
@@ -289,21 +309,6 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_yellow.svg") else null
 	var tex_blue := load("res://assets/textures/btn_rect_blue.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_blue.svg") else null
 	var tex_green := load("res://assets/textures/btn_rect_green.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_green.svg") else null
-
-	_back_btn = Button.new()
-	_back_btn.text = ""
-	var exit_tex_path := "res://assets/textures/table_exit.svg"
-	if ResourceLoader.exists(exit_tex_path):
-		_back_btn.icon = load(exit_tex_path)
-		_back_btn.expand_icon = true
-	var _back_style := StyleBoxFlat.new()
-	_back_style.bg_color = Color(0, 0, 0, 0)
-	_back_btn.add_theme_stylebox_override("normal", _back_style)
-	_back_btn.add_theme_stylebox_override("hover", _back_style)
-	_back_btn.add_theme_stylebox_override("pressed", _back_style)
-	_back_btn.custom_minimum_size = Vector2(48, 48)
-	_back_btn.pressed.connect(_on_back_pressed)
-	btn_row.add_child(_back_btn)
 
 	_see_pays_btn = Button.new()
 	_see_pays_btn.text = Translations.tr_key("spin.see_pays")
