@@ -43,9 +43,7 @@ var _grid_container: Control
 var _grid_panel: PanelContainer
 var _held_indicators: Array = []  # 5 Control nodes (held_rect.svg + HELD label)
 
-# Line indicators (left/right side labels)
-var _left_line_labels: Array[Label] = []
-var _right_line_labels: Array[Label] = []
+# Line indicators (ribbon icons on left/right of grid)
 
 # Win line drawing + badge
 var _line_draw_node: Control
@@ -140,16 +138,15 @@ func _build_ui() -> void:
 	grid_area.alignment = BoxContainer.ALIGNMENT_CENTER
 	root_vbox.add_child(grid_area)
 
-	# Left line labels
+	# Left line ribbons (pointing right → toward grid)
 	var left_col := VBoxContainer.new()
-	left_col.add_theme_constant_override("separation", 0)
+	left_col.add_theme_constant_override("separation", 1)
 	left_col.alignment = BoxContainer.ALIGNMENT_CENTER
-	left_col.custom_minimum_size.x = 24
+	left_col.custom_minimum_size.x = 40
 	grid_area.add_child(left_col)
 	for i in 10:
-		var lbl := _make_line_label(i)
-		left_col.add_child(lbl)
-		_left_line_labels.append(lbl)
+		var ribbon := _make_line_ribbon(i, false)
+		left_col.add_child(ribbon)
 
 	# Grid panel — silver border frame, no expand, centered
 	_grid_panel = PanelContainer.new()
@@ -203,16 +200,15 @@ func _build_ui() -> void:
 	_line_draw_node.draw.connect(_draw_lines)
 	_grid_panel.add_child(_line_draw_node)
 
-	# Right line labels
+	# Right line ribbons (pointing left → toward grid, flipped)
 	var right_col := VBoxContainer.new()
-	right_col.add_theme_constant_override("separation", 0)
+	right_col.add_theme_constant_override("separation", 1)
 	right_col.alignment = BoxContainer.ALIGNMENT_CENTER
-	right_col.custom_minimum_size.x = 24
+	right_col.custom_minimum_size.x = 40
 	grid_area.add_child(right_col)
 	for i in range(10, 20):
-		var lbl := _make_line_label(i)
-		right_col.add_child(lbl)
-		_right_line_labels.append(lbl)
+		var ribbon := _make_line_ribbon(i, true)
+		right_col.add_child(ribbon)
 
 	# ── Status + game pays: inline labels (no separate bar, prevents layout jumps)
 	_status_label = Label.new()
@@ -365,14 +361,37 @@ func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_
 	btn.custom_minimum_size = Vector2(min_w, min_h)
 
 
-func _make_line_label(line_idx: int) -> Label:
+func _make_line_ribbon(line_idx: int, flip: bool) -> Control:
+	var color: Color = SpinPokerManager.LINE_COLORS[line_idx]
+	var container := Control.new()
+	container.custom_minimum_size = Vector2(38, 18)
+	# Ribbon background
+	var ribbon_path := "res://assets/textures/spin_ribbon.svg"
+	if ResourceLoader.exists(ribbon_path):
+		var tex_rect := TextureRect.new()
+		tex_rect.texture = load(ribbon_path)
+		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tex_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		tex_rect.modulate = color
+		if flip:
+			tex_rect.flip_h = true
+		tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		container.add_child(tex_rect)
+	# Number text
 	var lbl := Label.new()
 	lbl.text = "%d" % (line_idx + 1)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.add_theme_font_size_override("font_size", 9)
-	lbl.add_theme_color_override("font_color", SpinPokerManager.LINE_COLORS[line_idx])
-	lbl.custom_minimum_size = Vector2(24, 0)
-	return lbl
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color.WHITE)
+	var bold := SystemFont.new()
+	bold.font_weight = 700
+	lbl.add_theme_font_override("font", bold)
+	lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(lbl)
+	return container
 
 
 # ─── CARD RENDERING ────────────────────────────────────────────────────
