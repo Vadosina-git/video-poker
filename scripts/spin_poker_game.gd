@@ -543,6 +543,35 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_max_btn.disabled = true
 
 
+# ─── ROW FOLD ANIMATION (J.7) ─────────────────────────────────────────
+
+func _animate_rows_fold() -> void:
+	if _rush or SPEED_CONFIGS[_speed_level]["base_spin_ms"] == 0:
+		for col in 5:
+			_set_card_back(0, col)
+			_set_card_back(2, col)
+		return
+	# Collapse top/bottom rows (scale_y → 0)
+	var tw := create_tween().set_parallel(true)
+	for col in 5:
+		var top_card: TextureRect = _card_rects[0][col]
+		var bot_card: TextureRect = _card_rects[2][col]
+		top_card.pivot_offset = top_card.size / 2
+		bot_card.pivot_offset = bot_card.size / 2
+		tw.tween_property(top_card, "scale:y", 0.0, 0.15).set_ease(Tween.EASE_IN)
+		tw.tween_property(bot_card, "scale:y", 0.0, 0.15).set_ease(Tween.EASE_IN)
+	await tw.finished
+	# Set card backs and expand back
+	for col in 5:
+		_set_card_back(0, col)
+		_set_card_back(2, col)
+	var tw2 := create_tween().set_parallel(true)
+	for col in 5:
+		tw2.tween_property(_card_rects[0][col], "scale:y", 1.0, 0.15).set_ease(Tween.EASE_OUT)
+		tw2.tween_property(_card_rects[2][col], "scale:y", 1.0, 0.15).set_ease(Tween.EASE_OUT)
+	await tw2.finished
+
+
 # ─── DEAL SPIN ────────────────────────────────────────────────────────
 
 func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
@@ -559,10 +588,8 @@ func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
 	for col in 5:
 		_show_held(col, false)
 
-	# Top/bottom rows: show card backs
-	for col in 5:
-		_set_card_back(0, col)
-		_set_card_back(2, col)
+	# J.7: Animate top/bottom rows folding closed (collapse → card backs)
+	await _animate_rows_fold()
 
 	# Animate middle row
 	await _animate_spin_deal(mid_row)
