@@ -136,10 +136,11 @@ func _build_ui() -> void:
 		_back_btn.expand_icon = true
 	var _bstyle := StyleBoxFlat.new()
 	_bstyle.bg_color = Color(0, 0, 0, 0)
+	_bstyle.content_margin_left = 12
 	_back_btn.add_theme_stylebox_override("normal", _bstyle)
 	_back_btn.add_theme_stylebox_override("hover", _bstyle)
 	_back_btn.add_theme_stylebox_override("pressed", _bstyle)
-	_back_btn.custom_minimum_size = Vector2(48, 48)
+	_back_btn.custom_minimum_size = Vector2(60, 48)
 	_back_btn.pressed.connect(_on_back_pressed)
 	title_bar.add_child(_back_btn)
 
@@ -370,6 +371,19 @@ func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_
 	btn.add_theme_color_override("font_hover_color", text_col)
 	btn.add_theme_color_override("font_pressed_color", text_col)
 	btn.custom_minimum_size = Vector2(min_w, min_h)
+	_add_press_effect(btn)
+
+
+func _add_press_effect(btn: Button) -> void:
+	btn.pivot_offset = btn.size / 2
+	btn.button_down.connect(func() -> void:
+		var tw := btn.create_tween()
+		tw.tween_property(btn, "scale", Vector2(0.93, 0.93), 0.05)
+	)
+	btn.button_up.connect(func() -> void:
+		var tw := btn.create_tween()
+		tw.tween_property(btn, "scale", Vector2.ONE, 0.1).set_ease(Tween.EASE_OUT)
+	)
 
 
 func _make_line_ribbon(line_idx: int, flip: bool) -> Control:

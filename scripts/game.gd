@@ -146,10 +146,11 @@ func _apply_theme() -> void:
 	_back_btn.add_theme_color_override("font_color", Color.WHITE)
 	var back_style := StyleBoxFlat.new()
 	back_style.bg_color = Color(0, 0, 0, 0)
+	back_style.content_margin_left = 12
 	_back_btn.add_theme_stylebox_override("normal", back_style)
 	_back_btn.add_theme_stylebox_override("hover", back_style)
 	_back_btn.add_theme_stylebox_override("pressed", back_style)
-	_back_btn.custom_minimum_size = Vector2(48, 48)
+	_back_btn.custom_minimum_size = Vector2(60, 48)
 
 	# Title — compact to give paytable more room
 	_game_title.add_theme_font_size_override("font_size", 20)
@@ -285,6 +286,7 @@ func _style_button_texture(btn: Button, tex: Texture2D, text_col: Color, font_sz
 	btn.add_theme_color_override("font_pressed_color", text_col)
 	btn.add_theme_color_override("font_disabled_color", text_col.darkened(0.3))
 	btn.custom_minimum_size = Vector2(min_w, min_h)
+	_add_press_effect(btn)
 	# Press animation — scale down then back
 	if not btn.is_connected("button_down", _on_btn_down):
 		btn.button_down.connect(_on_btn_down.bind(btn))
@@ -354,6 +356,18 @@ func _create_card_slots() -> void:
 		card_node.clicked.connect(_on_card_clicked)
 		_cards_container.add_child(card_node)
 		_card_visuals.append(card_node)
+
+
+func _add_press_effect(btn: Button) -> void:
+	btn.pivot_offset = btn.size / 2
+	btn.button_down.connect(func() -> void:
+		var tw := btn.create_tween()
+		tw.tween_property(btn, "scale", Vector2(0.93, 0.93), 0.05)
+	)
+	btn.button_up.connect(func() -> void:
+		var tw := btn.create_tween()
+		tw.tween_property(btn, "scale", Vector2.ONE, 0.1).set_ease(Tween.EASE_OUT)
+	)
 
 
 func _layout_middle() -> void:
