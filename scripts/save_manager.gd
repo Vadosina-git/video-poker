@@ -1,7 +1,7 @@
 extends Node
 
 const SAVE_PATH := "user://save.json"
-const DEFAULT_CREDITS := 1000
+var DEFAULT_CREDITS: int = 20000
 var credits: int = DEFAULT_CREDITS
 var denomination: int = 1
 var last_variant: String = "jacks_or_better"

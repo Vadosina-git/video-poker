@@ -39,20 +39,41 @@ const MODE_COLORS := {
 	25: Color(0.15, 0.15, 0.15),   # 25 — dark
 }
 
-const PLAY_MODES := [
-	{"label_key": "lobby.mode_single_play", "hands": 1, "ultra_vp": false, "spin_poker": false},
-	{"label_key": "lobby.mode_triple_play", "hands": 3, "ultra_vp": false, "spin_poker": false},
-	{"label_key": "lobby.mode_five_play", "hands": 5, "ultra_vp": false, "spin_poker": false},
-	{"label_key": "lobby.mode_ten_play", "hands": 10, "ultra_vp": false, "spin_poker": false},
-	{"label_key": "lobby.mode_ultra_vp", "hands": 5, "ultra_vp": true, "spin_poker": false},
-	{"label_key": "lobby.mode_spin_poker", "hands": 1, "ultra_vp": false, "spin_poker": true},
-]
+# Built from lobby_order.json via ConfigManager at _ready()
+var PLAY_MODES: Array = []
+
+const MODE_HANDS := {
+	"single_play": 1, "triple_play": 3, "five_play": 5,
+	"ten_play": 10, "ultra_vp": 5, "spin_poker": 1,
+}
+
+func _build_play_modes() -> void:
+	PLAY_MODES.clear()
+	var lobby_modes := ConfigManager.get_lobby_modes()
+	for m in lobby_modes:
+		if not m.get("enabled", true):
+			continue
+		var mode_id: String = m.get("id", "")
+		PLAY_MODES.append({
+			"id": mode_id,
+			"label_key": m.get("label_key", "lobby.mode_" + mode_id),
+			"hands": MODE_HANDS.get(mode_id, 1),
+			"ultra_vp": mode_id == "ultra_vp",
+			"spin_poker": mode_id == "spin_poker",
+			"machines": m.get("machines", []),
+		})
+	if PLAY_MODES.size() == 0:
+		# Fallback
+		PLAY_MODES = [
+			{"id": "single_play", "label_key": "lobby.mode_single_play", "hands": 1, "ultra_vp": false, "spin_poker": false, "machines": []},
+		]
 var _active_mode: int = 0
 var _sidebar_buttons: Array[Button] = []
 
 
 func _ready() -> void:
 	MachineCardScene = load("res://scenes/lobby/machine_card.tscn")
+	_build_play_modes()
 	_paytables = Paytable.load_all()
 	_apply_theme()
 	_cash_label.text = Translations.tr_key("lobby.cash")
@@ -162,7 +183,7 @@ func _on_mode_selected(index: int) -> void:
 	SaveManager.save_game()
 	for i in _sidebar_buttons.size():
 		_style_sidebar_btn(_sidebar_buttons[i], i == _active_mode)
-	_recolor_machines()
+	_build_carousel()
 
 
 func _style_sidebar_btn(btn: Button, active: bool) -> void:
@@ -228,16 +249,33 @@ func _input(event: InputEvent) -> void:
 
 func _build_carousel() -> void:
 	_machine_cards.clear()
+	# Clear existing children
+	for child in _grid.get_children():
+		child.queue_free()
+	# Get machine list for current mode
+	var mode_machines: Array = []
+	if _active_mode < PLAY_MODES.size():
+		mode_machines = PLAY_MODES[_active_mode].get("machines", [])
+	# Filter MACHINE_CONFIG by mode machines (or show all if empty)
 	for config in MACHINE_CONFIG:
+		var machine_id: String = config["id"]
+		if mode_machines.size() > 0:
+			var found := false
+			for mm in mode_machines:
+				if mm.get("id", "") == machine_id and mm.get("enabled", true):
+					found = true
+					break
+			if not found:
+				continue
 		var card_node: PanelContainer = MachineCardScene.instantiate()
 		_grid.add_child(card_node)
 		var rtp: float = 0.0
-		if config["id"] in _paytables:
-			rtp = _paytables[config["id"]].rtp
-		var display_name := Translations.tr_key("machine.%s.name" % config["id"])
-		var mini_text := Translations.tr_key("machine.%s.mini" % config["id"])
+		if machine_id in _paytables:
+			rtp = _paytables[machine_id].rtp
+		var display_name := Translations.tr_key("machine.%s.name" % machine_id)
+		var mini_text := Translations.tr_key("machine.%s.mini" % machine_id)
 		card_node.setup(
-			config["id"],
+			machine_id,
 			display_name,
 			config["color"],
 			config["accent"],
