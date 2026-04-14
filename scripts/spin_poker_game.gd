@@ -810,9 +810,9 @@ func _animate_spin_draw(grid: Array) -> void:
 		for row in 3:
 			_card_rects[row][col].modulate.a = 0.0
 
-	var cell_h := _card_rects[0][0].size.y
-	var total_strip_h := cell_h * (filler_count + 3)
-	var target_y := -(total_strip_h - cell_h * 3)
+	var cell_h: float = (_card_rects[0][0] as TextureRect).size.y
+	var total_strip_h: float = cell_h * (filler_count + 3)
+	var target_y: float = -(total_strip_h - cell_h * 3)
 
 	# Spin phase
 	var spin_timer := Timer.new()
