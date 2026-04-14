@@ -45,6 +45,9 @@ var _held_indicators: Array = []  # 5 Control nodes (held_rect.svg + HELD label)
 
 # Line indicators (ribbon icons on left/right of grid)
 
+# Shutters (top/bottom row covers during spin)
+var _shutters: Array = []
+
 # Win line drawing + badge
 var _line_draw_node: Control
 var _winning_lines: Array = []
@@ -617,9 +620,57 @@ func _on_state_changed(new_state: int) -> void:
 # ─── ROW FOLD ANIMATION (J.7) ─────────────────────────────────────────
 
 func _animate_rows_fold() -> void:
+	_clear_shutters()
+	if _rush or SPEED_CONFIGS[_speed_level]["base_spin_ms"] == 0:
+		for col in 5:
+			_set_card_back(0, col)
+			_set_card_back(2, col)
+		return
+
+	var shutter_color := Color(0.2, 0.15, 0.35)  # match grid bg
+	var close_ms := 400.0
+	var cascade_ms := 150.0
+
+	for col in 5:
+		for row in [0, 2]:  # top and bottom
+			var cell: TextureRect = _card_rects[row][col]
+			var shutter := ColorRect.new()
+			shutter.color = shutter_color
+			shutter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			shutter.z_index = 3
+			shutter.global_position = cell.global_position
+			if row == 0:
+				# Top: grows downward
+				shutter.size = Vector2(cell.size.x, 0)
+			else:
+				# Bottom: grows upward from bottom
+				shutter.size = Vector2(cell.size.x, 0)
+				shutter.global_position.y += cell.size.y
+			add_child(shutter)
+			_shutters.append(shutter)
+
+			var tw := create_tween()
+			var delay := col * cascade_ms / 1000.0
+			if row == 0:
+				tw.tween_property(shutter, "size:y", cell.size.y, close_ms / 1000.0).set_delay(delay)
+			else:
+				tw.tween_property(shutter, "size:y", cell.size.y, close_ms / 1000.0).set_delay(delay)
+				tw.parallel().tween_property(shutter, "global_position:y", cell.global_position.y, close_ms / 1000.0).set_delay(delay)
+
+	# Wait for last column
+	await get_tree().create_timer((4 * cascade_ms + close_ms) / 1000.0 + 0.05).timeout
+
+	# Set card backs under shutters
 	for col in 5:
 		_set_card_back(0, col)
 		_set_card_back(2, col)
+
+
+func _clear_shutters() -> void:
+	for s in _shutters:
+		if is_instance_valid(s):
+			s.queue_free()
+	_shutters.clear()
 
 
 # ─── DEAL SPIN ────────────────────────────────────────────────────────
@@ -773,6 +824,7 @@ func _on_draw_spin_complete(grid: Array) -> void:
 
 	# Animate unheld columns
 	await _animate_spin_draw(grid)
+	_clear_shutters()
 	_animating = false
 	_manager.on_draw_spin_complete()
 
@@ -1448,149 +1500,89 @@ func _show_bet_picker() -> void:
 # ─── PAYTABLE POPUP ──────────────────────────────────────────────────
 
 var _paytable_overlay: Control = null
+var _paytable_cycle_timer: Timer = null
+var _paytable_cycle_idx: int = 0
 
 func _show_paytable() -> void:
 	if _paytable_overlay:
 		_paytable_overlay.queue_free()
+	_stop_paytable_cycle()
 	_paytable_overlay = Control.new()
 	_paytable_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_paytable_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	_paytable_overlay.z_index = 50
 	add_child(_paytable_overlay)
 
+	# Dim overlay (opacity 0.5 so the card grid is partially visible)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.85)
+	dim.color = Color(0, 0, 0, 0.5)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	dim.gui_input.connect(func(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton and ev.pressed:
-			_paytable_overlay.queue_free()
-			_paytable_overlay = null
-			_clear_line_display()
+			_close_paytable_overlay()
 	)
 	_paytable_overlay.add_child(dim)
-
-	# Main HBox: paytable left, line list right
-	var main_hbox := HBoxContainer.new()
-	main_hbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	main_hbox.offset_left = 30
-	main_hbox.offset_right = -30
-	main_hbox.offset_top = 20
-	main_hbox.offset_bottom = -20
-	main_hbox.add_theme_constant_override("separation", 16)
-	_paytable_overlay.add_child(main_hbox)
-
-	# ── LEFT: Paytable
-	var left_vbox := VBoxContainer.new()
-	left_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_vbox.add_theme_constant_override("separation", 4)
-	main_hbox.add_child(left_vbox)
 
 	var bold := SystemFont.new()
 	bold.font_weight = 700
 
+	# Title "20 LINES" top center
 	var title := Label.new()
-	title.text = _variant.paytable.name.to_upper()
+	title.text = "20 LINES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 24)
 	title.add_theme_color_override("font_color", COL_YELLOW)
 	title.add_theme_font_override("font", bold)
-	left_vbox.add_child(title)
+	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	title.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	title.offset_top = 12
+	title.offset_bottom = 44
+	title.offset_left = -100
+	title.offset_right = 100
+	_paytable_overlay.add_child(title)
 
-	# Paytable grid: columns = Hand | 1 | 2 | 3 | 4 | 5
-	var pt_scroll := ScrollContainer.new()
-	pt_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_vbox.add_child(pt_scroll)
-
-	var pt_grid := GridContainer.new()
-	pt_grid.columns = 6
-	pt_grid.add_theme_constant_override("h_separation", 2)
-	pt_grid.add_theme_constant_override("v_separation", 1)
-	pt_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pt_scroll.add_child(pt_grid)
-
-	# Header row
-	var headers := ["", "1", "2", "3", "4", "5"]
-	for h in headers:
-		var lbl := Label.new()
-		lbl.text = h
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.add_theme_font_size_override("font_size", 13)
-		lbl.add_theme_color_override("font_color", COL_YELLOW)
-		lbl.add_theme_font_override("font", bold)
-		if h != "":
-			lbl.custom_minimum_size.x = 50
-		else:
-			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pt_grid.add_child(lbl)
-
-	# Data rows
-	var hand_order := _variant.paytable.get_hand_order()
-	for i in hand_order.size():
-		var key: String = hand_order[i]
-		var pays := _variant.paytable.get_payout_row(key)
-		if pays == null:
-			continue
-		var display_name: String = _variant.paytable.get_hand_display_name(key)
-		var row_bg := Color(0.12, 0.12, 0.3) if i % 2 == 0 else Color(0.08, 0.08, 0.22)
-		# Hand name
-		var name_lbl := Label.new()
-		name_lbl.text = display_name
-		name_lbl.add_theme_font_size_override("font_size", 13)
-		name_lbl.add_theme_color_override("font_color", Color.WHITE if i > 0 else Color("FF6666"))
-		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pt_grid.add_child(name_lbl)
-		# Pay values
-		for p_idx in 5:
-			var val: int = pays[p_idx] if p_idx < pays.size() else 0
-			var pay_lbl := Label.new()
-			pay_lbl.text = str(val)
-			pay_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			pay_lbl.add_theme_font_size_override("font_size", 13)
-			pay_lbl.add_theme_color_override("font_color", Color(0.9, 0.9, 0.7))
-			pay_lbl.custom_minimum_size.x = 50
-			pt_grid.add_child(pay_lbl)
-
-	# ── RIGHT: Line numbers list
-	var right_vbox := VBoxContainer.new()
-	right_vbox.custom_minimum_size.x = 100
-	right_vbox.add_theme_constant_override("separation", 4)
-	main_hbox.add_child(right_vbox)
-
-	var lines_title := Label.new()
-	lines_title.text = "20 LINES"
-	lines_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lines_title.add_theme_font_size_override("font_size", 16)
-	lines_title.add_theme_color_override("font_color", COL_YELLOW)
-	lines_title.add_theme_font_override("font", bold)
-	right_vbox.add_child(lines_title)
-
-	var line_scroll := ScrollContainer.new()
-	line_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_vbox.add_child(line_scroll)
-
-	var line_list := VBoxContainer.new()
-	line_list.add_theme_constant_override("separation", 2)
-	line_scroll.add_child(line_list)
+	# 20 line buttons horizontal at bottom
+	var btn_container := HBoxContainer.new()
+	btn_container.add_theme_constant_override("separation", 4)
+	btn_container.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_container.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	btn_container.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	btn_container.offset_bottom = -12
+	btn_container.offset_top = -48
+	btn_container.offset_left = 8
+	btn_container.offset_right = -8
+	_paytable_overlay.add_child(btn_container)
 
 	for li in 20:
 		var line_btn := Button.new()
-		line_btn.text = "LINE %d" % (li + 1)
-		line_btn.custom_minimum_size = Vector2(90, 28)
+		line_btn.text = str(li + 1)
+		line_btn.custom_minimum_size = Vector2(44, 32)
+		line_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var ls := StyleBoxFlat.new()
-		ls.bg_color = SpinPokerManager.LINE_COLORS[li].darkened(0.4)
+		ls.bg_color = SpinPokerManager.LINE_COLORS[li].darkened(0.3)
 		ls.set_border_width_all(2)
 		ls.border_color = SpinPokerManager.LINE_COLORS[li]
 		ls.set_corner_radius_all(4)
+		ls.content_margin_left = 2
+		ls.content_margin_right = 2
+		ls.content_margin_top = 1
+		ls.content_margin_bottom = 1
 		line_btn.add_theme_stylebox_override("normal", ls)
 		var lh := ls.duplicate()
-		lh.bg_color = SpinPokerManager.LINE_COLORS[li].darkened(0.2)
+		lh.bg_color = SpinPokerManager.LINE_COLORS[li].darkened(0.1)
 		line_btn.add_theme_stylebox_override("hover", lh)
-		line_btn.add_theme_font_size_override("font_size", 11)
+		var lp := ls.duplicate()
+		lp.bg_color = SpinPokerManager.LINE_COLORS[li]
+		line_btn.add_theme_stylebox_override("pressed", lp)
+		line_btn.add_theme_font_size_override("font_size", 12)
 		line_btn.add_theme_color_override("font_color", Color.WHITE)
 		var idx := li
-		line_btn.pressed.connect(func() -> void: _highlight_line_in_overlay(idx))
-		line_list.add_child(line_btn)
+		line_btn.pressed.connect(func() -> void:
+			_paytable_cycle_idx = idx
+			_highlight_line_in_overlay(idx)
+		)
+		btn_container.add_child(line_btn)
 
 	# X close button (top-right)
 	var close_btn := Button.new()
@@ -1603,12 +1595,44 @@ func _show_paytable() -> void:
 	close_btn.add_theme_font_size_override("font_size", 20)
 	close_btn.add_theme_color_override("font_color", Color.WHITE)
 	close_btn.pressed.connect(func() -> void:
-		_paytable_overlay.queue_free()
-		_paytable_overlay = null
-		_clear_line_display()
+		_close_paytable_overlay()
 	)
 	_paytable_overlay.add_child(close_btn)
 	close_btn.position = Vector2(size.x - 60, 10)
+
+	# Auto-cycle: start cycling through lines
+	_paytable_cycle_idx = 0
+	_highlight_line_in_overlay(0)
+	_start_paytable_cycle()
+
+
+func _close_paytable_overlay() -> void:
+	_stop_paytable_cycle()
+	if _paytable_overlay:
+		_paytable_overlay.queue_free()
+		_paytable_overlay = null
+	_clear_line_display()
+
+
+func _start_paytable_cycle() -> void:
+	_stop_paytable_cycle()
+	_paytable_cycle_timer = Timer.new()
+	_paytable_cycle_timer.wait_time = 0.3
+	_paytable_cycle_timer.autostart = true
+	_paytable_cycle_timer.timeout.connect(_advance_paytable_cycle)
+	add_child(_paytable_cycle_timer)
+
+
+func _advance_paytable_cycle() -> void:
+	_paytable_cycle_idx = (_paytable_cycle_idx + 1) % 20
+	_highlight_line_in_overlay(_paytable_cycle_idx)
+
+
+func _stop_paytable_cycle() -> void:
+	if _paytable_cycle_timer and is_instance_valid(_paytable_cycle_timer):
+		_paytable_cycle_timer.stop()
+		_paytable_cycle_timer.queue_free()
+	_paytable_cycle_timer = null
 
 
 func _highlight_line_in_overlay(line_idx: int) -> void:
