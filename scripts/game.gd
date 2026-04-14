@@ -665,6 +665,7 @@ func _on_cards_dealt(dealt_hand: Array[CardData]) -> void:
 		_card_visuals[i].set_flip_duration(_get_flip_s())
 		_card_visuals[i].set_card(dealt_hand[i], true, _variant.is_wild_card(dealt_hand[i]))
 		SoundManager.play("deal")
+		VibrationManager.vibrate("card_deal")
 		if not instant and i < 4:
 			await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
 	# Wait for the last card's flip animation to finish before showing HELD
@@ -677,6 +678,7 @@ func _on_cards_dealt(dealt_hand: Array[CardData]) -> void:
 func _on_deal_draw_pressed() -> void:
 	if _animating:
 		return
+	VibrationManager.vibrate("button_press")
 	if _game_manager.state == GameManager.State.HOLDING:
 		_animating = true
 		var instant := _get_flip_s() < 0.03
@@ -686,6 +688,7 @@ func _on_deal_draw_pressed() -> void:
 				_card_visuals[i].set_flip_duration(_get_flip_s())
 				_card_visuals[i].flip_to_back()
 				SoundManager.play("flip")
+				VibrationManager.vibrate("card_flip")
 				if not instant:
 					await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
 		if not instant:
@@ -697,6 +700,7 @@ func _on_deal_draw_pressed() -> void:
 				_card_visuals[i].set_flip_duration(_get_flip_s())
 				_card_visuals[i].set_card(_game_manager.hand[i], true, _variant.is_wild_card(_game_manager.hand[i]))
 				SoundManager.play("deal")
+				VibrationManager.vibrate("card_deal")
 				if not instant:
 					await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
 		if not instant:
@@ -729,6 +733,12 @@ func _on_card_replaced(_index: int, _new_card: CardData) -> void:
 
 func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
 	if payout > 0:
+		if hand_rank == HandEvaluator.HandRank.ROYAL_FLUSH:
+			VibrationManager.vibrate("win_royal_flush")
+		elif hand_rank >= HandEvaluator.HandRank.FOUR_OF_A_KIND:
+			VibrationManager.vibrate("win_large")
+		else:
+			VibrationManager.vibrate("win_small")
 		_set_win_active(payout)
 		_show_win_overlay(hand_name)
 		_highlight_paytable_row(hand_rank)
@@ -1536,6 +1546,7 @@ func _on_card_clicked(card_index: int) -> void:
 		return
 	_game_manager.toggle_hold(card_index)
 	_card_visuals[card_index].set_held(_game_manager.held[card_index])
+	VibrationManager.vibrate("card_hold")
 
 
 func _on_double_card_picked(index: int) -> void:
@@ -1556,6 +1567,7 @@ func _on_double_card_picked(index: int) -> void:
 	if player_rank > dealer_rank:
 		# Win — double the amount
 		_double_amount *= 2
+		VibrationManager.vibrate("double_win")
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
 		_animate_credits(SaveManager.credits)
@@ -1576,6 +1588,7 @@ func _on_double_card_picked(index: int) -> void:
 		_end_double()
 	else:
 		# Lose
+		VibrationManager.vibrate("double_lose")
 		_set_status(Translations.tr_key("double.lose"))
 		_double_amount = 0
 		_end_double()

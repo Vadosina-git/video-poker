@@ -649,6 +649,7 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 				await get_tree().create_timer(step_ms / 1000.0).timeout
 		_set_card_texture(1, col, mid_row[col])
 		SoundManager.play("spin_stop")
+		VibrationManager.vibrate("spin_stop")
 		if col < 4:
 			await get_tree().create_timer(col_ms / 1000.0).timeout
 
@@ -733,6 +734,7 @@ func _animate_spin_draw(grid: Array) -> void:
 		for row in 3:
 			_set_card_texture(row, col, grid[row][col])
 		SoundManager.play("spin_stop")
+		VibrationManager.vibrate("spin_stop")
 		if col < 4:
 			await get_tree().create_timer(col_ms / 1000.0).timeout
 
@@ -768,6 +770,7 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 			_winning_lines.append(r)
 
 	if total_payout > 0:
+		VibrationManager.vibrate("win_small")
 		var display_total: int = total_payout / maxi(SaveManager.denomination, 1)
 		_game_pays_label.text = Translations.tr_key("spin.game_pays_fmt", [str(display_total)])
 		_game_pays_label.visible = true
@@ -944,6 +947,7 @@ func _flash_balance_red() -> void:
 # ─── BUTTON HANDLERS ─────────────────────────────────────────────────
 
 func _on_deal_draw_pressed() -> void:
+	VibrationManager.vibrate("button_press")
 	if _animating:
 		_rush = true
 		return
@@ -964,6 +968,7 @@ func _on_card_clicked(event: InputEvent, col: int) -> void:
 		if _manager.state == SpinPokerManager.State.HOLDING:
 			_manager.toggle_hold(col)
 			_show_held(col, _manager.held[col])
+			VibrationManager.vibrate("card_hold")
 			if _manager.held[col]:
 				_set_card_texture(0, col, _manager.middle_row[col])
 				_set_card_texture(2, col, _manager.middle_row[col])

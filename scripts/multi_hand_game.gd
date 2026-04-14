@@ -1087,6 +1087,7 @@ func _on_hands_dealt(primary_hand: Array[CardData]) -> void:
 		_primary_cards[i].set_card(primary_hand[i], true, _variant.is_wild_card(primary_hand[i]))
 		if not _is_rushing():
 			SoundManager.play("deal")
+			VibrationManager.vibrate("card_deal")
 			if i < 4:
 				await get_tree().create_timer(delay).timeout
 	# Wait for the last card's flip animation to finish before showing HELD
@@ -1099,6 +1100,7 @@ func _on_hands_dealt(primary_hand: Array[CardData]) -> void:
 func _on_deal_draw_pressed() -> void:
 	if _animating:
 		return
+	VibrationManager.vibrate("button_press")
 	if _manager.state == MultiHandManager.State.HOLDING:
 		_animating = true
 		var delay: float = _get_deal_ms() / 1000.0
@@ -1143,6 +1145,7 @@ func _on_hands_drawn(all_hands: Array) -> void:
 			_primary_cards[i].set_card(primary[i], true, _variant.is_wild_card(primary[i]))
 			if not _is_rushing():
 				SoundManager.play("deal")
+				VibrationManager.vibrate("card_deal")
 				await get_tree().create_timer(delay).timeout
 
 	# 1b. Show primary hand result immediately (don't wait for extra hands)
@@ -1230,6 +1233,7 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 
 	# Show total win + animate credits
 	if total_payout > 0:
+		VibrationManager.vibrate("win_small")
 		_win_label.text = Translations.tr_key("game.win_label")
 		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
 		_win_cd["box"].visible = true
@@ -1730,6 +1734,7 @@ func _animate_multipliers_next_to_active() -> void:
 		_cleanup_detached_rows()
 		return
 	await tween.finished
+	VibrationManager.vibrate("multiplier_activate")
 
 	# Free the detached rows — their job is done.
 	_cleanup_detached_rows()
@@ -1991,6 +1996,7 @@ func _on_card_clicked(card_index: int) -> void:
 		return
 	_manager.toggle_hold(card_index)
 	_primary_cards[card_index].set_held(_manager.held[card_index])
+	VibrationManager.vibrate("card_hold")
 	# Update extra hands to show held status
 	for mini in _extra_displays:
 		_show_mini_held(mini)
@@ -2512,6 +2518,7 @@ func _on_double_card_picked(index: int) -> void:
 
 	if player_rank > dealer_rank:
 		_double_amount *= 2
+		VibrationManager.vibrate("double_win")
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
 		_animate_credits(SaveManager.credits)
@@ -2533,6 +2540,7 @@ func _on_double_card_picked(index: int) -> void:
 		await _credit_tween.finished
 		_end_double()
 	else:
+		VibrationManager.vibrate("double_lose")
 		_win_label.text = Translations.tr_key("double.lose")
 		_win_cd["box"].visible = false
 		_double_amount = 0
