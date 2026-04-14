@@ -171,6 +171,7 @@ func _apply_theme() -> void:
 	_balance_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_balance_label.gui_input.connect(_on_balance_clicked)
 	_balance_cd = SaveManager.create_currency_display(18, Color.WHITE)
+	_balance_cd["box"].custom_minimum_size.x = 200
 	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_cd["box"].mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_balance_cd["box"].gui_input.connect(_on_balance_clicked)
@@ -527,7 +528,8 @@ func _show_depth_tooltip() -> void:
 
 func _update_bet_display(bet: int) -> void:
 	var total: int = bet * SaveManager.denomination
-	SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(total))
+	var formula: String = SaveManager.format_money(SaveManager.denomination) + " \u00d7 " + str(bet) + " = " + SaveManager.format_money(total)
+	SaveManager.set_currency_value(_bet_cd, formula)
 	_flash_bet_display()
 
 
@@ -603,7 +605,7 @@ func _position_hold_hint() -> void:
 	var lbl_size := _hold_hint_label.get_combined_minimum_size()
 	_hold_hint_label.global_position = Vector2(
 		rect.get_center().x - lbl_size.x / 2,
-		rect.position.y - lbl_size.y - 8
+		rect.position.y - lbl_size.y - 4
 	)
 
 func _hide_hold_hint() -> void:
@@ -1401,12 +1403,24 @@ func _show_info() -> void:
 	machines_title.add_theme_color_override("font_color", COL_YELLOW)
 	content.add_child(machines_title)
 
-	# Machines table
+	# Machines table — wrapped in dark backdrop, centered
+	var table_wrapper := PanelContainer.new()
+	var tw_style := StyleBoxFlat.new()
+	tw_style.bg_color = Color(0.1, 0.1, 0.4, 0.7)
+	tw_style.set_corner_radius_all(8)
+	tw_style.content_margin_left = 16
+	tw_style.content_margin_right = 16
+	tw_style.content_margin_top = 12
+	tw_style.content_margin_bottom = 12
+	table_wrapper.add_theme_stylebox_override("panel", tw_style)
+	table_wrapper.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	content.add_child(table_wrapper)
 	var table := GridContainer.new()
 	table.columns = 4
 	table.add_theme_constant_override("h_separation", 20)
 	table.add_theme_constant_override("v_separation", 6)
-	content.add_child(table)
+	table.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	table_wrapper.add_child(table)
 
 	var bold := SystemFont.new()
 	bold.font_weight = 700
@@ -1513,13 +1527,57 @@ func _show_double_warning() -> void:
 	vbox.add_child(title)
 
 	var doubled := _double_amount * 2
-	var msg := Label.new()
-	msg.text = Translations.tr_key("double.msg_fmt",
-			[SaveManager.format_money(_double_amount), SaveManager.format_money(doubled)])
-	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	msg.add_theme_font_size_override("font_size", 20)
-	msg.add_theme_color_override("font_color", Color.WHITE)
-	vbox.add_child(msg)
+	# Build message with chip icons before amounts
+	var msg_parts: Array = Translations.tr_key("double.msg_fmt",
+			["<<WIN>>", "<<DBL>>"]).split("\n")
+	var msg_box := VBoxContainer.new()
+	msg_box.add_theme_constant_override("separation", 4)
+	for line_text in msg_parts:
+		var line_hbox := HBoxContainer.new()
+		line_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		line_hbox.add_theme_constant_override("separation", 2)
+		if "<<WIN>>" in line_text:
+			var parts := line_text.split("<<WIN>>")
+			if parts[0] != "":
+				var lbl := Label.new()
+				lbl.text = parts[0]
+				lbl.add_theme_font_size_override("font_size", 20)
+				lbl.add_theme_color_override("font_color", Color.WHITE)
+				line_hbox.add_child(lbl)
+			var cd := SaveManager.create_currency_display(20, Color.WHITE)
+			SaveManager.set_currency_value(cd, SaveManager.format_money(_double_amount))
+			line_hbox.add_child(cd["box"])
+			if parts.size() > 1 and parts[1] != "":
+				var lbl := Label.new()
+				lbl.text = parts[1]
+				lbl.add_theme_font_size_override("font_size", 20)
+				lbl.add_theme_color_override("font_color", Color.WHITE)
+				line_hbox.add_child(lbl)
+		elif "<<DBL>>" in line_text:
+			var parts := line_text.split("<<DBL>>")
+			if parts[0] != "":
+				var lbl := Label.new()
+				lbl.text = parts[0]
+				lbl.add_theme_font_size_override("font_size", 20)
+				lbl.add_theme_color_override("font_color", Color.WHITE)
+				line_hbox.add_child(lbl)
+			var cd := SaveManager.create_currency_display(20, Color.WHITE)
+			SaveManager.set_currency_value(cd, SaveManager.format_money(doubled))
+			line_hbox.add_child(cd["box"])
+			if parts.size() > 1 and parts[1] != "":
+				var lbl := Label.new()
+				lbl.text = parts[1]
+				lbl.add_theme_font_size_override("font_size", 20)
+				lbl.add_theme_color_override("font_color", Color.WHITE)
+				line_hbox.add_child(lbl)
+		else:
+			var lbl := Label.new()
+			lbl.text = line_text
+			lbl.add_theme_font_size_override("font_size", 20)
+			lbl.add_theme_color_override("font_color", Color.WHITE)
+			line_hbox.add_child(lbl)
+		msg_box.add_child(line_hbox)
+	vbox.add_child(msg_box)
 
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 20)
