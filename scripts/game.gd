@@ -1544,7 +1544,7 @@ func _show_double_warning() -> void:
 		line_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 		line_hbox.add_theme_constant_override("separation", 2)
 		if "<<WIN>>" in line_text:
-			var parts := line_text.split("<<WIN>>")
+			var parts: PackedStringArray = line_text.split("<<WIN>>")
 			if parts[0] != "":
 				var lbl := Label.new()
 				lbl.text = parts[0]
@@ -1561,7 +1561,7 @@ func _show_double_warning() -> void:
 				lbl.add_theme_color_override("font_color", Color.WHITE)
 				line_hbox.add_child(lbl)
 		elif "<<DBL>>" in line_text:
-			var parts := line_text.split("<<DBL>>")
+			var parts: PackedStringArray = line_text.split("<<DBL>>")
 			if parts[0] != "":
 				var lbl := Label.new()
 				lbl.text = parts[0]
