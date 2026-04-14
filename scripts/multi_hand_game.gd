@@ -1373,6 +1373,10 @@ func _build_mult_zone(width: int, is_primary: bool) -> Control:
 	next_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	next_display.visible = false
 	next_display.z_index = 10
+	# I.3: Dark backdrop for contrast
+	next_display.draw.connect(func() -> void:
+		next_display.draw_rect(Rect2(Vector2.ZERO, next_display.size), Color(0, 0, 0.1, 0.6))
+	)
 	add_child(next_display)
 	_next_displays.append(next_display)
 
@@ -1382,6 +1386,10 @@ func _build_mult_zone(width: int, is_primary: bool) -> Control:
 	active_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	active_display.visible = false
 	active_display.z_index = 10
+	# I.3: Dark backdrop for contrast
+	active_display.draw.connect(func() -> void:
+		active_display.draw_rect(Rect2(Vector2.ZERO, active_display.size), Color(0, 0, 0.1, 0.6))
+	)
 	add_child(active_display)
 	_active_displays.append(active_display)
 
