@@ -162,7 +162,8 @@ func _apply_theme() -> void:
 	_info_bar_margin.add_theme_constant_override("margin_left", side_m)
 	_info_bar_margin.add_theme_constant_override("margin_right", side_m)
 
-	_balance_label.add_theme_font_size_override("font_size", 28)
+	var _bal_fs: int = int(ConfigManager.ui_config.get("balance_font_size", 24))
+	_balance_label.add_theme_font_size_override("font_size", _bal_fs)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
 	_balance_label.text = Translations.tr_key("game.balance")
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP

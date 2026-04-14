@@ -1,47 +1,287 @@
 {
   "version": 1,
   "modes": [
-    {"id": "single_play", "label_key": "lobby.mode_single_play", "enabled": true, "machines": [
-      {"id": "jacks_or_better", "enabled": true}, {"id": "bonus_poker", "enabled": true},
-      {"id": "bonus_poker_deluxe", "enabled": true}, {"id": "double_bonus", "enabled": true},
-      {"id": "double_double_bonus", "enabled": true}, {"id": "triple_double_bonus", "enabled": true},
-      {"id": "aces_and_faces", "enabled": true}, {"id": "deuces_wild", "enabled": true},
-      {"id": "joker_poker", "enabled": true}, {"id": "deuces_and_joker", "enabled": true}
-    ]},
-    {"id": "triple_play", "label_key": "lobby.mode_triple_play", "enabled": true, "machines": [
-      {"id": "jacks_or_better", "enabled": true}, {"id": "bonus_poker", "enabled": true},
-      {"id": "bonus_poker_deluxe", "enabled": true}, {"id": "double_bonus", "enabled": true},
-      {"id": "double_double_bonus", "enabled": true}, {"id": "triple_double_bonus", "enabled": true},
-      {"id": "aces_and_faces", "enabled": true}, {"id": "deuces_wild", "enabled": true},
-      {"id": "joker_poker", "enabled": true}, {"id": "deuces_and_joker", "enabled": true}
-    ]},
-    {"id": "five_play", "label_key": "lobby.mode_five_play", "enabled": true, "machines": [
-      {"id": "jacks_or_better", "enabled": true}, {"id": "bonus_poker", "enabled": true},
-      {"id": "bonus_poker_deluxe", "enabled": true}, {"id": "double_bonus", "enabled": true},
-      {"id": "double_double_bonus", "enabled": true}, {"id": "triple_double_bonus", "enabled": true},
-      {"id": "aces_and_faces", "enabled": true}, {"id": "deuces_wild", "enabled": true},
-      {"id": "joker_poker", "enabled": true}, {"id": "deuces_and_joker", "enabled": true}
-    ]},
-    {"id": "ten_play", "label_key": "lobby.mode_ten_play", "enabled": true, "machines": [
-      {"id": "jacks_or_better", "enabled": true}, {"id": "bonus_poker", "enabled": true},
-      {"id": "bonus_poker_deluxe", "enabled": true}, {"id": "double_bonus", "enabled": true},
-      {"id": "double_double_bonus", "enabled": true}, {"id": "triple_double_bonus", "enabled": true},
-      {"id": "aces_and_faces", "enabled": true}, {"id": "deuces_wild", "enabled": true},
-      {"id": "joker_poker", "enabled": true}, {"id": "deuces_and_joker", "enabled": true}
-    ]},
-    {"id": "ultra_vp", "label_key": "lobby.mode_ultra_vp", "enabled": true, "machines": [
-      {"id": "jacks_or_better", "enabled": true}, {"id": "bonus_poker", "enabled": true},
-      {"id": "bonus_poker_deluxe", "enabled": true}, {"id": "double_bonus", "enabled": true},
-      {"id": "double_double_bonus", "enabled": true}, {"id": "triple_double_bonus", "enabled": true},
-      {"id": "aces_and_faces", "enabled": true}, {"id": "deuces_wild", "enabled": true},
-      {"id": "joker_poker", "enabled": true}, {"id": "deuces_and_joker", "enabled": true}
-    ]},
-    {"id": "spin_poker", "label_key": "lobby.mode_spin_poker", "enabled": true, "machines": [
-      {"id": "jacks_or_better", "enabled": true}, {"id": "bonus_poker", "enabled": true},
-      {"id": "bonus_poker_deluxe", "enabled": true}, {"id": "double_bonus", "enabled": true},
-      {"id": "double_double_bonus", "enabled": true}, {"id": "triple_double_bonus", "enabled": true},
-      {"id": "aces_and_faces", "enabled": true}, {"id": "deuces_wild", "enabled": true},
-      {"id": "joker_poker", "enabled": true}, {"id": "deuces_and_joker", "enabled": true}
-    ]}
+    {
+      "id": "single_play",
+      "label_key": "lobby.mode_single_play",
+      "enabled": true,
+      "machines": [
+        {
+          "id": "jacks_or_better",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker_deluxe",
+          "enabled": true
+        },
+        {
+          "id": "double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "double_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "triple_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "aces_and_faces",
+          "enabled": true
+        },
+        {
+          "id": "deuces_wild",
+          "enabled": true
+        },
+        {
+          "id": "joker_poker",
+          "enabled": true
+        },
+        {
+          "id": "deuces_and_joker",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "triple_play",
+      "label_key": "lobby.mode_triple_play",
+      "enabled": true,
+      "machines": [
+        {
+          "id": "jacks_or_better",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker_deluxe",
+          "enabled": true
+        },
+        {
+          "id": "double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "double_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "triple_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "aces_and_faces",
+          "enabled": true
+        },
+        {
+          "id": "deuces_wild",
+          "enabled": true
+        },
+        {
+          "id": "joker_poker",
+          "enabled": true
+        },
+        {
+          "id": "deuces_and_joker",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "five_play",
+      "label_key": "lobby.mode_five_play",
+      "enabled": true,
+      "machines": [
+        {
+          "id": "jacks_or_better",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker_deluxe",
+          "enabled": true
+        },
+        {
+          "id": "double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "double_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "triple_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "aces_and_faces",
+          "enabled": true
+        },
+        {
+          "id": "deuces_wild",
+          "enabled": true
+        },
+        {
+          "id": "joker_poker",
+          "enabled": true
+        },
+        {
+          "id": "deuces_and_joker",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ten_play",
+      "label_key": "lobby.mode_ten_play",
+      "enabled": true,
+      "machines": [
+        {
+          "id": "jacks_or_better",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker_deluxe",
+          "enabled": true
+        },
+        {
+          "id": "double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "double_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "triple_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "aces_and_faces",
+          "enabled": true
+        },
+        {
+          "id": "deuces_wild",
+          "enabled": true
+        },
+        {
+          "id": "joker_poker",
+          "enabled": true
+        },
+        {
+          "id": "deuces_and_joker",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ultra_vp",
+      "label_key": "lobby.mode_ultra_vp",
+      "enabled": true,
+      "machines": [
+        {
+          "id": "jacks_or_better",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker_deluxe",
+          "enabled": true
+        },
+        {
+          "id": "double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "double_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "triple_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "aces_and_faces",
+          "enabled": true
+        },
+        {
+          "id": "deuces_wild",
+          "enabled": true
+        },
+        {
+          "id": "joker_poker",
+          "enabled": true
+        },
+        {
+          "id": "deuces_and_joker",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "spin_poker",
+      "label_key": "lobby.mode_spin_poker",
+      "enabled": true,
+      "machines": [
+        {
+          "id": "jacks_or_better",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker",
+          "enabled": true
+        },
+        {
+          "id": "bonus_poker_deluxe",
+          "enabled": true
+        },
+        {
+          "id": "double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "double_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "triple_double_bonus",
+          "enabled": true
+        },
+        {
+          "id": "aces_and_faces",
+          "enabled": true
+        },
+        {
+          "id": "deuces_wild",
+          "enabled": true
+        },
+        {
+          "id": "joker_poker",
+          "enabled": true
+        },
+        {
+          "id": "deuces_and_joker",
+          "enabled": true
+        }
+      ]
+    }
   ]
 }

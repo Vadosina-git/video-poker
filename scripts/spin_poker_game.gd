@@ -617,56 +617,109 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 	var cfg: Dictionary = SPEED_CONFIGS[_speed_level]
 	var base_ms: int = cfg["base_spin_ms"]
 	var col_ms: int = cfg["col_stop_ms"]
+	var inertia_ms: int = cfg["inertia_ms"]
 
 	if _rush or base_ms == 0:
 		for col in 5:
 			_set_card_texture(1, col, mid_row[col])
 		return
 
-	var spin_active := [true, true, true, true, true]
-	var random_cards := _build_random_card_paths(40)
+	# Drum reel: overlay a scrolling strip on each middle-row cell
+	var filler_count: int = int(ConfigManager.get_animation("spin_filler_cards_count", 15))
+	var bounce_px: float = ConfigManager.get_animation("spin_reel_bounce_px", 5.0)
+	var decel_ms: float = ConfigManager.get_animation("spin_reel_deceleration_ms", 800.0)
+	var col_delay_ms: float = ConfigManager.get_animation("spin_reel_column_delay_ms", 300.0)
+	var random_paths := _build_random_card_paths(filler_count)
+	var reel_overlays: Array[Control] = []
 
-	# Start rapid texture cycling on all 5 columns
+	# Create a reel strip overlay for each column
+	for col in 5:
+		var cell: TextureRect = _card_rects[1][col]
+		var cell_size := cell.size
+		# Clip container — sits on top of the cell, clips overflow
+		var clip := Control.new()
+		clip.clip_contents = true
+		clip.size = cell_size
+		clip.global_position = cell.global_position
+		clip.z_index = 5
+		clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(clip)
+		# Vertical strip: filler cards + target card at bottom
+		var strip := VBoxContainer.new()
+		strip.add_theme_constant_override("separation", 0)
+		strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for i in filler_count:
+			var tex := TextureRect.new()
+			tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			tex.custom_minimum_size = cell_size
+			tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var path: String = random_paths[(col * 3 + i) % random_paths.size()]
+			if ResourceLoader.exists(path):
+				tex.texture = load(path)
+			strip.add_child(tex)
+		# Target card at the end
+		var target_tex := TextureRect.new()
+		target_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		target_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		target_tex.custom_minimum_size = cell_size
+		target_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var target_path := _get_card_path(mid_row[col])
+		if ResourceLoader.exists(target_path):
+			target_tex.texture = load(target_path)
+		strip.add_child(target_tex)
+		clip.add_child(strip)
+		# Position strip so first filler is visible
+		strip.position.y = 0
+		reel_overlays.append(clip)
+		# Hide actual card during spin
+		cell.modulate.a = 0.0
+
+	# Animate: scroll strips, then stop column by column
+	var total_strip_h: float = (_card_rects[1][0].size.y) * (filler_count + 1)
+	var target_y: float = -(total_strip_h - _card_rects[1][0].size.y)
+
+	# Base spin phase: all columns scrolling fast (loop scroll via texture cycling)
 	var spin_timer := Timer.new()
-	spin_timer.wait_time = cfg["spin_ms"] / 1000.0
+	spin_timer.wait_time = SPEED_CONFIGS[_speed_level]["spin_ms"] / 1000.0
 	spin_timer.autostart = true
 	add_child(spin_timer)
-	var frame_idx := [0]
+	var frame_offsets := [0, 0, 0, 0, 0]
+	var col_stopped := [false, false, false, false, false]
 	spin_timer.timeout.connect(func() -> void:
 		for col in 5:
-			if spin_active[col]:
-				var idx: int = (frame_idx[0] + col * 5) % random_cards.size()
-				var path: String = random_cards[idx]
-				if ResourceLoader.exists(path):
-					_card_rects[1][col].texture = load(path)
-		frame_idx[0] += 1
+			if col_stopped[col]:
+				continue
+			frame_offsets[col] += int(_card_rects[1][col].size.y * 0.6)
+			var strip: VBoxContainer = reel_overlays[col].get_child(0)
+			strip.position.y = -(frame_offsets[col] % int(total_strip_h))
 	)
 
-	# Base spin: all columns spin together
 	await get_tree().create_timer(base_ms / 1000.0).timeout
 
-	# Sequential column stops with inertia deceleration
-	var inertia_ms: int = cfg["inertia_ms"]
+	# Stop columns left to right with deceleration + bounce
 	for col in 5:
 		if _rush:
-			spin_active[col] = false
+			col_stopped[col] = true
+			reel_overlays[col].queue_free()
+			_card_rects[1][col].modulate.a = 1.0
 			_set_card_texture(1, col, mid_row[col])
 			continue
-		spin_active[col] = false
-		# Inertia: slow flicker then land on final card
-		if inertia_ms > 0:
-			var steps := 4
-			var step_ms := inertia_ms / steps
-			for s in steps:
-				var idx: int = randi() % random_cards.size()
-				if ResourceLoader.exists(random_cards[idx]):
-					_card_rects[1][col].texture = load(random_cards[idx])
-				await get_tree().create_timer(step_ms / 1000.0).timeout
+		col_stopped[col] = true
+		var strip: VBoxContainer = reel_overlays[col].get_child(0)
+		# Decelerate to target position
+		var tw := create_tween()
+		tw.tween_property(strip, "position:y", target_y - bounce_px, decel_ms / 1000.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(strip, "position:y", target_y, 0.1).set_ease(Tween.EASE_IN_OUT)
+		await tw.finished
+		# Reveal real card, remove overlay
+		_card_rects[1][col].modulate.a = 1.0
 		_set_card_texture(1, col, mid_row[col])
+		reel_overlays[col].queue_free()
 		SoundManager.play("spin_stop")
 		VibrationManager.vibrate("spin_stop")
 		if col < 4:
-			await get_tree().create_timer(col_ms / 1000.0).timeout
+			await get_tree().create_timer(col_delay_ms / 1000.0).timeout
 
 	spin_timer.stop()
 	spin_timer.queue_free()
@@ -700,58 +753,113 @@ func _animate_spin_draw(grid: Array) -> void:
 				_set_card_texture(row, col, grid[row][col])
 		return
 
-	var spin_active := [false, false, false, false, false]
-	for col in 5:
-		if not _manager.held[col]:
-			spin_active[col] = true
+	var filler_count: int = int(ConfigManager.get_animation("spin_filler_cards_count", 15))
+	var bounce_px: float = ConfigManager.get_animation("spin_reel_bounce_px", 5.0)
+	var decel_ms: float = ConfigManager.get_animation("spin_reel_deceleration_ms", 800.0)
+	var col_delay_ms: float = ConfigManager.get_animation("spin_reel_column_delay_ms", 300.0)
+	var random_paths := _build_random_card_paths(filler_count * 3)
+	var reel_overlays: Array[Control] = []
 
-	var random_cards := _build_random_card_paths(40)
+	# For each unheld column, create a reel strip covering all 3 rows
+	for col in 5:
+		if _manager.held[col]:
+			reel_overlays.append(null)
+			continue
+		var top_cell: TextureRect = _card_rects[0][col]
+		var bot_cell: TextureRect = _card_rects[2][col]
+		var cell_w := top_cell.size.x
+		var cell_h := top_cell.size.y
+		var full_h := cell_h * 3  # 3 rows
+
+		var clip := Control.new()
+		clip.clip_contents = true
+		clip.size = Vector2(cell_w, full_h)
+		clip.global_position = top_cell.global_position
+		clip.z_index = 5
+		clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(clip)
+
+		var strip := VBoxContainer.new()
+		strip.add_theme_constant_override("separation", 0)
+		strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Filler cards (groups of 3 for each "row set")
+		for i in filler_count:
+			var tex := TextureRect.new()
+			tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			tex.custom_minimum_size = Vector2(cell_w, cell_h)
+			tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var path: String = random_paths[(col * 5 + i) % random_paths.size()]
+			if ResourceLoader.exists(path):
+				tex.texture = load(path)
+			strip.add_child(tex)
+		# Target 3 cards (top, mid, bot) at end of strip
+		for row in 3:
+			var target_tex := TextureRect.new()
+			target_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			target_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			target_tex.custom_minimum_size = Vector2(cell_w, cell_h)
+			target_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var tp := _get_card_path(grid[row][col])
+			if ResourceLoader.exists(tp):
+				target_tex.texture = load(tp)
+			strip.add_child(target_tex)
+		clip.add_child(strip)
+		reel_overlays.append(clip)
+		# Hide real cards
+		for row in 3:
+			_card_rects[row][col].modulate.a = 0.0
+
+	var cell_h := _card_rects[0][0].size.y
+	var total_strip_h := cell_h * (filler_count + 3)
+	var target_y := -(total_strip_h - cell_h * 3)
+
+	# Spin phase
 	var spin_timer := Timer.new()
-	spin_timer.wait_time = cfg["spin_ms"] / 1000.0
+	spin_timer.wait_time = SPEED_CONFIGS[_speed_level]["spin_ms"] / 1000.0
 	spin_timer.autostart = true
 	add_child(spin_timer)
-	var frame_idx := [0]
+	var frame_offsets := [0, 0, 0, 0, 0]
+	var col_stopped := [false, false, false, false, false]
+	for col in 5:
+		if _manager.held[col]:
+			col_stopped[col] = true
 	spin_timer.timeout.connect(func() -> void:
 		for col in 5:
-			if spin_active[col]:
-				for row in 3:
-					var idx: int = (frame_idx[0] + col * 5 + row * 11) % random_cards.size()
-					var path: String = random_cards[idx]
-					if ResourceLoader.exists(path):
-						_card_rects[row][col].texture = load(path)
-		frame_idx[0] += 1
+			if col_stopped[col] or reel_overlays[col] == null:
+				continue
+			frame_offsets[col] += int(cell_h * 0.6)
+			var strip: VBoxContainer = reel_overlays[col].get_child(0)
+			strip.position.y = -(frame_offsets[col] % int(total_strip_h))
 	)
 
-	# Base spin: all unheld columns spin together
 	await get_tree().create_timer(base_ms / 1000.0).timeout
 
-	# Sequential column stops with inertia
-	var inertia_ms: int = cfg["inertia_ms"]
+	# Stop columns left to right
 	for col in 5:
-		if not spin_active[col]:
+		if _manager.held[col] or reel_overlays[col] == null:
 			continue
 		if _rush:
-			spin_active[col] = false
+			col_stopped[col] = true
+			reel_overlays[col].queue_free()
 			for row in 3:
+				_card_rects[row][col].modulate.a = 1.0
 				_set_card_texture(row, col, grid[row][col])
 			continue
-		spin_active[col] = false
-		# Inertia: slow flicker then land
-		if inertia_ms > 0:
-			var steps := 4
-			var step_ms := inertia_ms / steps
-			for s in steps:
-				for row in 3:
-					var idx: int = randi() % random_cards.size()
-					if ResourceLoader.exists(random_cards[idx]):
-						_card_rects[row][col].texture = load(random_cards[idx])
-				await get_tree().create_timer(step_ms / 1000.0).timeout
+		col_stopped[col] = true
+		var strip: VBoxContainer = reel_overlays[col].get_child(0)
+		var tw := create_tween()
+		tw.tween_property(strip, "position:y", target_y - bounce_px, decel_ms / 1000.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(strip, "position:y", target_y, 0.1).set_ease(Tween.EASE_IN_OUT)
+		await tw.finished
 		for row in 3:
+			_card_rects[row][col].modulate.a = 1.0
 			_set_card_texture(row, col, grid[row][col])
+		reel_overlays[col].queue_free()
 		SoundManager.play("spin_stop")
 		VibrationManager.vibrate("spin_stop")
 		if col < 4:
-			await get_tree().create_timer(col_ms / 1000.0).timeout
+			await get_tree().create_timer(col_delay_ms / 1000.0).timeout
 
 	spin_timer.stop()
 	spin_timer.queue_free()
