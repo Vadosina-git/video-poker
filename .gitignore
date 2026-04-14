@@ -5,13 +5,19 @@
 
 # Godot exports
 *.export.cfg
-export_presets.cfg
 *.pck
 *.exe
 *.x86_64
 *.apk
 *.aab
 *.ipa
+
+# Build output
+build/
+
+# Keystore (SECRETS — never commit!)
+*.keystore
+*.jks
 
 # macOS
 .DS_Store
@@ -22,6 +28,10 @@ export_presets.cfg
 *~
 .vscode/
 .idea/
+
+# Xcode
+*.xcuserdata
+DerivedData/
 
 # OS
 Thumbs.db
