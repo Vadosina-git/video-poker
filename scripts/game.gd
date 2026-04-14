@@ -192,7 +192,9 @@ func _apply_theme() -> void:
 	_topup_btn.add_theme_stylebox_override("normal", topup_style)
 	_topup_btn.add_theme_stylebox_override("hover", topup_style)
 	_topup_btn.add_theme_stylebox_override("pressed", topup_style)
-	_topup_btn.custom_minimum_size = Vector2(28, 24)
+	_topup_btn.custom_minimum_size = Vector2(44, 40)
+	_topup_btn.z_index = 25
+	_topup_btn.mouse_filter = Control.MOUSE_FILTER_STOP
 	# Reparent status label out of InfoBar into HBox wrapper for currency display
 	_last_win_label.get_parent().remove_child(_last_win_label)
 	_status_box = HBoxContainer.new()
