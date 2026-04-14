@@ -137,16 +137,19 @@ func _apply_theme() -> void:
 	_middle_section.add_theme_constant_override("separation", 2)
 	_layout_middle.call_deferred()
 
-	# Back button — subtle, small
-	_back_btn.add_theme_font_size_override("font_size", 18)
-	_back_btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.35))
-	_back_btn.add_theme_color_override("font_hover_color", Color(1, 1, 1, 0.6))
+	# Back button — exit icon, 48px
+	_back_btn.text = ""
+	var exit_tex_path := "res://assets/textures/table_exit.svg"
+	if ResourceLoader.exists(exit_tex_path):
+		_back_btn.icon = load(exit_tex_path)
+		_back_btn.expand_icon = true
+	_back_btn.add_theme_color_override("font_color", Color.WHITE)
 	var back_style := StyleBoxFlat.new()
 	back_style.bg_color = Color(0, 0, 0, 0)
 	_back_btn.add_theme_stylebox_override("normal", back_style)
 	_back_btn.add_theme_stylebox_override("hover", back_style)
 	_back_btn.add_theme_stylebox_override("pressed", back_style)
-	_back_btn.custom_minimum_size = Vector2(40, 30)
+	_back_btn.custom_minimum_size = Vector2(48, 48)
 
 	# Title — compact to give paytable more room
 	_game_title.add_theme_font_size_override("font_size", 20)

@@ -291,8 +291,17 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	var tex_green := load("res://assets/textures/btn_rect_green.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_green.svg") else null
 
 	_back_btn = Button.new()
-	_back_btn.text = Translations.tr_key("common.back")
-	_style_btn(_back_btn, tex_blue, Color.WHITE, 13, 70, 36)
+	_back_btn.text = ""
+	var exit_tex_path := "res://assets/textures/table_exit.svg"
+	if ResourceLoader.exists(exit_tex_path):
+		_back_btn.icon = load(exit_tex_path)
+		_back_btn.expand_icon = true
+	var _back_style := StyleBoxFlat.new()
+	_back_style.bg_color = Color(0, 0, 0, 0)
+	_back_btn.add_theme_stylebox_override("normal", _back_style)
+	_back_btn.add_theme_stylebox_override("hover", _back_style)
+	_back_btn.add_theme_stylebox_override("pressed", _back_style)
+	_back_btn.custom_minimum_size = Vector2(48, 48)
 	_back_btn.pressed.connect(_on_back_pressed)
 	btn_row.add_child(_back_btn)
 
