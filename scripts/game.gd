@@ -458,6 +458,7 @@ func _on_balance_clicked(event: InputEvent) -> void:
 			SaveManager.save_game()
 		_balance_show_depth = not _balance_show_depth
 		_update_balance(SaveManager.credits)
+		_update_bet_display(_game_manager.bet)
 
 
 func _show_depth_tooltip() -> void:
@@ -530,8 +531,12 @@ func _show_depth_tooltip() -> void:
 
 func _update_bet_display(bet: int) -> void:
 	var total: int = bet * SaveManager.denomination
-	var formula: String = SaveManager.format_money(SaveManager.denomination) + " \u00d7 " + str(bet) + " = " + SaveManager.format_money(total)
-	SaveManager.set_currency_value(_bet_cd, formula)
+	if _balance_show_depth:
+		# Credits mode: show bet level only (chips / denomination = credits)
+		SaveManager.set_currency_value(_bet_cd, str(bet), 0, Color(-1, 0, 0), false)
+	else:
+		var formula: String = SaveManager.format_money(SaveManager.denomination) + " \u00d7 " + str(bet) + " = " + SaveManager.format_money(total)
+		SaveManager.set_currency_value(_bet_cd, formula)
 	_flash_bet_display()
 
 
