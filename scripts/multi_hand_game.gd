@@ -176,7 +176,7 @@ func _ready() -> void:
 	_update_speed_display()
 
 	_update_title()
-	_hands_btn.text = Translations.tr_key("game.ultra_vp_btn") if _ultra_vp else Translations.tr_key("game.hands_n_fmt", [_num_hands])
+	_hands_btn.text = Translations.tr_key("game.hands_n_fmt", [_num_hands])
 	_current_denomination = _recommend_denomination()
 	SaveManager.denomination = _current_denomination
 	_update_bet_amount_btn()
@@ -681,7 +681,7 @@ func _switch_hand_count(new_count: int) -> void:
 	_num_hands = new_count
 	SaveManager.hand_count = new_count
 	SaveManager.save_game()
-	_hands_btn.text = Translations.tr_key("game.ultra_vp_btn") if _ultra_vp else Translations.tr_key("game.hands_n_fmt", [_num_hands])
+	_hands_btn.text = Translations.tr_key("game.hands_n_fmt", [_num_hands])
 	_manager.setup(_variant, _num_hands, _ultra_vp)
 	# Load saved UX state for new hand count
 	_load_ux_state()
@@ -1264,7 +1264,7 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 
 
 func _ux_state_key() -> String:
-	return "%d_%d" % [_num_hands, _manager.bet]
+	return "%d_%d_%d" % [_num_hands, _manager.bet, SaveManager.denomination]
 
 
 func _save_ux_state() -> void:
@@ -1921,7 +1921,7 @@ func _animate_credits(target: int) -> void:
 	# Highlight balance during roll-up
 	SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE)
 	_credit_tween = create_tween()
-	var dur := 3.0 if _ultra_vp else 2.0
+	var dur := 2.1 if _ultra_vp else 1.4
 	_credit_tween.tween_method(_update_credit_display, start, target, dur).set_ease(Tween.EASE_OUT)
 	_credit_tween.tween_callback(_on_credit_animation_done)
 
@@ -1985,7 +1985,7 @@ func _on_bet_max_pressed() -> void:
 	if _ultra_vp:
 		_save_ux_state()
 		# Restore state for MAX bet key (where NEXT mults are stored)
-		var max_key := "%d_%d" % [_num_hands, MultiHandManager.MAX_BET]
+		var max_key := "%d_%d_%d" % [_num_hands, MultiHandManager.MAX_BET, SaveManager.denomination]
 		if max_key in _ux_states:
 			var st: Dictionary = _ux_states[max_key]
 			var saved_hand: Array = st["hand_multipliers"]
@@ -2173,8 +2173,13 @@ func _show_bet_picker() -> void:
 		SaveManager.set_currency_value(cd, SaveManager.format_auto(amount, 96, 16))
 		btn.add_child(cd["box"])
 		btn.pressed.connect(func() -> void:
+			if _ultra_vp:
+				_save_ux_state()
 			_current_denomination = amount
 			SaveManager.denomination = amount
+			if _ultra_vp:
+				_load_ux_state()
+				_update_multiplier_labels()
 			_update_bet_amount_btn()
 			_update_bet_display(_manager.bet)
 			_bet_picker_overlay.queue_free()
