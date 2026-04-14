@@ -255,10 +255,11 @@ func _apply_theme() -> void:
 		_back_btn.expand_icon = true
 	var back_style := StyleBoxFlat.new()
 	back_style.bg_color = Color(0, 0, 0, 0)
+	back_style.content_margin_left = 12
 	_back_btn.add_theme_stylebox_override("normal", back_style)
 	_back_btn.add_theme_stylebox_override("hover", back_style)
 	_back_btn.add_theme_stylebox_override("pressed", back_style)
-	_back_btn.custom_minimum_size = Vector2(48, 48)
+	_back_btn.custom_minimum_size = Vector2(60, 48)
 
 	_game_title.add_theme_font_size_override("font_size", 20)
 	_game_title.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
@@ -411,6 +412,16 @@ func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_
 	btn.add_theme_color_override("font_hover_color", text_col)
 	btn.add_theme_color_override("font_pressed_color", text_col)
 	btn.custom_minimum_size = Vector2(min_w, min_h)
+	# 1.2: Press effect
+	btn.pivot_offset = btn.size / 2
+	btn.button_down.connect(func() -> void:
+		var tw := btn.create_tween()
+		tw.tween_property(btn, "scale", Vector2(0.93, 0.93), 0.05)
+	)
+	btn.button_up.connect(func() -> void:
+		var tw := btn.create_tween()
+		tw.tween_property(btn, "scale", Vector2.ONE, 0.1).set_ease(Tween.EASE_OUT)
+	)
 
 
 # --- Build hands area ---
@@ -2068,6 +2079,7 @@ func _on_back_pressed() -> void:
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 50
 	add_child(overlay)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -2128,6 +2140,7 @@ func _show_bet_picker() -> void:
 	_bet_picker_overlay = Control.new()
 	_bet_picker_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_bet_picker_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_bet_picker_overlay.z_index = 50
 	add_child(_bet_picker_overlay)
 
 	var dim := ColorRect.new()
@@ -2212,6 +2225,7 @@ func _show_shop() -> void:
 	_shop_overlay = Control.new()
 	_shop_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_shop_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_shop_overlay.z_index = 50
 	add_child(_shop_overlay)
 
 	var dim := ColorRect.new()
@@ -2458,6 +2472,7 @@ func _show_double_warning() -> void:
 	_double_overlay = Control.new()
 	_double_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_double_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_double_overlay.z_index = 50
 	add_child(_double_overlay)
 
 	var dim := ColorRect.new()

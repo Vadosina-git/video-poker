@@ -536,6 +536,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = false
 			_bet_max_btn.disabled = false
 			_bet_amount_btn.disabled = false
+			_bet_amount_btn.modulate.a = 1.0
 			_status_label.text = ""
 			_game_pays_label.visible = false
 			_start_idle_blink_timer()
@@ -547,6 +548,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
 			_bet_amount_btn.disabled = true
+			_bet_amount_btn.modulate.a = 0.5
 
 		SpinPokerManager.State.HOLDING:
 			_deal_draw_btn.text = "DRAW\nSPIN"
@@ -1436,6 +1438,13 @@ func _show_paytable() -> void:
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0, 0, 0, 0.85)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(ev: InputEvent) -> void:
+		if ev is InputEventMouseButton and ev.pressed:
+			_paytable_overlay.queue_free()
+			_paytable_overlay = null
+			_clear_line_display()
+	)
 	_paytable_overlay.add_child(dim)
 
 	# Main HBox: paytable left, line list right
