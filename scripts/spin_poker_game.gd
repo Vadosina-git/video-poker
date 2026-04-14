@@ -9,7 +9,7 @@ const COL_BTN_TEXT := Color("3F2A00")
 const BG_COLOR := Color(0.15, 0.0, 0.35)
 const GRID_BG := Color(0.25, 0.15, 0.45, 0.6)
 
-const BET_AMOUNTS := [1, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000, 10000, 50000]
+var BET_AMOUNTS: Array = []
 
 var _variant: BaseVariant
 var _manager: SpinPokerManager
@@ -94,6 +94,7 @@ func setup(variant: BaseVariant) -> void:
 
 
 func _ready() -> void:
+	BET_AMOUNTS = ConfigManager.get_denominations("spin_poker")
 	_speed_level = SaveManager.speed_level
 	_current_denomination = SaveManager.denomination
 	_build_ui()

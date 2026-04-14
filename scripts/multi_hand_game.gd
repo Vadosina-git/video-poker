@@ -100,8 +100,8 @@ const SPEED_CONFIGS := [
 	{"deal_ms": 30,  "draw_ms": 40,  "flip_s": 0.05},
 ]
 
-# Bet picker
-const BET_AMOUNTS := [1, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000, 10000, 50000]
+# Bet picker — from config
+var BET_AMOUNTS: Array = []
 var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 
@@ -117,6 +117,20 @@ func setup(variant: BaseVariant, num_hands: int, p_ultra_vp: bool = false) -> vo
 func _ready() -> void:
 	if _variant == null:
 		return
+	# Determine mode for denomination config
+	var mode_id := "five_play"
+	match _num_hands:
+		1: mode_id = "single_play"
+		3: mode_id = "triple_play"
+		5: mode_id = "ultra_vp" if _ultra_vp else "five_play"
+		10: mode_id = "ten_play"
+		_: mode_id = "five_play"
+	BET_AMOUNTS = ConfigManager.get_denominations(mode_id)
+	var shop_items := ConfigManager.get_shop_items()
+	for si in shop_items:
+		SHOP_AMOUNTS.append(int(si.get("chips", 0) + si.get("bonus_chips", 0)))
+	if SHOP_AMOUNTS.size() == 0:
+		SHOP_AMOUNTS = [100, 500, 2500, 10000, 50000, 100000]
 
 	CardScene = load("res://scenes/card.tscn")
 	MiniHandScene = load("res://scenes/mini_hand.tscn")
@@ -2167,7 +2181,7 @@ func _show_bet_picker() -> void:
 
 # --- Shop popup ---
 
-const SHOP_AMOUNTS := [100, 500, 2500, 10000, 50000, 100000]
+var SHOP_AMOUNTS: Array = []
 var _shop_overlay: Control = null
 
 func _show_shop() -> void:
@@ -2319,13 +2333,30 @@ func _show_info() -> void:
 	title.add_theme_font_override("font", bold)
 	content.add_child(title)
 
-	# Rules text
-	var rules := Label.new()
-	rules.autowrap_mode = TextServer.AUTOWRAP_WORD
-	rules.add_theme_font_size_override("font_size", 16)
-	rules.add_theme_color_override("font_color", Color.WHITE)
-	rules.text = Translations.tr_key("info.rules_ultra_vp") if _ultra_vp else Translations.tr_key("info.rules_multi")
-	content.add_child(rules)
+	# Rules text — RichTextLabel with dark backdrop
+	var rules_panel := PanelContainer.new()
+	var rp_style := StyleBoxFlat.new()
+	rp_style.bg_color = Color(0.1, 0.1, 0.4, 0.7)
+	rp_style.set_corner_radius_all(8)
+	rp_style.content_margin_left = 20
+	rp_style.content_margin_right = 20
+	rp_style.content_margin_top = 12
+	rp_style.content_margin_bottom = 12
+	rules_panel.add_theme_stylebox_override("panel", rp_style)
+	content.add_child(rules_panel)
+	var rules := RichTextLabel.new()
+	rules.bbcode_enabled = true
+	rules.fit_content = true
+	rules.scroll_active = false
+	rules.add_theme_font_size_override("normal_font_size", 16)
+	rules.add_theme_color_override("default_color", Color.WHITE)
+	var rules_key := "info.rules_ultra_vp" if _ultra_vp else "info.rules_multi"
+	var rules_text: String = Translations.tr_key(rules_key)
+	if "[color" not in rules_text:
+		for kw in ["DEAL", "DRAW", "HOLD", "MAX BET", "Ultra VP", "РУКИ"]:
+			rules_text = rules_text.replace(kw, "[color=#00FF88]%s[/color]" % kw)
+	rules.text = "[center]%s[/center]" % rules_text
+	rules_panel.add_child(rules)
 
 	if _ultra_vp:
 		# Multiplier table title
@@ -2362,12 +2393,25 @@ func _show_info() -> void:
 			[Translations.tr_key("hand.straight_flush"), "12x"],
 			[Translations.tr_key("hand.royal_flush"), "12x"],
 		]
-		for row in mult_table:
-			for cell in row:
+		var row_colors := [
+			Color(0.4, 0.4, 0.6),   # Jacks or Better
+			Color(0.4, 0.5, 0.6),   # Two Pair
+			Color(0.3, 0.6, 0.4),   # Three of a Kind
+			Color(0.3, 0.5, 0.7),   # Straight
+			Color(0.5, 0.3, 0.6),   # Flush
+			Color(0.6, 0.4, 0.3),   # Full House
+			Color(0.7, 0.5, 0.2),   # Four of a Kind
+			Color(0.3, 0.7, 0.7),   # Straight Flush
+			Color(0.8, 0.6, 0.2),   # Royal Flush
+		]
+		for ri in mult_table.size():
+			var row_data: Array = mult_table[ri]
+			var row_col: Color = row_colors[ri] if ri < row_colors.size() else Color.WHITE
+			for cell in row_data:
 				var lbl := Label.new()
 				lbl.text = cell
 				lbl.add_theme_font_size_override("font_size", 14)
-				lbl.add_theme_color_override("font_color", Color.WHITE)
+				lbl.add_theme_color_override("font_color", row_col)
 				table.add_child(lbl)
 
 

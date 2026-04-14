@@ -61,8 +61,8 @@ const SPEED_CONFIGS := [
 const ARROW_ACTIVE := "▶"
 const ARROW_INACTIVE := "▷"
 
-# Bet amounts for the picker
-const BET_AMOUNTS := [1, 5, 10, 20, 50, 100, 500, 1000, 2000, 5000, 10000, 50000]
+# Bet amounts from config (fallback to defaults)
+var BET_AMOUNTS: Array = []
 var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 var _idle_blink_tween: Tween = null
@@ -76,6 +76,8 @@ func setup(variant: BaseVariant) -> void:
 func _ready() -> void:
 	if _variant == null:
 		return
+	BET_AMOUNTS = ConfigManager.get_denominations("single_play")
+	SHOP_AMOUNTS = _build_shop_amounts()
 	CardScene = load("res://scenes/card.tscn")
 
 	_game_manager = GameManager.new()
@@ -1185,8 +1187,18 @@ func _hide_bet_picker() -> void:
 
 # --- Shop popup ---
 
-const SHOP_AMOUNTS := [100, 500, 2500, 10000, 50000, 100000]
+var SHOP_AMOUNTS: Array = []
 var _shop_overlay: Control = null
+
+func _build_shop_amounts() -> Array:
+	var items := ConfigManager.get_shop_items()
+	var amounts: Array = []
+	for item in items:
+		amounts.append(int(item.get("chips", 0) + item.get("bonus_chips", 0)))
+	if amounts.size() == 0:
+		amounts = [100, 500, 2500, 10000, 50000, 100000]
+	return amounts
+
 
 func _show_shop() -> void:
 	if _shop_overlay:
