@@ -145,7 +145,10 @@
       "settings.delete_cancel": "CANCEL",
       "settings.delete_confirm": "DELETE",
       "settings.delete_continue": "CONTINUE",
-      "gift.claim": "CLAIM GIFT"
+      "gift.claim": "CLAIM GIFT",
+      "settings.vibration": "VIBRATION",
+      "common.on": "ON",
+      "common.off": "OFF"
     },
     "ru": {
       "common.got_it": "ПОНЯТНО",
@@ -291,7 +294,10 @@
       "settings.delete_cancel": "ОТМЕНА",
       "settings.delete_confirm": "УДАЛИТЬ",
       "settings.delete_continue": "ПРОДОЛЖИТЬ",
-      "gift.claim": "ЗАБРАТЬ"
+      "gift.claim": "ЗАБРАТЬ",
+      "settings.vibration": "ВИБРАЦИЯ",
+      "common.on": "ВКЛ",
+      "common.off": "ВЫКЛ"
     },
     "es": {
       "common.got_it": "ENTENDIDO",
@@ -437,7 +443,10 @@
       "settings.delete_cancel": "CANCELAR",
       "settings.delete_confirm": "ELIMINAR",
       "settings.delete_continue": "CONTINUAR",
-      "gift.claim": "RECLAMAR"
+      "gift.claim": "RECLAMAR",
+      "settings.vibration": "VIBRACIÓN",
+      "common.on": "SÍ",
+      "common.off": "NO"
     }
   }
 }

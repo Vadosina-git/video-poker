@@ -19,6 +19,7 @@ var settings := {
 	"casino_ambient": false,
 	"game_speed": "normal",
 	"auto_hold": false,
+	"vibration": true,
 }
 
 

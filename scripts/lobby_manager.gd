@@ -349,6 +349,27 @@ func _show_settings() -> void:
 	lang_btn.pressed.connect(_show_language_picker)
 	vbox.add_child(lang_btn)
 
+	# Vibration toggle
+	var vib_on: bool = SaveManager.settings.get("vibration", true)
+	var vib_btn := Button.new()
+	vib_btn.text = "%s: %s" % [
+		Translations.tr_key("settings.vibration"),
+		Translations.tr_key("common.on") if vib_on else Translations.tr_key("common.off"),
+	]
+	vib_btn.custom_minimum_size = Vector2(280, 56)
+	_style_lang_btn(vib_btn, vib_on)
+	vib_btn.pressed.connect(func() -> void:
+		var new_val: bool = not SaveManager.settings.get("vibration", true)
+		SaveManager.settings["vibration"] = new_val
+		SaveManager.save_game()
+		vib_btn.text = "%s: %s" % [
+			Translations.tr_key("settings.vibration"),
+			Translations.tr_key("common.on") if new_val else Translations.tr_key("common.off"),
+		]
+		_style_lang_btn(vib_btn, new_val)
+	)
+	vbox.add_child(vib_btn)
+
 	# Close button
 	var close_btn := Button.new()
 	close_btn.text = Translations.tr_key("settings.close")
