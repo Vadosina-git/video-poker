@@ -964,6 +964,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
 			_bet_amount_btn.disabled = true
+			_bet_amount_btn.modulate.a = 0.5
 			_hands_btn.disabled = true
 			_double_btn.disabled = true
 			_win_label.text = Translations.tr_key("game.win_label")
@@ -2012,6 +2013,8 @@ func _unlock_buttons() -> void:
 	_deal_draw_btn.disabled = false
 	_bet_btn.disabled = false
 	_bet_max_btn.disabled = false
+	_bet_amount_btn.disabled = false
+	_bet_amount_btn.modulate.a = 1.0
 
 func _on_bet_one_pressed() -> void:
 	if _ultra_vp:
