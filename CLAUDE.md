@@ -366,16 +366,16 @@ spin poker → `spin_poker_game.tscn`).
 
 `lobby_manager.gd` хранит `PLAY_MODES` со следующими записями:
 
-| Режим | hands | ultimate_x | spin_poker | Куда ведёт |
+| Режим | hands | ultra_vp | spin_poker | Куда ведёт |
 |---|---|---|---|---|
 | SINGLE PLAY   | 1  | false | false | `game.tscn` |
 | TRIPLE PLAY   | 3  | false | false | `multi_hand_game.tscn` |
 | FIVE PLAY     | 5  | false | false | `multi_hand_game.tscn` |
 | TEN PLAY      | 10 | false | false | `multi_hand_game.tscn` |
-| ULTIMATE X    | 5  | **true**  | false | `multi_hand_game.tscn` (с множителями) |
+| ULTRA VP      | 5  | **true**  | false | `multi_hand_game.tscn` (с множителями) |
 | SPIN POKER    | 1  | false | **true**  | `spin_poker_game.tscn` |
 
-Выбор режима сохраняется в `SaveManager.hand_count` / `.ultimate_x` /
+Выбор режима сохраняется в `SaveManager.hand_count` / `.ultra_vp` /
 `.spin_poker`. При возврате в лобби sidebar восстанавливает последнюю
 активную кнопку.
 
@@ -425,7 +425,7 @@ spin poker → `spin_poker_game.tscn`).
 | Phase 3 — Kicker logic + 7 машин | ✅ done | BPD, Double Bonus, DDB, Joker Poker (53-card deck) |
 | Phase 4 — Полный набор 10 машин  | ✅ done | Triple Double Bonus, Aces & Faces, Deuces & Joker (5-wild evaluator) |
 | Phase 5 — Multi-hand              | ✅ done | Triple/Five/Ten/12/25 play (`multi_hand_game.tscn` + `multi_hand_manager.gd`) |
-| Ultimate X                       | ✅ done | Per-hand множители, 5-hand layout, glyph-based анимация NEXT→ACTIVE |
+| Ultra VP                         | ✅ done | Per-hand множители, 5-hand layout, glyph-based анимация NEXT→ACTIVE |
 | Spin Poker                       | ✅ done | 3×5 reel grid slot-style вариант (`spin_poker_game.tscn`) |
 | Double or Nothing                | ✅ done | Риск-раунд после выигрыша (single + multi) |
 | In-game shop (stub)              | ✅ done | Кнопка top-up в HUD, popup с фиктивными покупками (`FREE`) |
@@ -615,6 +615,7 @@ spin poker → `spin_poker_game.tscn`).
 ```
 res://
 ├── project.godot
+├── export_presets.cfg               # Android + iOS export presets
 ├── CLAUDE.md                        # этот файл
 ├── scenes/
 │   ├── main.tscn                    # точка входа, грузит lobby/game
@@ -622,7 +623,7 @@ res://
 │   │   ├── lobby.tscn               # лобби — sidebar + grid машин
 │   │   └── machine_card.tscn        # карточка одной машины
 │   ├── game.tscn                    # single-hand игровой экран
-│   ├── multi_hand_game.tscn         # multi-hand / Ultimate X экран
+│   ├── multi_hand_game.tscn         # multi-hand / Ultra VP экран
 │   ├── spin_poker_game.tscn         # Spin Poker экран (3×5 grid)
 │   ├── mini_hand.tscn               # 5 мини-карт для multi-hand
 │   ├── card.tscn                    # TextureRect карты
@@ -631,12 +632,12 @@ res://
 ├── scripts/
 │   ├── main.gd                      # загрузка сцен + создание variant
 │   ├── game_manager.gd              # FSM single-hand
-│   ├── multi_hand_manager.gd        # FSM multi-hand + Ultimate X
+│   ├── multi_hand_manager.gd        # FSM multi-hand + Ultra VP
 │   ├── spin_poker_manager.gd        # FSM Spin Poker
-│   ├── lobby_manager.gd             # лобби: sidebar mode select + grid
+│   ├── lobby_manager.gd             # лобби: sidebar, grid, gift timer, exit confirm
 │   ├── machine_card.gd              # карточка машины в лобби
-│   ├── game.gd                      # UI single-hand (FSM events → UI)
-│   ├── multi_hand_game.gd           # UI multi-hand + Ultimate X
+│   ├── game.gd                      # UI single-hand (FSM, DEAL idle blink, auto-shop)
+│   ├── multi_hand_game.gd           # UI multi-hand + Ultra VP
 │   ├── spin_poker_game.gd           # UI Spin Poker
 │   ├── mini_hand_display.gd         # визуал мини-руки (5 маленьких карт)
 │   ├── card_visual.gd               # TextureRect карты + flip-анимации
@@ -646,10 +647,12 @@ res://
 │   ├── paytable.gd                  # загрузка JSON, локализация названий рук
 │   ├── paytable_display.gd          # компонент таблицы выплат
 │   ├── hud.gd                       # legacy (не используется)
+│   ├── config_manager.gd            # autoload: загрузка configs/*.json
 │   ├── save_manager.gd              # autoload: credits, denom, hand_count…
-│   ├── sound_manager.gd             # autoload: stub звуков
+│   ├── sound_manager.gd             # autoload: звуки из configs/sounds.json
 │   ├── translations.gd              # autoload: i18n (EN / RU / ES)
-│   ├── multiplier_glyphs.gd         # helper: SVG-глифы множителей Ultimate X
+│   ├── vibration_manager.gd         # autoload: haptic feedback (iOS/Android)
+│   ├── multiplier_glyphs.gd         # helper: SVG-глифы множителей Ultra VP
 │   └── variants/
 │       ├── base_variant.gd          # базовый класс (deal/draw/evaluate)
 │       ├── jacks_or_better.gd
@@ -662,18 +665,35 @@ res://
 │       ├── deuces_wild.gd
 │       ├── joker_poker.gd
 │       └── deuces_and_joker.gd
+├── configs/                         # JSON-конфиги (загружаются ConfigManager)
+│   ├── animations.json
+│   ├── balance.json
+│   ├── gift.json
+│   ├── init_config.json
+│   ├── lobby_order.json
+│   ├── machines.json
+│   ├── shop.json
+│   ├── sounds.json
+│   └── ui_config.json
 ├── assets/
 │   ├── cards/                       # спрайты основных карт (PNG)
 │   ├── cards/cards_spin/            # квадратные SVG карты для Spin Poker
-│   ├── sounds/                      # stub (пусто)
-│   ├── fonts/                       # stub (системный шрифт)
+│   ├── sounds/                      # 22 placeholder MP3
+│   ├── icons/                       # App icons: 48–1024px
+│   ├── fonts/                       # (системный шрифт)
 │   └── textures/
 │       ├── glyphs/                  # глифы валюты/цифр для SaveManager
-│       └── glyphs_multipliers/      # глифы множителей Ultimate X
-└── data/
-    ├── paytables.json               # все таблицы выплат
-    ├── config.json                  # настройки по умолчанию
-    └── translations.json            # i18n: EN / RU / ES
+│       └── glyphs_multipliers/      # глифы множителей Ultra VP
+├── data/
+│   ├── paytables.json               # все таблицы выплат
+│   ├── config.json                  # ⚠ LEGACY — удалить, заменён configs/*
+│   └── translations.json            # i18n: EN / RU / ES
+└── docs/
+    ├── export_guide.md
+    ├── vibration_setup.md
+    ├── improvements_checklist.md
+    ├── spin-poker-description.md
+    └── superpowers/
 ```
 
 ### 11.4 Game State Machine (FSM)
@@ -831,9 +851,9 @@ card_joker.png
 **Выбор номинала** (`BET AMOUNT` кнопка в HUD) открывает popup со списком
 денежных номиналов. Сохраняется в `SaveManager.denomination`.
 
-**Выбор режима игры** (SINGLE / TRIPLE / FIVE / TEN / ULTIMATE X / SPIN
+**Выбор режима игры** (SINGLE / TRIPLE / FIVE / TEN / ULTRA VP / SPIN
 POKER) — через sidebar лобби. Сохраняется в `SaveManager.hand_count` +
-`.ultimate_x` + `.spin_poker`.
+`.ultra_vp` + `.spin_poker`.
 
 ### 15.2 Что уже хранится в SaveManager, но UI-переключателя нет
 
@@ -965,16 +985,106 @@ TODO для Phase 6: расширить settings popup галочками для
 
 ### Структура проекта
 
-Полное дерево файлов — см. §11.3. Короткая сводка:
+```
+res://
+├── project.godot                  # Godot 4.6, Mobile renderer
+├── export_presets.cfg             # Android + iOS export presets
+├── CLAUDE.md                      # Этот документ
+├── scenes/
+│   ├── main.tscn                  # Точка входа, переключение lobby↔game
+│   ├── game.tscn                  # Single-hand игровой экран
+│   ├── multi_hand_game.tscn       # Multi-hand игровой экран (3/5/10 + Ultra VP)
+│   ├── spin_poker_game.tscn       # Spin Poker: 3×5 reel grid
+│   ├── card.tscn                  # TextureRect карты с PNG-спрайтами
+│   ├── mini_hand.tscn             # Мини-рука (5 маленьких карт)
+│   ├── paytable_display.tscn      # Компонент таблицы выплат
+│   ├── lobby/
+│   │   ├── lobby.tscn             # Game King лобби с sidebar + grid
+│   │   └── machine_card.tscn      # Красная плашка автомата
+│   └── ui/
+│       ├── hud.tscn               # (legacy, не используется)
+│       └── buttons.tscn           # (legacy, не используется)
+├── scripts/
+│   ├── main.gd                    # Загрузка lobby/game, создание variant по ID
+│   ├── game.gd                    # UI single-hand: FSM, анимации, overlay'и, DEAL idle blink, auto-shop
+│   ├── multi_hand_game.gd         # UI multi-hand: N рук, мини-грид, Ultra VP множители
+│   ├── spin_poker_game.gd         # UI Spin Poker: 3×5 grid, 20 lines, slot-style spin
+│   ├── game_manager.gd            # FSM single-hand: deal→hold→draw→evaluate
+│   ├── multi_hand_manager.gd      # FSM multi-hand: N колод, суммарный payout
+│   ├── spin_poker_manager.gd      # FSM Spin Poker: reel logic, line evaluation
+│   ├── card_data.gd               # Suit/Rank enum'ы, JOKER поддержка
+│   ├── card_visual.gd             # TextureRect с PNG, flip анимации, HELD
+│   ├── mini_hand_display.gd       # 5 мини-карт в ряд для multi-hand
+│   ├── deck.gd                    # 52/53 карты, Fisher-Yates, multihand draws
+│   ├── hand_evaluator.gd          # Стандартные покерные комбинации, hold mask
+│   ├── paytable.gd                # Загрузка JSON, lookup по hand_rank
+│   ├── paytable_display.gd        # GridContainer с ячейками, подсветка строк
+│   ├── multiplier_glyphs.gd       # SVG-глифы для множителей Ultra VP
+│   ├── lobby_manager.gd           # Grid машин, sidebar режимов, drag-скролл, gift timer, exit confirm
+│   ├── machine_card.gd            # Красная плашка, (i) кнопка, click → play
+│   ├── config_manager.gd          # Autoload: загрузка configs/*.json, fallback defaults
+│   ├── save_manager.gd            # Autoload: credits, denomination, hand_count, ultra_vp
+│   ├── sound_manager.gd           # Autoload: загрузка звуков из configs/sounds.json
+│   ├── translations.gd            # Autoload: i18n EN/RU/ES
+│   ├── vibration_manager.gd       # Autoload: haptic feedback (iOS/Android)
+│   ├── hud.gd                     # (legacy)
+│   └── variants/
+│       ├── base_variant.gd        # Базовый класс: deal, draw, evaluate, payout
+│       ├── jacks_or_better.gd     # Стандартный evaluator
+│       ├── bonus_poker.gd         # 3 уровня четвёрок (Aces/2-4/5-K)
+│       ├── bonus_poker_deluxe.gd  # Все четвёрки = 80
+│       ├── double_bonus.gd        # Удвоенные четвёрки
+│       ├── double_double_bonus.gd # Четвёрки + кикер
+│       ├── triple_double_bonus.gd # Экстремальный кикер
+│       ├── aces_and_faces.gd      # Четвёрки: Aces/JQK/2-10
+│       ├── deuces_wild.gd         # Wild evaluator (двойки wild)
+│       ├── joker_poker.gd         # Wild evaluator (Joker wild, 53 карты)
+│       └── deuces_and_joker.gd    # 5 wild карт (двойки + Joker)
+├── configs/                       # JSON-конфиги (загружаются ConfigManager)
+│   ├── animations.json            # Таймеры анимаций (deal/draw/flip скорости)
+│   ├── balance.json               # Стартовые кредиты, лимиты, auto-shop threshold
+│   ├── gift.json                  # Free chips: интервал, сумма подарка
+│   ├── init_config.json           # Начальные настройки при первом запуске
+│   ├── lobby_order.json           # Порядок и видимость машин в лобби
+│   ├── machines.json              # Все 10 машин: цвета, accents, locked, paytable refs
+│   ├── shop.json                  # Пакеты покупок (виртуальная валюта)
+│   ├── sounds.json                # Маппинг событий → звуковых файлов
+│   └── ui_config.json             # Размеры шрифтов, отступы, UI-параметры
+├── data/
+│   ├── paytables.json             # Все 10 таблиц выплат
+│   └── translations.json          # Локализация EN/RU/ES (~300+ ключей)
+├── assets/
+│   ├── cards/                     # PNG спрайты: card_vp_{rank}{suit}.png
+│   ├── cards/cards_spin/          # SVG квадратные карты для Spin Poker (52+joker+back+wilds)
+│   ├── textures/                  # SVG кнопки, HELD, glyphs, glyphs_multipliers
+│   ├── sounds/                    # 22 placeholder MP3 (sfx_card_deal, sfx_win_*, sfx_gift_claim и др.)
+│   ├── icons/                     # App icons: 48–1024px (icon_48.png ... icon_1024.png)
+│   └── fonts/                     # (пусто — системный шрифт)
+├── docs/
+│   ├── export_guide.md            # Инструкция экспорта Android/iOS
+│   ├── vibration_setup.md         # Настройка haptic feedback
+│   ├── improvements_checklist.md  # Текущий чеклист улучшений
+│   ├── spin-poker-description.md  # Дизайн-документ Spin Poker
+│   ├── Video_Poker_improvements_13_04_2026.md
+│   └── superpowers/               # Доп. документация
+└── export_presets.cfg             # Android + iOS export presets
+```
+
+**Примечание:** файл `data/config.json` — legacy, больше не используется.
+Вся конфигурация перенесена в `configs/*.json` и загружается через
+`ConfigManager`. `data/config.json` следует удалить.
+
+### Краткая сводка
 
 - **3 игровых экрана**: `game.tscn` (single), `multi_hand_game.tscn`
-  (3/5/10/12/25 рук + Ultimate X), `spin_poker_game.tscn` (3×5 reel grid).
+  (3/5/10 рук + Ultra VP), `spin_poker_game.tscn` (3×5 reel grid, 20 lines).
 - **1 лобби**: `scenes/lobby/lobby.tscn` + `machine_card.tscn`.
 - **10 вариантов покера** в `scripts/variants/` — все наследуют `BaseVariant`.
 - **3 FSM-менеджера**: `game_manager.gd`, `multi_hand_manager.gd`,
   `spin_poker_manager.gd`.
 - **Вспомогательные утилиты**: `multiplier_glyphs.gd` (SVG-глифы для
-  множителей Ultimate X), `translations.gd` (i18n autoload).
+  множителей Ultra VP), `translations.gd` (i18n autoload),
+  `config_manager.gd` (JSON configs), `vibration_manager.gd` (haptic).
 
 ### Ключевые паттерны
 
@@ -993,6 +1103,11 @@ TODO для Phase 6: расширить settings popup галочками для
   который резолвит через `Translations.tr_key("hand." + key)`. Любое
   кастомное имя руки должно быть ключом в `translations.json`.
 
+**Config-driven architecture.** Все настройки вынесены из кода в
+`configs/*.json` (9 файлов). `ConfigManager` (autoload) загружает их при
+старте и предоставляет `get_value(file, key, default)`. Fallback defaults
+зашиты в `ConfigManager` на случай отсутствия файла.
+
 **Paytable-driven payouts.** Все выплаты хранятся в `data/paytables.json`.
 Variant-скрипты используют строковые ключи для lookup, минуя ограничения
 `HandRank` enum'а. Локализация имён — `Paytable.get_hand_display_name(key)`
@@ -1008,26 +1123,23 @@ MiddleSection позиционируется между Top и Bottom через
 
 **Multi-hand.** `MultiHandManager` создаёт N-1 дополнительных `Deck`
 экземпляров. При draw каждая extra рука получает те же held-карты но
-уникальные replacements из своей колоды. Флаг `ultimate_x` активирует
-режим per-hand множителей (см. «Как работает Ultimate X» ниже).
+уникальные replacements из своей колоды. Флаг `ultra_vp` активирует
+режим per-hand множителей (см. «Как работает Ultra VP» ниже).
 
-**Ultimate X.** При `bet == MAX_BET` активируется per-hand multiplier
-система: выигрышные руки генерируют множитель для *следующего* раунда.
-`MultiHandManager` держит два массива: `hand_multipliers[]` (применяется
-*сейчас*) и `next_multipliers[]` (будет промоутед в `hand_multipliers[]`
-на следующий DEAL). UI-стороной занимается `multi_hand_game.gd` +
-`multiplier_glyphs.gd`: два Control'а на руку (`_next_displays[i]` — сверху
-над картой с «NEXT HAND / NX», `_active_displays[i]` — снизу с «NX»).
-Анимация при DEAL: старый ACTIVE fade out + NEXT (детачим header и value
-из VBox, header фейдит в месте, value сдвигается вниз) + новый ACTIVE
-pop-in. См. функции `_animate_multipliers_next_to_active` и `_process` в
-`multi_hand_game.gd` — `_process` каждый кадр синкает позиции лейблов с
-фактическими координатами карт.
+**Ultra VP** (ранее «Ultimate X»). При `bet == MAX_BET` активируется per-hand
+multiplier система: выигрышные руки генерируют множитель для *следующего*
+раунда. `MultiHandManager` держит два массива: `hand_multipliers[]`
+(применяется *сейчас*) и `next_multipliers[]` (будет промоутед в
+`hand_multipliers[]` на следующий DEAL). UI-стороной занимается
+`multi_hand_game.gd` + `multiplier_glyphs.gd`: два Control'а на руку
+(`_next_displays[i]` — сверху над картой с «NEXT HAND / NX»,
+`_active_displays[i]` — снизу с «NX»). Анимация при DEAL: старый ACTIVE
+fade out + NEXT (детачим header и value из VBox, header фейдит в месте,
+value сдвигается вниз) + новый ACTIVE pop-in.
 
-**Spin Poker.** Отдельный режим, slot-style: 3 ряда × 5 колонок reel grid.
-Использует собственный `SpinPokerManager`, `spin_poker_game.gd` UI и
-квадратные SVG-карты из `assets/cards/cards_spin/`. Хардкод-строки пока
-присутствуют — локализация будет подтянута позже.
+**Spin Poker.** Отдельный режим, slot-style: 3 ряда × 5 колонок reel grid,
+20 линий. Использует собственный `SpinPokerManager`, `spin_poker_game.gd` UI
+и квадратные SVG-карты из `assets/cards/cards_spin/`.
 
 **Card rendering.** Обычные карты — `TextureRect` с PNG-спрайтами из
 Figma. Путь: `res://assets/cards/card_vp_{rank}{suit}.png`. Joker:
@@ -1038,8 +1150,18 @@ SVG из `assets/cards/cards_spin/`.
 .tscn). Цвета: фон #000086, акцент #FFEC00 (жёлтый), кнопки — SVG-текстуры.
 
 **Lobby.** Game King стиль — красная top bar с балансом и шестерёнкой ⚙,
-sidebar с 6 режимами (SINGLE / TRIPLE / FIVE / TEN / ULTIMATE X / SPIN
-POKER), grid 5×2 машин с drag-scroll. См. §5 для деталей.
+sidebar с 6 режимами (SINGLE / TRIPLE / FIVE / TEN / ULTRA VP / SPIN
+POKER), grid 5×2 машин с drag-scroll. Доп. фичи: gift timer (бесплатные
+фишки по таймеру), exit confirm dialog, delete account. См. §5 для деталей.
+
+**Gift system.** Бесплатные фишки по таймеру. Конфиг в `configs/gift.json`
+(интервал, сумма). Таймер показывается в лобби. При готовности — claim popup.
+
+**DEAL idle blink.** Кнопка DEAL мигает когда игрок бездействует в состоянии
+IDLE, привлекая внимание к началу игры.
+
+**Auto-shop on low balance.** При недостаточном балансе для ставки
+автоматически открывается shop popup.
 
 **Локализация.** См. §20. Короткая сводка: любой пользовательский текст
 идёт через `Translations.tr_key("key", [args])`. Названия рук — через
@@ -1052,12 +1174,23 @@ POKER), grid 5×2 машин с drag-scroll. См. §5 для деталей.
 
 - **`SaveManager`** (`scripts/save_manager.gd`) — персистентное состояние.
   Поля: `credits`, `denomination`, `last_variant`, `hand_count`, `speed_level`,
-  `bet_level`, `ultimate_x`, `spin_poker`, `depth_hint_shown`, `language`,
+  `bet_level`, `ultra_vp`, `spin_poker`, `depth_hint_shown`, `language`,
   `settings: Dictionary`. Плюс utility-методы: `format_money`, `format_short`,
   `create_currency_display`, `set_currency_value`, `estimate_currency_width`,
   `add_credits`, `deduct_credits`. Сохраняется в `user://save.json`.
-- **`SoundManager`** (`scripts/sound_manager.gd`) — stub, `play()`/`set_enabled()`.
-- **`Translations`** (`scripts/translations.gd`) — i18n. Подробности в §20.
+  Примечание: поле `ultra_vp` (ранее `ultimate_x`) — при загрузке
+  принимает оба ключа для обратной совместимости.
+- **`SoundManager`** (`scripts/sound_manager.gd`) — загрузка и проигрывание
+  звуков. Маппинг событий → файлов из `configs/sounds.json`. 22 placeholder
+  MP3 в `assets/sounds/`.
+- **`Translations`** (`scripts/translations.gd`) — i18n EN/RU/ES. Подробности в §20.
+- **`ConfigManager`** (`scripts/config_manager.gd`) — загрузка всех
+  `configs/*.json` (9 файлов: animations, balance, gift, init_config,
+  lobby_order, machines, shop, sounds, ui_config). Предоставляет
+  `get_value(file, key, default)` с fallback defaults.
+- **`VibrationManager`** (`scripts/vibration_manager.gd`) — haptic feedback
+  для мобильных платформ (iOS/Android). Различные паттерны вибрации для
+  событий (deal, hold, win, jackpot).
 
 ### Как добавить новый вариант покера
 
@@ -1067,8 +1200,8 @@ POKER), grid 5×2 машин с drag-scroll. См. §5 для деталей.
    класс сам резолвит через Translations.
 3. Добавить paytable в `data/paytables.json` с уникальным ID.
 4. Добавить `match` ветку в `main.gd → _create_variant()`.
-5. Добавить конфиг в `lobby_manager.gd → MACHINE_CONFIG` (ID, цвет, accent,
-   locked-флаг).
+5. Добавить конфиг машины в `configs/machines.json` (ID, цвет, accent,
+   locked-флаг) и порядок в `configs/lobby_order.json`.
 6. **Локализация:** добавить в `data/translations.json` в каждый из трёх
    языков (`en`/`ru`/`es`) ключи `machine.{id}.name`, `machine.{id}.mini`,
    `machine.{id}.feature`. Названия машин — всегда на английском во всех
@@ -1078,31 +1211,31 @@ POKER), grid 5×2 машин с drag-scroll. См. §5 для деталей.
 
 ### Как работает multi-hand
 
-1. Игрок выбирает режим в sidebar лобби (Triple / Five / Ten / Ultimate X /
-   …).
-2. `SaveManager.hand_count`, `.ultimate_x`, `.spin_poker` сохраняются.
+1. Игрок выбирает режим в sidebar лобби (Triple / Five / Ten / Ultra VP /
+   Spin Poker).
+2. `SaveManager.hand_count`, `.ultra_vp`, `.spin_poker` сохраняются.
 3. `main.gd → _on_machine_selected` смотрит на флаги и загружает нужную
-   сцену: `game.tscn` (single), `multi_hand_game.tscn` (multi / Ultimate X),
+   сцену: `game.tscn` (single), `multi_hand_game.tscn` (multi / Ultra VP),
    `spin_poker_game.tscn` (Spin Poker).
-4. `MultiHandManager.setup(variant, num_hands, ultimate_x)` создаёт N-1
-   дополнительных `Deck` экземпляров. Если `ultimate_x == true` — включает
+4. `MultiHandManager.setup(variant, num_hands, ultra_vp)` создаёт N-1
+   дополнительных `Deck` экземпляров. Если `ultra_vp == true` — включает
    систему per-hand множителей.
-5. `Bet = bet × num_hands × denomination`. В Ultimate X при MAX_BET — умножается
+5. `Bet = bet × num_hands × denomination`. В Ultra VP при MAX_BET — умножается
    ещё ×2 (цена за активацию фичи).
 6. **Deal**: primary рука раздаётся и показывается немедленно, extras
    начинают с backs.
 7. **Hold**: игрок выбирает карты на primary руке — тот же hold
    автоматически применяется ко всем extras.
 8. **Draw**: primary рука тянет замены из своей колоды; каждая extra рука
-   — из своей, параллельно. Ultimate X: если `hand_multipliers[i] > 1`,
+   — из своей, параллельно. Ultra VP: если `hand_multipliers[i] > 1`,
    payout этой руки умножается.
 9. **Evaluate**: все руки оценены, `total_payout = Σ(payout × multiplier)`.
-   В Ultimate X — заполняется `next_multipliers[]` для выигрышных рук
+   В Ultra VP — заполняется `next_multipliers[]` для выигрышных рук
    (по таблице: JJ→2x, 2P→3x, 3oaK→4x, Straight→5x, Flush→6x, FH→8x,
    4oaK→10x, SF/RF→12x). Невыигрышные руки теряют `hand_multipliers[i]`
    (сбрасывается на 1x для следующего раунда).
 10. При следующем DEAL: `hand_multipliers[] ← next_multipliers[]`, UI
-    проигрывает анимацию «NEXT → ACTIVE» (см. «Ultimate X» выше).
+    проигрывает анимацию «NEXT → ACTIVE» (см. «Ultra VP» выше).
 
 ---
 
@@ -1181,21 +1314,21 @@ Translations.tr_key("machine.%s.feature" % variant_id)
 | Префикс | Где используется |
 |---|---|
 | `common.*`       | «YES», «NO», «GOT IT», «FREE», «X», «OK» — кнопки подтверждения, общие слова. |
-| `lobby.*`        | Кнопки режимов (`mode_single_play`, `mode_ultimate_x`…), заголовки top-bar'а, cash-метка. |
+| `lobby.*`        | Кнопки режимов (`mode_single_play`, `mode_ultra_vp`…), заголовки top-bar'а, cash-метка. |
 | `settings.*`     | Заголовок и кнопки popup'а настроек и выбора языка. |
 | `game.*`         | Всё игровое поле: `deal`, `draw`, `double`, `bet_one_fmt`, `bet_max`, `total_bet`, `balance`, `games`, `win_label`, `no_win`, `place_your_bet`, `hold_cards_then_draw`, `last_win_fmt`, `held`, `winnings`, `try_again`. |
 | `game_depth.*`   | Тултип «Game Depth» (single- и multi-варианты текста). |
 | `bet_select.*`   | Popup выбора номинала ставки. |
 | `shop.*`         | Shop popup (кнопки `FREE`, заголовок). |
-| `info.*`         | Info-popup: заголовки (`title_single`, `title_multi`, `title_ultimate_x`), правила (`rules_*`), таблица множителей (`multiplier_table`, `col_winning_hand`, `col_next_multiplier`), таблица машин (`machines_title`, `col_machine`, `col_deck`, `col_rtp`, `col_feature`). |
-| `info_card.*`    | Боковая Ultimate X info-карточка (`ultimate_x_title`, `description`, `active`, `press_to_activate`). |
+| `info.*`         | Info-popup: заголовки (`title_single`, `title_multi`, `title_ultra_vp`), правила (`rules_*`), таблица множителей (`multiplier_table`, `col_winning_hand`, `col_next_multiplier`), таблица машин (`machines_title`, `col_machine`, `col_deck`, `col_rtp`, `col_feature`). |
+| `info_card.*`    | Боковая Ultra VP info-карточка (`ultra_vp_title`, `description`, `active`, `press_to_activate`). |
 | `double.*`       | Double-or-Nothing popup и статусы (`title`, `msg_fmt`, `pick_card`, `win`, `tie`, `lose`, `win_doubled_fmt`). |
 | `hand.*`         | **Все** названия комбинаций (`jacks_or_better`, `two_pair`, `royal_flush`, плюс wild-варианты `wild_royal_flush`, `five_of_a_kind`, `four_deuces_joker`, плюс kicker-ключи `four_aces_with_234_kicker` и т.д.). Ключ = имя ключа в `paytables.json` → `hand.{key}`. |
 | `machine.{id}.*` | Per-variant: `name`, `mini` (описание под заголовком в карточке лобби), `feature` (строка в info-таблице машин). `{id}` = variant_id (`jacks_or_better`, `deuces_and_joker`…). |
 
 **Важно:** названия машин (`machine.*.name`) — **английские во всех трёх
 языках** (бренды-константы: «Jacks or Better», «Deuces Wild»…). Название
-режима `ULTIMATE X` — тоже английское во всех языках. Всё остальное
+режима `ULTRA VP` — тоже английское во всех языках. Всё остальное
 переводится.
 
 ### 20.4 Где локализация резолвится автоматически
