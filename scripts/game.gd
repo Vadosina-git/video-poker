@@ -531,12 +531,7 @@ func _show_depth_tooltip() -> void:
 
 func _update_bet_display(bet: int) -> void:
 	var total: int = bet * SaveManager.denomination
-	if _balance_show_depth:
-		# Credits mode: show bet level only (chips / denomination = credits)
-		SaveManager.set_currency_value(_bet_cd, str(bet), 0, Color(-1, 0, 0), false)
-	else:
-		var formula: String = SaveManager.format_money(SaveManager.denomination) + " \u00d7 " + str(bet) + " = " + SaveManager.format_money(total)
-		SaveManager.set_currency_value(_bet_cd, formula)
+	SaveManager.set_currency_value(_bet_cd, SaveManager.format_money(total))
 	_flash_bet_display()
 
 
