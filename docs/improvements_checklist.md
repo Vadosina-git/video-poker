@@ -51,3 +51,35 @@
 | 44 | Spin: анимация fold строк (J.7) | Top/bottom ряды просто переключались на рубашки | scale_y 1→0 (collapse) → смена текстуры → 0→1 (expand) | Визуальное "закрытие" строк между раундами | spin_poker_game.gd → `_animate_rows_fold()` |
 | 45 | Multihand: "Мультихенд" перевод (H.6) | RU: "МУЛЬТИ-РУКА ВИДЕО ПОКЕР" | Заменено на "МУЛЬТИХЕНД ВИДЕО ПОКЕР" | Корректный термин | data/translations.json → `info.title_multi` |
 | 46 | Ultra VP: окно правил (I.7) | Label с белым текстом, таблица без цветов | RichTextLabel с BBCode, тёмная подложка, зелёные keywords. Таблица множителей: строки раскрашены по рангу | Правила с цветовым выделением, яркая таблица | multi_hand_game.gd → `_show_info()` |
+
+---
+
+## Дополнительно выполнено (за рамками improvements.md)
+
+| # | Задача | Что сделано | Где проверить |
+|---|---|---|---|
+| 47 | SoundManager подключён к sounds.json | Загружает AudioStream из конфига, пул 4 AudioStreamPlayer | scripts/sound_manager.gd |
+| 48 | Lobby читает lobby_order.json | PLAY_MODES строятся из ConfigManager. Машины фильтруются по режиму | scripts/lobby_manager.gd → `_build_play_modes()`, `_build_carousel()` |
+| 49 | SaveManager defaults = 20000 | DEFAULT_CREDITS = 20000, совпадает с init_config.json | scripts/save_manager.gd |
+| 50 | CLAUDE.md §19 обновлён | Архитектура отражает configs/, spin poker, ultra VP, все autoloads | CLAUDE.md |
+| 51 | App Store описания EN/RU | Тексты для Google Play и App Store | docs/store_listing.md |
+| 52 | Privacy Policy | Опубликована на GitHub Pages | https://vadosina-git.github.io/privacy-policy/video-poker-privacy.html |
+| 53 | Экспорт iOS + Android | export_presets.cfg, 11 иконок, project.godot настроен | export_presets.cfg, assets/icons/, docs/export_guide.md |
+| 54 | Вибрации (K.1) | VibrationManager autoload, 16 событий, toggle в настройках | scripts/vibration_manager.gd, docs/vibration_setup.md |
+| 55 | Иконка выхода | table_exit.svg 48px во всех режимах, верхний левый угол | assets/textures/table_exit.svg |
+| 56 | Подсказка над рукой (multihand) | Floating label над primary hand | multi_hand_game.gd → `_show_hold_hint()` |
+
+---
+
+## Осталось сделать вручную
+
+| # | Задача | Детали |
+|---|---|---|
+| 1 | Заменить placeholder иконки | assets/icons/*.png — сейчас синий фон + "VP". Заменить на финальные перед публикацией |
+| 2 | Заменить silent mp3 на реальные звуки | assets/sounds/*.mp3 — 22 тихих файла. Сохранить имена файлов |
+| 3 | Создать release keystore (Android) | `keytool -genkeypair ...` — см. docs/export_guide.md |
+| 4 | Прописать Apple Team ID + Provisioning Profile (iOS) | В export_presets.cfg → `app_store_team_id`, `provisioning_profile_uuid_*` |
+| 5 | Скачать Godot export templates | Editor → Manage Export Templates → Download (Android + iOS) |
+| 6 | Собрать и протестировать на устройствах | Android: `adb install`, iOS: Xcode → Archive. См. docs/export_guide.md |
+| 7 | Проверить Privacy Policy URL | https://vadosina-git.github.io/privacy-policy/video-poker-privacy.html |
+| 8 | Загрузить скриншоты в App Store / Google Play | Минимум 3 landscape скриншота для каждой платформы |
