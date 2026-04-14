@@ -160,15 +160,35 @@ func _build_ui() -> void:
 	grid_area.alignment = BoxContainer.ALIGNMENT_CENTER
 	root_vbox.add_child(grid_area)
 
-	# Left line ribbons (pointing right → toward grid)
+	# Left line ribbons (pointing right → toward grid), distributed by start row
 	var left_col := VBoxContainer.new()
-	left_col.add_theme_constant_override("separation", 1)
-	left_col.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_col.add_theme_constant_override("separation", 0)
 	left_col.custom_minimum_size.x = 40
 	grid_area.add_child(left_col)
-	for i in 10:
-		var ribbon := _make_line_ribbon(i, false)
-		left_col.add_child(ribbon)
+	# Top row (row 0): lines 2,4,6,10 → indices 1,3,5,9
+	var left_top := HBoxContainer.new()
+	left_top.add_theme_constant_override("separation", 1)
+	left_top.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_col.add_child(left_top)
+	for i in [1, 3, 5, 9]:
+		left_top.add_child(_make_line_ribbon(i, false))
+	# Mid row (row 1): lines 1,8,9 → indices 0,7,8
+	var left_mid := HBoxContainer.new()
+	left_mid.add_theme_constant_override("separation", 1)
+	left_mid.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_col.add_child(left_mid)
+	for i in [0, 7, 8]:
+		left_mid.add_child(_make_line_ribbon(i, false))
+	# Bot row (row 2): lines 3,5,7 → indices 2,4,6
+	var left_bot := HBoxContainer.new()
+	left_bot.add_theme_constant_override("separation", 1)
+	left_bot.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_bot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_col.add_child(left_bot)
+	for i in [2, 4, 6]:
+		left_bot.add_child(_make_line_ribbon(i, false))
 
 	# Grid panel — silver border frame, no expand, centered
 	_grid_panel = PanelContainer.new()
@@ -177,12 +197,12 @@ func _build_ui() -> void:
 	panel_style.set_border_width_all(3)
 	panel_style.border_color = Color(0.85, 0.85, 0.9)
 	panel_style.set_corner_radius_all(2)
-	panel_style.content_margin_left = 3
-	panel_style.content_margin_right = 3
+	panel_style.content_margin_left = 2
+	panel_style.content_margin_right = 2
 	panel_style.content_margin_top = 3
 	panel_style.content_margin_bottom = 3
 	_grid_panel.add_theme_stylebox_override("panel", panel_style)
-	_grid_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_grid_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_grid_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	grid_area.add_child(_grid_panel)
 
@@ -222,15 +242,35 @@ func _build_ui() -> void:
 	_line_draw_node.draw.connect(_draw_lines)
 	_grid_panel.add_child(_line_draw_node)
 
-	# Right line ribbons (pointing left → toward grid, flipped)
+	# Right line ribbons (pointing left → toward grid, flipped), distributed by start row
 	var right_col := VBoxContainer.new()
-	right_col.add_theme_constant_override("separation", 1)
-	right_col.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_col.add_theme_constant_override("separation", 0)
 	right_col.custom_minimum_size.x = 40
 	grid_area.add_child(right_col)
-	for i in range(10, 20):
-		var ribbon := _make_line_ribbon(i, true)
-		right_col.add_child(ribbon)
+	# Top row (row 0): lines 14,16,20 → indices 13,15,19
+	var right_top := HBoxContainer.new()
+	right_top.add_theme_constant_override("separation", 1)
+	right_top.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_col.add_child(right_top)
+	for i in [13, 15, 19]:
+		right_top.add_child(_make_line_ribbon(i, true))
+	# Mid row (row 1): lines 12,13,18,19 → indices 11,12,17,18
+	var right_mid := HBoxContainer.new()
+	right_mid.add_theme_constant_override("separation", 1)
+	right_mid.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_col.add_child(right_mid)
+	for i in [11, 12, 17, 18]:
+		right_mid.add_child(_make_line_ribbon(i, true))
+	# Bot row (row 2): lines 11,15,17 → indices 10,14,16
+	var right_bot := HBoxContainer.new()
+	right_bot.add_theme_constant_override("separation", 1)
+	right_bot.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_bot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_col.add_child(right_bot)
+	for i in [10, 14, 16]:
+		right_bot.add_child(_make_line_ribbon(i, true))
 
 	# ── Status + game pays: inline labels (no separate bar, prevents layout jumps)
 	_status_label = Label.new()
@@ -265,8 +305,10 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 
 	# Info row: WIN | BET | CREDIT
 	var info_row := HBoxContainer.new()
-	info_row.add_theme_constant_override("separation", 12)
+	info_row.add_theme_constant_override("separation", 8)
 	info_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	info_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	info_row.custom_minimum_size.x = 800
 	root_vbox.add_child(info_row)
 
 	_win_label = Label.new()
@@ -305,6 +347,8 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	var btn_row := HBoxContainer.new()
 	btn_row.add_theme_constant_override("separation", 6)
 	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn_row.custom_minimum_size.x = 800
 	root_vbox.add_child(btn_row)
 
 	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_yellow.svg") else null
@@ -573,30 +617,9 @@ func _on_state_changed(new_state: int) -> void:
 # ─── ROW FOLD ANIMATION (J.7) ─────────────────────────────────────────
 
 func _animate_rows_fold() -> void:
-	if _rush or SPEED_CONFIGS[_speed_level]["base_spin_ms"] == 0:
-		for col in 5:
-			_set_card_back(0, col)
-			_set_card_back(2, col)
-		return
-	# Collapse top/bottom rows (scale_y → 0)
-	var tw := create_tween().set_parallel(true)
-	for col in 5:
-		var top_card: TextureRect = _card_rects[0][col]
-		var bot_card: TextureRect = _card_rects[2][col]
-		top_card.pivot_offset = top_card.size / 2
-		bot_card.pivot_offset = bot_card.size / 2
-		tw.tween_property(top_card, "scale:y", 0.0, 0.15).set_ease(Tween.EASE_IN)
-		tw.tween_property(bot_card, "scale:y", 0.0, 0.15).set_ease(Tween.EASE_IN)
-	await tw.finished
-	# Set card backs and expand back
 	for col in 5:
 		_set_card_back(0, col)
 		_set_card_back(2, col)
-	var tw2 := create_tween().set_parallel(true)
-	for col in 5:
-		tw2.tween_property(_card_rects[0][col], "scale:y", 1.0, 0.15).set_ease(Tween.EASE_OUT)
-		tw2.tween_property(_card_rects[2][col], "scale:y", 1.0, 0.15).set_ease(Tween.EASE_OUT)
-	await tw2.finished
 
 
 # ─── DEAL SPIN ────────────────────────────────────────────────────────

@@ -974,7 +974,6 @@ func _on_state_changed(new_state: int) -> void:
 			_deal_draw_btn.text = Translations.tr_key("game.draw")
 			_deal_draw_btn.disabled = false
 			_win_label.text = ""
-			_show_hold_hint()
 			for i in _primary_cards.size():
 				_primary_cards[i].set_interactive(true)
 				if _manager.held[i]:
