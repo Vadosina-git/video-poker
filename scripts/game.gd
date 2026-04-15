@@ -223,6 +223,7 @@ func _apply_theme() -> void:
 	info_row.add_child(win_block)
 
 	_last_win_label.add_theme_font_size_override("font_size", 20)
+	_last_win_label.text = ""  # clear .tscn default
 	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_last_win_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_last_win_label.gui_input.connect(_on_credits_toggle)
@@ -232,6 +233,7 @@ func _apply_theme() -> void:
 	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_cd["box"].gui_input.connect(_on_credits_toggle)
 	win_block.add_child(_win_cd["box"])
+	_set_win_dimmed()
 
 	# Cards gap
 	_cards_container.add_theme_constant_override("separation", 8)
