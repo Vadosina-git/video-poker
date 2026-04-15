@@ -90,7 +90,7 @@ func setup(paytable: Paytable) -> void:
 			payout_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			cell.add_child(payout_label)
 			cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			cell.custom_minimum_size.x = 60
+			cell.custom_minimum_size.x = 48
 			grid.add_child(cell)
 			_labels.append(payout_label)
 			_cell_panels.append(cell)

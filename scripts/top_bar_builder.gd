@@ -5,7 +5,7 @@ extends RefCounted
 ## Call from any game mode to get consistent styling.
 
 const EXIT_ICON_PATH := "res://assets/textures/table_exit.svg"
-const LEFT_MARGIN := 100  # align with controlbar side_m
+const LEFT_MARGIN := 160  # align with controlbar side_m
 
 
 ## Style an existing back button (from .tscn) as exit icon.

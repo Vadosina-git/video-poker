@@ -145,7 +145,7 @@ func _apply_theme() -> void:
 	_game_title.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
 
 	# Paytable & InfoBar margins
-	var side_m := 100
+	var side_m := 160
 	$TopSection/PaytableMargin.add_theme_constant_override("margin_left", side_m)
 	$TopSection/PaytableMargin.add_theme_constant_override("margin_right", side_m)
 	_info_bar_margin.add_theme_constant_override("margin_left", side_m)
@@ -169,7 +169,7 @@ func _apply_theme() -> void:
 	# === LEFT: BALANCE block (fixed width, label left, value+btn right) ===
 	var bal_block := HBoxContainer.new()
 	bal_block.add_theme_constant_override("separation", 6)
-	bal_block.custom_minimum_size.x = 380
+	bal_block.custom_minimum_size.x = 320
 	info_row.add_child(bal_block)
 
 	_balance_label.add_theme_font_size_override("font_size", 20)
@@ -217,7 +217,7 @@ func _apply_theme() -> void:
 	# === RIGHT: WIN block (fixed width, label left, value right) ===
 	var win_block := HBoxContainer.new()
 	win_block.add_theme_constant_override("separation", 6)
-	win_block.custom_minimum_size.x = 380
+	win_block.custom_minimum_size.x = 320
 	win_block.alignment = BoxContainer.ALIGNMENT_END
 	info_row.add_child(win_block)
 
