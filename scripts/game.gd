@@ -184,21 +184,24 @@ func _apply_theme() -> void:
 	_topup_btn.custom_minimum_size = Vector2(44, 40)
 	_topup_btn.z_index = 25
 	_topup_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	# Reparent status label out of InfoBar into HBox wrapper for currency display
+	# WIN display — place in InfoBar after TopUpButton (under BALANCE area)
 	_last_win_label.get_parent().remove_child(_last_win_label)
-	_status_box = HBoxContainer.new()
-	_status_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_status_box.add_theme_constant_override("separation", 4)
-	_status_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_last_win_label.add_theme_font_size_override("font_size", 20)
+	_last_win_label.add_theme_font_size_override("font_size", 16)
 	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
-	_last_win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_last_win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_last_win_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_last_win_label.gui_input.connect(_on_credits_toggle)
-	_status_box.add_child(_last_win_label)
-	_win_cd = SaveManager.create_currency_display(20, COL_YELLOW)
-	_win_cd["box"].visible = false
-	_status_box.add_child(_win_cd["box"])
+	_info_bar.add_child(_last_win_label)
+	_info_bar.move_child(_last_win_label, _topup_btn.get_index() + 1)
+	_win_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_win_cd["box"].gui_input.connect(_on_credits_toggle)
+	_info_bar.add_child(_win_cd["box"])
+	_info_bar.move_child(_win_cd["box"], _last_win_label.get_index() + 1)
+	# Status box — only for hints (centered, positioned above cards)
+	_status_box = HBoxContainer.new()
+	_status_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_status_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_status_box)
 
 	# Cards gap
@@ -552,17 +555,10 @@ func _flash_bet_display() -> void:
 
 var _last_win_amount: int = 0
 
-func _set_status(text: String) -> void:
-	_last_win_label.text = text
-	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
-	_last_win_label.modulate.a = 1.0
-	_win_cd["box"].visible = false
-	_status_box.modulate.a = 1.0
-	# Smaller font for long status messages
-	if text.length() > 15:
-		_last_win_label.add_theme_font_size_override("font_size", 16)
-	else:
-		_last_win_label.add_theme_font_size_override("font_size", 20)
+func _set_status(_text: String) -> void:
+	# Status text now handled by _show_hold_hint / state labels
+	# WIN display is always in InfoBar, not in status area
+	pass
 
 func _format_win(amount: int) -> String:
 	if _balance_show_depth:
@@ -575,22 +571,23 @@ var _win_increment_tween: Tween = null
 func _set_win_active(amount: int) -> void:
 	_last_win_amount = amount
 	_last_win_label.text = Translations.tr_key("game.win_label")
-	_last_win_label.add_theme_font_size_override("font_size", 20)
+	_last_win_label.add_theme_font_size_override("font_size", 16)
 	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_last_win_label.modulate.a = 1.0
 	_win_cd["box"].visible = true
-	_status_box.modulate.a = 1.0
-	# Animate win increment from 0 to amount
+	_win_cd["box"].modulate.a = 1.0
 	_animate_win_increment(0, amount)
 
 func _set_win_dimmed() -> void:
 	_stop_win_increment()
 	_last_win_label.text = Translations.tr_key("game.last_win_label")
+	_last_win_label.add_theme_font_size_override("font_size", 16)
 	_last_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+	_last_win_label.modulate.a = 0.7
 	var show_chip: bool = not _balance_show_depth
-	SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 20, Color(0.7, 0.7, 0.4), show_chip)
+	SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 16, Color(0.7, 0.7, 0.4), show_chip)
 	_win_cd["box"].visible = true
-	_status_box.modulate.a = 0.7
+	_win_cd["box"].modulate.a = 0.7
 
 
 func _animate_win_increment(from: int, to: int) -> void:
