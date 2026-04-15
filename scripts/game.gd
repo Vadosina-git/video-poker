@@ -39,7 +39,7 @@ var _balance_show_depth: bool = false
 var _depth_tooltip: Control = null
 var _bet_cd: Dictionary      # currency display for total bet
 var _win_cd: Dictionary      # currency display for win amount
-var _status_box: HBoxContainer  # wrapper for status label + win currency
+var _status_label: Label  # center hint text between BALANCE and WIN
 var _variant: BaseVariant
 var _animating: bool = false
 var _hold_hint_label: Label = null
@@ -152,27 +152,26 @@ func _apply_theme() -> void:
 	_info_bar_margin.add_theme_constant_override("margin_left", side_m)
 	_info_bar_margin.add_theme_constant_override("margin_right", side_m)
 
-	# Rebuild InfoBar as VBox with two rows: BALANCE row + WIN row
+	# Rebuild InfoBar as single row: [BALANCE block] [hints center] [WIN block]
 	var info_parent := _info_bar.get_parent()
 	var info_idx := _info_bar.get_index()
-	# Remove all children from current HBox
 	_balance_label.get_parent().remove_child(_balance_label)
 	_topup_btn.get_parent().remove_child(_topup_btn)
 	_last_win_label.get_parent().remove_child(_last_win_label)
 	info_parent.remove_child(_info_bar)
 	_info_bar.queue_free()
 
-	var info_vbox := VBoxContainer.new()
-	_info_bar = info_vbox  # reuse _info_bar reference for positioning
-	info_vbox.add_theme_constant_override("separation", 2)
-	info_vbox.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	info_parent.add_child(info_vbox)
-	info_parent.move_child(info_vbox, info_idx)
+	var info_row := HBoxContainer.new()
+	_info_bar = info_row
+	info_row.add_theme_constant_override("separation", 0)
+	info_parent.add_child(info_row)
+	info_parent.move_child(info_row, info_idx)
 
-	# Row 1: BALANCE: 🪙XX,XXX [+]
-	var bal_row := HBoxContainer.new()
-	bal_row.add_theme_constant_override("separation", 6)
-	info_vbox.add_child(bal_row)
+	# === LEFT: BALANCE block (fixed width, label left, value+btn right) ===
+	var bal_block := HBoxContainer.new()
+	bal_block.add_theme_constant_override("separation", 6)
+	bal_block.custom_minimum_size.x = 380
+	info_row.add_child(bal_block)
 
 	var _bal_fs: int = int(ConfigManager.ui_config.get("balance_font_size", 24))
 	_balance_label.add_theme_font_size_override("font_size", _bal_fs)
@@ -180,13 +179,13 @@ func _apply_theme() -> void:
 	_balance_label.text = Translations.tr_key("game.balance")
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_label.gui_input.connect(_on_credits_toggle)
-	bal_row.add_child(_balance_label)
+	bal_block.add_child(_balance_label)
 
 	_balance_cd = SaveManager.create_currency_display(18, COL_YELLOW)
-	_balance_cd["box"].custom_minimum_size.x = 120
+	_balance_cd["box"].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_cd["box"].gui_input.connect(_on_credits_toggle)
-	bal_row.add_child(_balance_cd["box"])
+	bal_block.add_child(_balance_cd["box"])
 
 	_topup_btn.add_theme_font_size_override("font_size", 18)
 	_topup_btn.add_theme_color_override("font_color", COL_YELLOW)
@@ -202,20 +201,35 @@ func _apply_theme() -> void:
 	_topup_btn.add_theme_stylebox_override("pressed", topup_style)
 	_topup_btn.custom_minimum_size = Vector2(36, 32)
 	_topup_btn.z_index = 25
-	bal_row.add_child(_topup_btn)
+	bal_block.add_child(_topup_btn)
 
-	# Row 2: ВЫИГРЫШ: 🪙XXX
-	var win_row := HBoxContainer.new()
-	win_row.add_theme_constant_override("separation", 6)
-	info_vbox.add_child(win_row)
+	# === CENTER: Hints (expand, centered) ===
+	_status_label = Label.new()
+	_status_label.text = ""
+	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status_label.add_theme_font_size_override("font_size", 18)
+	_status_label.add_theme_color_override("font_color", COL_YELLOW)
+	var bold_hint := SystemFont.new()
+	bold_hint.font_weight = 700
+	_status_label.add_theme_font_override("font", bold_hint)
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info_row.add_child(_status_label)
 
-	_last_win_label.add_theme_font_size_override("font_size", 18)
+	# === RIGHT: WIN block (fixed width, label left, value right) ===
+	var win_block := HBoxContainer.new()
+	win_block.add_theme_constant_override("separation", 6)
+	win_block.custom_minimum_size.x = 380
+	win_block.alignment = BoxContainer.ALIGNMENT_END
+	info_row.add_child(win_block)
+
+	_last_win_label.add_theme_font_size_override("font_size", 20)
 	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_last_win_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_last_win_label.gui_input.connect(_on_credits_toggle)
-	win_row.add_child(_last_win_label)
+	win_block.add_child(_last_win_label)
 
-	_win_cd = SaveManager.create_currency_display(18, COL_YELLOW)
+	_win_cd = SaveManager.create_currency_display(20, COL_YELLOW)
 	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_cd["box"].gui_input.connect(_on_credits_toggle)
 	win_row.add_child(_win_cd["box"])
@@ -432,7 +446,7 @@ func _resize_cards() -> void:
 
 
 func _position_status_label() -> void:
-	pass  # No longer needed — hint uses _position_hold_hint()
+	pass  # No longer needed — hints in _status_label (center of info row)
 
 
 # --- Display helpers ---
@@ -562,10 +576,9 @@ func _flash_bet_display() -> void:
 
 var _last_win_amount: int = 0
 
-func _set_status(_text: String) -> void:
-	# Status text now handled by _show_hold_hint / state labels
-	# WIN display is always in InfoBar, not in status area
-	pass
+func _set_status(text: String) -> void:
+	if _status_label:
+		_status_label.text = text
 
 func _format_win(amount: int) -> String:
 	if _balance_show_depth:
@@ -620,7 +633,7 @@ func _stop_win_increment() -> void:
 # --- Hold hint (floating label above cards) ---
 
 func _show_hold_hint() -> void:
-	_hide_hold_hint()
+	_set_status("")
 	_hold_hint_label = Label.new()
 	_hold_hint_label.text = Translations.tr_key("game.hold_cards_then_draw")
 	_hold_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -645,7 +658,7 @@ func _position_hold_hint() -> void:
 		rect.position.y - lbl_size.y - 4
 	)
 
-func _hide_hold_hint() -> void:
+func _set_status("") -> void:
 	if _hold_hint_label and is_instance_valid(_hold_hint_label):
 		_hold_hint_label.queue_free()
 	_hold_hint_label = null
@@ -671,7 +684,7 @@ func _on_state_changed(new_state: int) -> void:
 			_start_idle_blink_timer()
 
 		GameManager.State.DEALING:
-			_hide_hold_hint()
+			_set_status("")
 			_stop_idle_blink()
 			_deal_draw_btn.disabled = true
 			_bet_one_btn.disabled = true
@@ -684,7 +697,7 @@ func _on_state_changed(new_state: int) -> void:
 		GameManager.State.HOLDING:
 			_deal_draw_btn.text = Translations.tr_key("game.draw")
 			_deal_draw_btn.disabled = false
-			_show_hold_hint()
+			_set_status(Translations.tr_key("game.hold_cards_then_draw"))
 			for i in _card_visuals.size():
 				_card_visuals[i].set_interactive(true)
 				if _game_manager.held[i]:
@@ -694,7 +707,7 @@ func _on_state_changed(new_state: int) -> void:
 				_highlight_paytable_row(deal_rank)
 
 		GameManager.State.DRAWING:
-			_hide_hold_hint()
+			_set_status("")
 			_deal_draw_btn.disabled = true
 			for card_vis in _card_visuals:
 				card_vis.set_interactive(false)
