@@ -431,16 +431,7 @@ func _resize_cards() -> void:
 
 
 func _position_status_label() -> void:
-	await get_tree().process_frame
-	var cards_rect := _cards_container.get_global_rect()
-	var cards_center_x := cards_rect.get_center().x
-	var info_bar_rect := _info_bar.get_global_rect()
-	# Place status box at InfoBar's Y, centered horizontally on cards
-	_status_box.size = Vector2(400, 30)
-	_status_box.global_position = Vector2(
-		cards_center_x - 200,
-		info_bar_rect.position.y
-	)
+	pass  # No longer needed — hint uses _position_hold_hint()
 
 
 # --- Display helpers ---
