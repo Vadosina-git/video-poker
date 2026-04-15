@@ -17,6 +17,7 @@ var _current_denomination: int = 1
 var _animating: bool = false
 var _last_total_payout: int = 0
 var _rush: bool = false
+var _win_increment_tween: Tween = null
 var _balance_show_depth: bool = false
 var _depth_tooltip: Control = null
 
@@ -314,7 +315,6 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_cd["box"].gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_win_cd["box"])
-	SaveManager.set_currency_value(_win_cd, "0")
 
 	_bet_display_label = Label.new()
 	_bet_display_label.text = Translations.tr_key("game.total_bet")
@@ -679,7 +679,8 @@ func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
 	_clear_line_display()
 	_hide_win_badge()
 	_game_pays_label.visible = false
-	SaveManager.set_currency_value(_win_cd, "0")
+	_last_total_payout = 0
+	_set_win_dimmed()
 	_reset_all_modulate()
 
 	# Clear held
@@ -982,16 +983,14 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 		var display_total: int = total_payout / maxi(SaveManager.denomination, 1)
 		_game_pays_label.text = Translations.tr_key("spin.game_pays_fmt", [str(display_total)])
 		_game_pays_label.visible = true
-		if _balance_show_depth:
-			var win_cr: int = total_payout / maxi(_current_denomination, 1)
-			SaveManager.set_currency_value(_win_cd, str(win_cr), 0, Color(-1, 0, 0), false)
-		else:
-			SaveManager.set_currency_value(_win_cd, SaveManager.format_money(total_payout))
+		_set_win_active(total_payout)
 		_status_label.text = Translations.tr_key("spin.game_over")
 		_highlight_all_winning()
 		if _winning_lines.size() > 0:
 			_start_win_cycle()
 	else:
+		_last_total_payout = 0
+		_set_win_dimmed()
 		_status_label.text = Translations.tr_key("spin.game_over")
 		_game_pays_label.visible = false
 
@@ -1255,6 +1254,47 @@ func _update_balance(credits: int) -> void:
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
 
 
+func _format_win(amount: int) -> String:
+	if _balance_show_depth:
+		return str(amount / maxi(_current_denomination, 1))
+	return SaveManager.format_money(amount)
+
+
+func _set_win_active(amount: int) -> void:
+	_last_total_payout = amount
+	_win_label.text = Translations.tr_key("game.win_label")
+	_win_label.add_theme_color_override("font_color", Color.WHITE)
+	_win_cd["box"].visible = true
+	_animate_win_increment(0, amount)
+
+
+func _set_win_dimmed() -> void:
+	_stop_win_increment()
+	_win_label.text = Translations.tr_key("game.win_label")
+	_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+	var show_chip: bool = not _balance_show_depth
+	SaveManager.set_currency_value(_win_cd, _format_win(_last_total_payout), 16, Color(0.7, 0.7, 0.4), show_chip)
+	_win_cd["box"].visible = true
+
+
+func _animate_win_increment(from: int, to: int) -> void:
+	_stop_win_increment()
+	var show_chip: bool = not _balance_show_depth
+	SaveManager.set_currency_value(_win_cd, _format_win(from), 16, COL_YELLOW, show_chip)
+	if from == to:
+		return
+	_win_increment_tween = create_tween()
+	_win_increment_tween.tween_method(func(val: int) -> void:
+		SaveManager.set_currency_value(_win_cd, _format_win(val), 0, Color(-1, 0, 0), not _balance_show_depth)
+	, from, to, 1.4).set_ease(Tween.EASE_OUT)
+
+
+func _stop_win_increment() -> void:
+	if _win_increment_tween:
+		_win_increment_tween.kill()
+		_win_increment_tween = null
+
+
 func _on_credits_toggle(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		_toggle_credits_mode()
@@ -1269,11 +1309,10 @@ func _toggle_credits_mode() -> void:
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
 	# Refresh WIN display (always)
-	if _balance_show_depth:
-		var win_cr: int = _last_total_payout / maxi(_current_denomination, 1)
-		SaveManager.set_currency_value(_win_cd, str(win_cr), 0, Color(-1, 0, 0), false)
+	if _manager.state == SpinPokerManager.State.WIN_DISPLAY:
+		_set_win_active(_last_total_payout)
 	else:
-		SaveManager.set_currency_value(_win_cd, SaveManager.format_money(_last_total_payout))
+		_set_win_dimmed()
 
 
 func _show_depth_tooltip() -> void:

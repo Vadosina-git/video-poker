@@ -48,6 +48,8 @@ var _animating: bool = false
 var _primary_win_mask: Array = [false, false, false, false, false]
 var _double_btn: Button
 var _double_amount: int = 0
+var _last_win_amount: int = 0
+var _win_increment_tween: Tween = null
 var _double_warned: bool = false
 var _in_double: bool = false
 var _double_cards: Array = []
@@ -822,15 +824,10 @@ func _toggle_credits_mode() -> void:
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
 	# Refresh WIN display (always)
-	if _win_cd["box"].visible:
-		var win_val: int = _double_amount if _double_amount > 0 else 0
-		if _balance_show_depth:
-			SaveManager.set_currency_value(_win_cd, str(win_val / maxi(SaveManager.denomination, 1)), 0, Color(-1, 0, 0), false)
-		else:
-			if win_val > 0:
-				SaveManager.set_currency_value(_win_cd, SaveManager.format_short(win_val))
-			else:
-				SaveManager.set_currency_value(_win_cd, "0")
+	if _manager.state == MultiHandManager.State.WIN_DISPLAY:
+		_set_win_active(_last_win_amount)
+	else:
+		_set_win_dimmed()
 
 
 func _show_depth_tooltip() -> void:
@@ -968,10 +965,8 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_amount_btn.disabled = false
 			_double_btn.disabled = true
 			_in_double = false
-			_win_label.text = Translations.tr_key("game.win_label")
-			_win_cd["box"].visible = true
-			SaveManager.set_currency_value(_win_cd, "0")
-			_win_label.add_theme_color_override("font_color", Color.WHITE)
+			_last_win_amount = 0
+			_set_win_dimmed()
 			for card in _primary_cards:
 				card.set_interactive(false)
 			_start_idle_blink_timer()
@@ -986,14 +981,12 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_amount_btn.modulate.a = 0.5
 			_hands_btn.disabled = true
 			_double_btn.disabled = true
-			_win_label.text = Translations.tr_key("game.win_label")
-			_win_cd["box"].visible = true
-			SaveManager.set_currency_value(_win_cd, "0")
+			_last_win_amount = 0
+			_set_win_dimmed()
 
 		MultiHandManager.State.HOLDING:
 			_deal_draw_btn.text = Translations.tr_key("game.draw")
 			_deal_draw_btn.disabled = false
-			_win_label.text = ""
 			for i in _primary_cards.size():
 				_primary_cards[i].set_interactive(true)
 				if _manager.held[i]:
@@ -1284,18 +1277,14 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 	# Show total win + animate credits
 	if total_payout > 0:
 		VibrationManager.vibrate("win_small")
-		_win_label.text = Translations.tr_key("game.win_label")
-		if _balance_show_depth:
-			var win_cr: int = total_payout / maxi(SaveManager.denomination, 1)
-			SaveManager.set_currency_value(_win_cd, str(win_cr), 0, Color(-1, 0, 0), false)
-		else:
-			SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
-		_win_cd["box"].visible = true
-		_win_label.add_theme_color_override("font_color", Color.WHITE)
+		_set_win_active(total_payout)
 	else:
+		_last_win_amount = 0
 		_win_label.text = Translations.tr_key("game.no_win")
-		_win_cd["box"].visible = false
 		_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+		var show_chip: bool = not _balance_show_depth
+		SaveManager.set_currency_value(_win_cd, "0", 0, Color(-1, 0, 0), show_chip)
+		_win_cd["box"].visible = true
 		_delay_unlock_buttons()
 
 
@@ -2026,6 +2015,47 @@ func _pulse_balance(duration: float) -> void:
 	tw.tween_property(_balance_cd["box"], "modulate", Color.WHITE, 0.3)
 
 
+func _format_win(amount: int) -> String:
+	if _balance_show_depth:
+		return str(amount / maxi(SaveManager.denomination, 1))
+	return SaveManager.format_short(amount)
+
+
+func _set_win_active(amount: int) -> void:
+	_last_win_amount = amount
+	_win_label.text = Translations.tr_key("game.win_label")
+	_win_label.add_theme_color_override("font_color", Color.WHITE)
+	_win_cd["box"].visible = true
+	_animate_win_increment(0, amount)
+
+
+func _set_win_dimmed() -> void:
+	_stop_win_increment()
+	_win_label.text = Translations.tr_key("game.win_label")
+	_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+	var show_chip: bool = not _balance_show_depth
+	SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 16, Color(0.7, 0.7, 0.4), show_chip)
+	_win_cd["box"].visible = true
+
+
+func _animate_win_increment(from: int, to: int) -> void:
+	_stop_win_increment()
+	var show_chip: bool = not _balance_show_depth
+	SaveManager.set_currency_value(_win_cd, _format_win(from), 16, COL_YELLOW, show_chip)
+	if from == to:
+		return
+	_win_increment_tween = create_tween()
+	_win_increment_tween.tween_method(func(val: int) -> void:
+		SaveManager.set_currency_value(_win_cd, _format_win(val), 0, Color(-1, 0, 0), not _balance_show_depth)
+	, from, to, 1.4).set_ease(Tween.EASE_OUT)
+
+
+func _stop_win_increment() -> void:
+	if _win_increment_tween:
+		_win_increment_tween.kill()
+		_win_increment_tween = null
+
+
 func _delay_unlock_buttons() -> void:
 	await get_tree().create_timer(0.5).timeout
 	_unlock_buttons()
@@ -2605,12 +2635,7 @@ func _on_double_card_picked(index: int) -> void:
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
 		_animate_credits(SaveManager.credits)
-		_win_label.text = Translations.tr_key("double.win")
-		_win_cd["box"].visible = true
-		if _balance_show_depth:
-			SaveManager.set_currency_value(_win_cd, str(_double_amount / maxi(SaveManager.denomination, 1)), 0, Color(-1, 0, 0), false)
-		else:
-			SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_double_amount))
+		_set_win_active(_double_amount)
 		await _credit_tween.finished
 		_double_btn.disabled = false
 		_deal_draw_btn.disabled = false
