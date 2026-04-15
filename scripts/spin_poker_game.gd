@@ -15,6 +15,7 @@ var _variant: BaseVariant
 var _manager: SpinPokerManager
 var _current_denomination: int = 1
 var _animating: bool = false
+var _last_total_payout: int = 0
 var _rush: bool = false
 var _balance_show_depth: bool = false
 var _depth_tooltip: Control = null
@@ -962,6 +963,7 @@ func _build_random_card_paths(count: int) -> Array[String]:
 # ─── WIN EVALUATION & DISPLAY ─────────────────────────────────────────
 
 func _on_lines_evaluated(results: Array, total_payout: int) -> void:
+	_last_total_payout = total_payout
 	_winning_lines.clear()
 	for r in results:
 		if r["payout"] > 0:
@@ -1254,6 +1256,13 @@ func _on_balance_clicked(event: InputEvent) -> void:
 		_balance_show_depth = not _balance_show_depth
 		_update_balance(SaveManager.credits)
 		_update_bet_display(_manager.bet)
+		# Refresh WIN display in new mode
+		if _last_total_payout > 0:
+			if _balance_show_depth:
+				var win_cr: int = _last_total_payout / maxi(_current_denomination, 1)
+				SaveManager.set_currency_value(_win_cd, str(win_cr), 0, Color(-1, 0, 0), false)
+			else:
+				SaveManager.set_currency_value(_win_cd, SaveManager.format_money(_last_total_payout))
 
 
 func _show_depth_tooltip() -> void:

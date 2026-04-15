@@ -809,6 +809,12 @@ func _on_balance_clicked(event: InputEvent) -> void:
 		_balance_show_depth = not _balance_show_depth
 		_update_balance(SaveManager.credits)
 		_update_bet_display(_manager.bet)
+		# Refresh WIN display in new mode
+		if _win_cd["box"].visible and _double_amount > 0:
+			if _balance_show_depth:
+				SaveManager.set_currency_value(_win_cd, str(_double_amount / maxi(SaveManager.denomination, 1)), 0, Color(-1, 0, 0), false)
+			else:
+				SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_double_amount))
 
 
 func _show_depth_tooltip() -> void:

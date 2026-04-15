@@ -446,6 +446,12 @@ func _on_balance_clicked(event: InputEvent) -> void:
 		_balance_show_depth = not _balance_show_depth
 		_update_balance(SaveManager.credits)
 		_update_bet_display(_game_manager.bet)
+		# Refresh WIN display in new mode
+		if _last_win_amount > 0:
+			if _game_manager.state == GameManager.State.WIN_DISPLAY:
+				_set_win_active(_last_win_amount)
+			else:
+				_set_win_dimmed()
 
 
 func _show_depth_tooltip() -> void:
