@@ -886,7 +886,7 @@ func _update_bet_display(bet: int) -> void:
 		SaveManager.set_currency_value(_bet_cd, str(credits_total), 0, Color(-1, 0, 0), false)
 	else:
 		SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(total))
-	_flash_bet_display()
+		_flash_bet_display()
 	# Refresh multiplier display when bet changes
 	if _ultra_vp:
 		_refresh_ux_visibility()
@@ -1962,7 +1962,10 @@ func _animate_credits(target: int) -> void:
 	var start := _displayed_credits if _displayed_credits >= 0 else target
 	_displayed_credits = start
 	# Highlight balance during roll-up
-	SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE)
+	if _balance_show_depth:
+		SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE, false)
+	else:
+		SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE)
 	_credit_tween = create_tween()
 	var dur := 2.1 if _ultra_vp else 1.4
 	_credit_tween.tween_method(_update_credit_display, start, target, dur).set_ease(Tween.EASE_OUT)

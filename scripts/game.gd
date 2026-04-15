@@ -518,12 +518,12 @@ func _show_depth_tooltip() -> void:
 
 func _update_bet_display(bet: int) -> void:
 	if _balance_show_depth:
-		# Credits mode: bet level × 1 hand
+		# Credits mode: bet level × 1 hand — no flash (doesn't depend on denomination)
 		SaveManager.set_currency_value(_bet_cd, str(bet), 0, Color(-1, 0, 0), false)
 	else:
 		var total: int = bet * SaveManager.denomination
 		SaveManager.set_currency_value(_bet_cd, SaveManager.format_money(total))
-	_flash_bet_display()
+		_flash_bet_display()
 
 
 func _flash_bet_display() -> void:
@@ -795,7 +795,10 @@ func _animate_credits(target: int) -> void:
 	var start := _displayed_credits if _displayed_credits >= 0 else target
 	_displayed_credits = start
 	# Highlight balance during roll-up
-	SaveManager.set_currency_value(_balance_cd, "", 22, COL_YELLOW)
+	if _balance_show_depth:
+		SaveManager.set_currency_value(_balance_cd, "", 22, COL_YELLOW, false)
+	else:
+		SaveManager.set_currency_value(_balance_cd, "", 22, COL_YELLOW)
 	_credit_tween = create_tween()
 	_credit_tween.tween_method(_update_credit_display, start, target, 2.0).set_ease(Tween.EASE_OUT)
 	_credit_tween.tween_callback(_on_credit_animation_done)
