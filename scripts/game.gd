@@ -19,7 +19,7 @@ var CardScene: PackedScene
 @onready var _deal_draw_btn: Button = %DealDrawButton
 @onready var _bottom_bar: HBoxContainer = %BottomBar
 @onready var _bottom_bar_margin: MarginContainer = $BottomSection/BottomBarMargin
-@onready var _info_bar: HBoxContainer = %InfoBar
+@onready var _info_bar: Control = %InfoBar
 @onready var _info_bar_margin: MarginContainer = $TopSection/InfoBarMargin
 @onready var _top_section: VBoxContainer = $TopSection
 @onready var _bottom_section: VBoxContainer = $BottomSection
@@ -163,6 +163,7 @@ func _apply_theme() -> void:
 	_info_bar.queue_free()
 
 	var info_vbox := VBoxContainer.new()
+	_info_bar = info_vbox  # reuse _info_bar reference for positioning
 	info_vbox.add_theme_constant_override("separation", 2)
 	info_parent.add_child(info_vbox)
 	info_parent.move_child(info_vbox, info_idx)
