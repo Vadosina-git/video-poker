@@ -919,7 +919,7 @@ func _flash_bet_display() -> void:
 	_bet_flash_tween = create_tween()
 	_bet_flash_tween.tween_interval(0.4)
 	_bet_flash_tween.tween_callback(func() -> void:
-		SaveManager.set_currency_value(_bet_cd, "", 16, Color.WHITE)
+		SaveManager.set_currency_value(_bet_cd, "", 16, COL_YELLOW)
 	)
 
 const MIN_GAME_DEPTH := 30
