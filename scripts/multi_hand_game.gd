@@ -1284,7 +1284,7 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 		_set_win_active(total_payout)
 	else:
 		_last_win_amount = 0
-		_win_label.text = Translations.tr_key("game.no_win")
+		_win_label.text = Translations.tr_key("game.win_label")
 		_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 		var show_chip: bool = not _balance_show_depth
 		SaveManager.set_currency_value(_win_cd, "0", 0, Color(-1, 0, 0), show_chip)
@@ -2620,8 +2620,8 @@ func _start_double() -> void:
 		mini.hide_result()
 		mini.modulate = Color(0.35, 0.35, 0.45)
 
-	_win_label.text = Translations.tr_key("double.pick_card")
-	_win_cd["box"].visible = false
+	_win_label.text = Translations.tr_key("game.win_label")
+	_win_cd["box"].visible = true
 
 	# Show: dealer card face-up, 4 player cards face-down
 	for i in 5:
@@ -2663,15 +2663,14 @@ func _on_double_card_picked(index: int) -> void:
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
 		_animate_credits(SaveManager.credits)
-		_win_label.text = Translations.tr_key("double.tie")
-		_win_cd["box"].visible = false
+		_win_cd["box"].visible = true
 		_double_amount = 0
 		await _credit_tween.finished
 		_end_double()
 	else:
 		VibrationManager.vibrate("double_lose")
-		_win_label.text = Translations.tr_key("double.lose")
-		_win_cd["box"].visible = false
+		_last_win_amount = 0
+		_set_win_dimmed()
 		_double_amount = 0
 		_end_double()
 
