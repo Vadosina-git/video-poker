@@ -275,13 +275,19 @@ func _apply_theme() -> void:
 	_win_label.add_theme_font_size_override("font_size", 16)
 	_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_win_label.text = Translations.tr_key("game.win_label")
+	_win_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_win_label.gui_input.connect(_on_credits_toggle)
 	_win_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_win_cd["box"].gui_input.connect(_on_credits_toggle)
 	_info_row.add_child(_win_cd["box"])
 	_info_row.move_child(_win_cd["box"], _win_label.get_index() + 1)
 	SaveManager.set_currency_value(_win_cd, "0")
 	_total_bet_label.add_theme_font_size_override("font_size", 16)
 	_total_bet_label.add_theme_color_override("font_color", Color.WHITE)
 	_total_bet_label.text = Translations.tr_key("game.total_bet")
+	_total_bet_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_total_bet_label.gui_input.connect(_on_credits_toggle)
 	_bet_cd = SaveManager.create_currency_display(16, COL_YELLOW)
 	_info_row.add_child(_bet_cd["box"])
 	_info_row.move_child(_bet_cd["box"], _total_bet_label.get_index() + 1)
@@ -290,11 +296,11 @@ func _apply_theme() -> void:
 	_balance_label.text = Translations.tr_key("game.balance")
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_balance_label.gui_input.connect(_on_balance_clicked)
+	_balance_label.gui_input.connect(_on_credits_toggle)
 	_balance_cd = SaveManager.create_currency_display(16, COL_YELLOW)
 	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_cd["box"].mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_balance_cd["box"].gui_input.connect(_on_balance_clicked)
+	_balance_cd["box"].gui_input.connect(_on_credits_toggle)
 	_info_row.add_child(_balance_cd["box"])
 	_info_row.move_child(_balance_cd["box"], _balance_label.get_index() + 1)
 
@@ -800,21 +806,29 @@ func _calculate_game_depth() -> int:
 	return SaveManager.credits / per_round
 
 
-func _on_balance_clicked(event: InputEvent) -> void:
+func _on_credits_toggle(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
-		if not SaveManager.depth_hint_shown:
-			_show_depth_tooltip()
-			SaveManager.depth_hint_shown = true
-			SaveManager.save_game()
-		_balance_show_depth = not _balance_show_depth
-		_update_balance(SaveManager.credits)
-		_update_bet_display(_manager.bet)
-		# Refresh WIN display in new mode
-		if _win_cd["box"].visible and _double_amount > 0:
-			if _balance_show_depth:
-				SaveManager.set_currency_value(_win_cd, str(_double_amount / maxi(SaveManager.denomination, 1)), 0, Color(-1, 0, 0), false)
+		_toggle_credits_mode()
+
+
+func _toggle_credits_mode() -> void:
+	if not SaveManager.depth_hint_shown:
+		_show_depth_tooltip()
+		SaveManager.depth_hint_shown = true
+		SaveManager.save_game()
+	_balance_show_depth = not _balance_show_depth
+	_update_balance(SaveManager.credits)
+	_update_bet_display(_manager.bet)
+	# Refresh WIN display (always)
+	if _win_cd["box"].visible:
+		var win_val: int = _double_amount if _double_amount > 0 else 0
+		if _balance_show_depth:
+			SaveManager.set_currency_value(_win_cd, str(win_val / maxi(SaveManager.denomination, 1)), 0, Color(-1, 0, 0), false)
+		else:
+			if win_val > 0:
+				SaveManager.set_currency_value(_win_cd, SaveManager.format_short(win_val))
 			else:
-				SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_double_amount))
+				SaveManager.set_currency_value(_win_cd, "0")
 
 
 func _show_depth_tooltip() -> void:

@@ -307,8 +307,12 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_win_label.text = Translations.tr_key("game.win_label")
 	_win_label.add_theme_font_size_override("font_size", 14)
 	_win_label.add_theme_color_override("font_color", Color.WHITE)
+	_win_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_win_label.gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_win_label)
 	_win_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_win_cd["box"].gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_win_cd["box"])
 	SaveManager.set_currency_value(_win_cd, "0")
 
@@ -316,6 +320,8 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_bet_display_label.text = Translations.tr_key("game.total_bet")
 	_bet_display_label.add_theme_font_size_override("font_size", 14)
 	_bet_display_label.add_theme_color_override("font_color", Color.WHITE)
+	_bet_display_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_bet_display_label.gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_bet_display_label)
 	_bet_display_cd = SaveManager.create_currency_display(16, COL_YELLOW)
 	info_row.add_child(_bet_display_cd["box"])
@@ -329,11 +335,11 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_balance_label.add_theme_font_size_override("font_size", 14)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
-	_balance_label.gui_input.connect(_on_balance_clicked)
+	_balance_label.gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_balance_label)
 	_balance_cd = SaveManager.create_currency_display(16, COL_YELLOW)
 	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
-	_balance_cd["box"].gui_input.connect(_on_balance_clicked)
+	_balance_cd["box"].gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_balance_cd["box"])
 
 	var btn_row := HBoxContainer.new()
@@ -1247,22 +1253,25 @@ func _update_balance(credits: int) -> void:
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
 
 
-func _on_balance_clicked(event: InputEvent) -> void:
+func _on_credits_toggle(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
-		if not SaveManager.depth_hint_shown:
-			_show_depth_tooltip()
-			SaveManager.depth_hint_shown = true
-			SaveManager.save_game()
-		_balance_show_depth = not _balance_show_depth
-		_update_balance(SaveManager.credits)
-		_update_bet_display(_manager.bet)
-		# Refresh WIN display in new mode
-		if _last_total_payout > 0:
-			if _balance_show_depth:
-				var win_cr: int = _last_total_payout / maxi(_current_denomination, 1)
-				SaveManager.set_currency_value(_win_cd, str(win_cr), 0, Color(-1, 0, 0), false)
-			else:
-				SaveManager.set_currency_value(_win_cd, SaveManager.format_money(_last_total_payout))
+		_toggle_credits_mode()
+
+
+func _toggle_credits_mode() -> void:
+	if not SaveManager.depth_hint_shown:
+		_show_depth_tooltip()
+		SaveManager.depth_hint_shown = true
+		SaveManager.save_game()
+	_balance_show_depth = not _balance_show_depth
+	_update_balance(SaveManager.credits)
+	_update_bet_display(_manager.bet)
+	# Refresh WIN display (always)
+	if _balance_show_depth:
+		var win_cr: int = _last_total_payout / maxi(_current_denomination, 1)
+		SaveManager.set_currency_value(_win_cd, str(win_cr), 0, Color(-1, 0, 0), false)
+	else:
+		SaveManager.set_currency_value(_win_cd, SaveManager.format_money(_last_total_payout))
 
 
 func _show_depth_tooltip() -> void:
