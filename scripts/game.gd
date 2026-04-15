@@ -152,21 +152,40 @@ func _apply_theme() -> void:
 	_info_bar_margin.add_theme_constant_override("margin_left", side_m)
 	_info_bar_margin.add_theme_constant_override("margin_right", side_m)
 
+	# Rebuild InfoBar as VBox with two rows: BALANCE row + WIN row
+	var info_parent := _info_bar.get_parent()
+	var info_idx := _info_bar.get_index()
+	# Remove all children from current HBox
+	_balance_label.get_parent().remove_child(_balance_label)
+	_topup_btn.get_parent().remove_child(_topup_btn)
+	_last_win_label.get_parent().remove_child(_last_win_label)
+	info_parent.remove_child(_info_bar)
+	_info_bar.queue_free()
+
+	var info_vbox := VBoxContainer.new()
+	info_vbox.add_theme_constant_override("separation", 2)
+	info_parent.add_child(info_vbox)
+	info_parent.move_child(info_vbox, info_idx)
+
+	# Row 1: BALANCE: 🪙XX,XXX [+]
+	var bal_row := HBoxContainer.new()
+	bal_row.add_theme_constant_override("separation", 6)
+	info_vbox.add_child(bal_row)
+
 	var _bal_fs: int = int(ConfigManager.ui_config.get("balance_font_size", 24))
 	_balance_label.add_theme_font_size_override("font_size", _bal_fs)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
 	_balance_label.text = Translations.tr_key("game.balance")
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
-	_balance_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_balance_label.gui_input.connect(_on_credits_toggle)
-	_balance_cd = SaveManager.create_currency_display(18, Color.WHITE)
-	_balance_cd["box"].custom_minimum_size.x = 200
+	bal_row.add_child(_balance_label)
+
+	_balance_cd = SaveManager.create_currency_display(18, COL_YELLOW)
+	_balance_cd["box"].custom_minimum_size.x = 120
 	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
-	_balance_cd["box"].mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_balance_cd["box"].gui_input.connect(_on_credits_toggle)
-	_balance_label.get_parent().add_child(_balance_cd["box"])
-	_balance_label.get_parent().move_child(_balance_cd["box"], _balance_label.get_index() + 1)
-	# Top-up button
+	bal_row.add_child(_balance_cd["box"])
+
 	_topup_btn.add_theme_font_size_override("font_size", 18)
 	_topup_btn.add_theme_color_override("font_color", COL_YELLOW)
 	var topup_style := StyleBoxFlat.new()
@@ -176,33 +195,28 @@ func _apply_theme() -> void:
 	topup_style.set_corner_radius_all(4)
 	topup_style.content_margin_left = 6
 	topup_style.content_margin_right = 6
-	topup_style.content_margin_top = 0
-	topup_style.content_margin_bottom = 0
 	_topup_btn.add_theme_stylebox_override("normal", topup_style)
 	_topup_btn.add_theme_stylebox_override("hover", topup_style)
 	_topup_btn.add_theme_stylebox_override("pressed", topup_style)
-	_topup_btn.custom_minimum_size = Vector2(44, 40)
+	_topup_btn.custom_minimum_size = Vector2(36, 32)
 	_topup_btn.z_index = 25
-	_topup_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	# WIN display — place in InfoBar after TopUpButton (under BALANCE area)
-	_last_win_label.get_parent().remove_child(_last_win_label)
-	_last_win_label.add_theme_font_size_override("font_size", 16)
+	bal_row.add_child(_topup_btn)
+
+	# Row 2: ВЫИГРЫШ: 🪙XXX
+	var win_row := HBoxContainer.new()
+	win_row.add_theme_constant_override("separation", 6)
+	info_vbox.add_child(win_row)
+
+	_last_win_label.add_theme_font_size_override("font_size", 18)
 	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
-	_last_win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_last_win_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_last_win_label.gui_input.connect(_on_credits_toggle)
-	_info_bar.add_child(_last_win_label)
-	_info_bar.move_child(_last_win_label, _topup_btn.get_index() + 1)
-	_win_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	win_row.add_child(_last_win_label)
+
+	_win_cd = SaveManager.create_currency_display(18, COL_YELLOW)
 	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_cd["box"].gui_input.connect(_on_credits_toggle)
-	_info_bar.add_child(_win_cd["box"])
-	_info_bar.move_child(_win_cd["box"], _last_win_label.get_index() + 1)
-	# Status box — only for hints (centered, positioned above cards)
-	_status_box = HBoxContainer.new()
-	_status_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_status_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_status_box)
+	win_row.add_child(_win_cd["box"])
 
 	# Cards gap
 	_cards_container.add_theme_constant_override("separation", 8)
