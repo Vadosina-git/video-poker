@@ -1166,15 +1166,11 @@ func _on_deal_draw_pressed() -> void:
 				_flash_balance_red()
 				_show_shop()
 				return
-		# Starting new round — animate NEXT → ACTIVE first (Ultra VP)
-		if _ultra_vp and _manager.bet == MultiHandManager.ULTRA_BET:
-			_animating = true
-			_deal_draw_btn.disabled = true
-			_bet_btn.disabled = true
-			_bet_max_btn.disabled = true
-			await _animate_multipliers_next_to_active()
-			_animating = false
+		# Deal immediately (deducts credits), then animate multipliers
 		_manager.deal_or_draw()
+		# Animate NEXT → ACTIVE after deal started (Ultra VP)
+		if _ultra_vp and _manager.bet == MultiHandManager.ULTRA_BET:
+			await _animate_multipliers_next_to_active()
 
 
 func _on_hands_drawn(all_hands: Array) -> void:
