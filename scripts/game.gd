@@ -172,15 +172,14 @@ func _apply_theme() -> void:
 	bal_block.custom_minimum_size.x = 380
 	info_row.add_child(bal_block)
 
-	var _bal_fs: int = int(ConfigManager.ui_config.get("balance_font_size", 24))
-	_balance_label.add_theme_font_size_override("font_size", _bal_fs)
+	_balance_label.add_theme_font_size_override("font_size", 20)
 	_balance_label.add_theme_color_override("font_color", Color.WHITE)
 	_balance_label.text = Translations.tr_key("game.balance")
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_label.gui_input.connect(_on_credits_toggle)
 	bal_block.add_child(_balance_label)
 
-	_balance_cd = SaveManager.create_currency_display(18, COL_YELLOW)
+	_balance_cd = SaveManager.create_currency_display(20, COL_YELLOW)
 	_balance_cd["box"].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_cd["box"].gui_input.connect(_on_credits_toggle)
@@ -206,7 +205,7 @@ func _apply_theme() -> void:
 	_status_label = Label.new()
 	_status_label.text = ""
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status_label.add_theme_font_size_override("font_size", 18)
+	_status_label.add_theme_font_size_override("font_size", 20)
 	_status_label.add_theme_color_override("font_color", COL_YELLOW)
 	var bold_hint := SystemFont.new()
 	bold_hint.font_weight = 700
@@ -592,7 +591,7 @@ var _win_increment_tween: Tween = null
 func _set_win_active(amount: int) -> void:
 	_last_win_amount = amount
 	_last_win_label.text = Translations.tr_key("game.win_label")
-	_last_win_label.add_theme_font_size_override("font_size", 16)
+	_last_win_label.add_theme_font_size_override("font_size", 20)
 	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_last_win_label.modulate.a = 1.0
 	_win_cd["box"].visible = true
@@ -602,7 +601,7 @@ func _set_win_active(amount: int) -> void:
 func _set_win_dimmed() -> void:
 	_stop_win_increment()
 	_last_win_label.text = Translations.tr_key("game.last_win_label")
-	_last_win_label.add_theme_font_size_override("font_size", 16)
+	_last_win_label.add_theme_font_size_override("font_size", 20)
 	_last_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 	_last_win_label.modulate.a = 0.7
 	var show_chip: bool = not _balance_show_depth
