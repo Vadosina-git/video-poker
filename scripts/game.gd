@@ -669,6 +669,7 @@ func _on_state_changed(new_state: int) -> void:
 			_deal_draw_btn.text = Translations.tr_key("game.draw")
 			_deal_draw_btn.disabled = false
 			_set_status(Translations.tr_key("game.hold_cards_then_draw"))
+			_start_idle_blink_timer()
 			for i in _card_visuals.size():
 				_card_visuals[i].set_interactive(true)
 				if _game_manager.held[i]:
@@ -853,6 +854,7 @@ func _unlock_buttons() -> void:
 	_bet_max_btn.disabled = false
 	_bet_amount_btn.disabled = false
 	_bet_amount_btn.modulate.a = 1.0
+	_start_idle_blink_timer()
 
 func _on_bet_changed(new_bet: int) -> void:
 	_update_bet_display(new_bet)
