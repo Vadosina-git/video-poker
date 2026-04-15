@@ -231,7 +231,7 @@ func _apply_theme() -> void:
 	_win_cd = SaveManager.create_currency_display(20, COL_YELLOW)
 	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_cd["box"].gui_input.connect(_on_credits_toggle)
-	win_row.add_child(_win_cd["box"])
+	win_block.add_child(_win_cd["box"])
 
 	# Cards gap
 	_cards_container.add_theme_constant_override("separation", 8)
