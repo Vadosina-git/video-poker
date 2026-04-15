@@ -974,11 +974,16 @@ func _create_overlay(text: String) -> void:
 
 
 func _position_overlay() -> void:
-	if not _win_overlay:
+	if not _win_overlay or not is_instance_valid(_win_overlay):
+		return
+	await get_tree().process_frame
+	if not _win_overlay or not is_instance_valid(_win_overlay):
 		return
 	var cards_rect := _cards_container.get_global_rect()
 	var cards_center := cards_rect.get_center()
-	var overlay_size := _win_overlay.get_combined_minimum_size()
+	var overlay_size := _win_overlay.size
+	if overlay_size == Vector2.ZERO:
+		overlay_size = _win_overlay.get_combined_minimum_size()
 	_win_overlay.global_position = Vector2(
 		cards_center.x - overlay_size.x / 2,
 		cards_center.y - overlay_size.y / 2
