@@ -472,6 +472,8 @@ func _build_hands_area() -> void:
 		var mh: MiniHandDisplay = MiniHandScene.instantiate()
 		mh._variant = _variant
 		mh._overlay_parent = self
+		if _num_hands <= 3:
+			mh.badge_width_ratio = 0.33
 		if _ultra_vp:
 			# Wrap in HBox with mult zone on the left
 			var wrap := HBoxContainer.new()
@@ -729,6 +731,8 @@ func _switch_hand_count(new_count: int) -> void:
 		var mh: MiniHandDisplay = MiniHandScene.instantiate()
 		mh._variant = _variant
 		mh._overlay_parent = self
+		if _num_hands <= 3:
+			mh.badge_width_ratio = 0.33
 		if _ultra_vp:
 			var wrap := HBoxContainer.new()
 			wrap.add_theme_constant_override("separation", 4)

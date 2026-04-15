@@ -6,6 +6,7 @@ extends HBoxContainer
 var _card_textures: Array[TextureRect] = []
 var _face_up: Array[bool] = [false, false, false, false, false]
 var _variant: BaseVariant = null
+var badge_width_ratio: float = 0.8  # can be overridden per layout
 var _mult_display: HBoxContainer = null
 var _next_mult_display: VBoxContainer = null
 var _active_mult_display: HBoxContainer = null
@@ -130,7 +131,7 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	_result_overlay.add_theme_stylebox_override("panel", style)
 	_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	_result_overlay.custom_minimum_size.x = size.x * 0.8
+	_result_overlay.custom_minimum_size.x = size.x * badge_width_ratio
 
 	var label := Label.new()
 	if active_mult > 1:
