@@ -201,7 +201,7 @@ func _apply_theme() -> void:
 	_topup_btn.add_theme_stylebox_override("normal", topup_style)
 	_topup_btn.add_theme_stylebox_override("hover", topup_style)
 	_topup_btn.add_theme_stylebox_override("pressed", topup_style)
-	_topup_btn.custom_minimum_size = Vector2(36, 32)
+	_topup_btn.custom_minimum_size = Vector2(36, 26)
 	_topup_btn.z_index = 25
 	bal_block.add_child(_topup_btn)
 
