@@ -131,7 +131,10 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	_result_overlay.add_theme_stylebox_override("panel", style)
 	_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	_result_overlay.custom_minimum_size.x = size.x * badge_width_ratio
+	var badge_w: float = size.x * badge_width_ratio
+	badge_w = minf(badge_w, size.x)  # never wider than hand
+	_result_overlay.custom_minimum_size.x = badge_w
+	_result_overlay.custom_maximum_size.x = size.x
 
 	var label := Label.new()
 	if active_mult > 1:
@@ -154,13 +157,18 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 func _position_result_overlay() -> void:
 	if not _result_overlay or not is_inside_tree():
 		return
+	await get_tree().process_frame
+	if not _result_overlay or not is_inside_tree():
+		return
 	var my_rect := get_global_rect()
 	var center := my_rect.get_center()
 	var ov_size := _result_overlay.get_combined_minimum_size()
-	_result_overlay.position = Vector2(
-		center.x - ov_size.x / 2,
-		center.y - ov_size.y / 2 + my_rect.size.y * 0.1
-	)
+	# Clamp badge to hand bounds
+	var badge_x := center.x - ov_size.x / 2
+	var badge_y := center.y - ov_size.y / 2 + my_rect.size.y * 0.1
+	badge_x = clampf(badge_x, my_rect.position.x, my_rect.end.x - ov_size.x)
+	badge_y = clampf(badge_y, my_rect.position.y, my_rect.end.y - ov_size.y)
+	_result_overlay.global_position = Vector2(badge_x, badge_y)
 
 
 func _exit_tree() -> void:
