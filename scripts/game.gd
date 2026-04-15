@@ -146,11 +146,11 @@ func _apply_theme() -> void:
 	_back_btn.add_theme_color_override("font_color", Color.WHITE)
 	var back_style := StyleBoxFlat.new()
 	back_style.bg_color = Color(0, 0, 0, 0)
-	back_style.content_margin_left = 12
+	back_style.content_margin_left = 100  # align with controlbar left edge (side_m)
 	_back_btn.add_theme_stylebox_override("normal", back_style)
 	_back_btn.add_theme_stylebox_override("hover", back_style)
 	_back_btn.add_theme_stylebox_override("pressed", back_style)
-	_back_btn.custom_minimum_size = Vector2(60, 48)
+	_back_btn.custom_minimum_size = Vector2(148, 48)
 
 	# Title — compact to give paytable more room
 	_game_title.add_theme_font_size_override("font_size", 20)
