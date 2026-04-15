@@ -18,6 +18,7 @@ var variant: BaseVariant
 var num_hands: int = 3
 var bet: int = 1
 var ultra_vp: bool = false
+var mode_id: String = "triple_play"
 
 var primary_hand: Array[CardData] = []
 var held: Array[bool] = [false, false, false, false, false]
@@ -34,8 +35,18 @@ func setup(p_variant: BaseVariant, p_num_hands: int, p_ultra_vp: bool = false) -
 	variant = p_variant
 	num_hands = p_num_hands
 	ultra_vp = p_ultra_vp
+	# Determine mode_id for per-mode bet storage
+	if p_ultra_vp:
+		mode_id = "ultra_vp"
+	else:
+		match p_num_hands:
+			1: mode_id = "single_play"
+			3: mode_id = "triple_play"
+			5: mode_id = "five_play"
+			10: mode_id = "ten_play"
+			_: mode_id = "multi_%d" % p_num_hands
 	var max_allowed: int = ULTRA_BET if p_ultra_vp else MAX_BET
-	bet = clampi(SaveManager.bet_level, 1, max_allowed)
+	bet = clampi(SaveManager.get_bet_level(mode_id), 1, max_allowed)
 	_extra_decks.clear()
 	for i in (num_hands - 1):
 		_extra_decks.append(Deck.new(p_variant.paytable.deck_size))
@@ -78,8 +89,7 @@ func bet_one() -> void:
 	else:
 		bet = (bet % MAX_BET) + 1
 	SoundManager.play("bet")
-	SaveManager.bet_level = bet
-	SaveManager.save_game()
+	SaveManager.set_bet_level(mode_id, bet)
 	bet_changed.emit(bet)
 
 
@@ -89,8 +99,7 @@ func bet_max() -> void:
 	if state == State.WIN_DISPLAY:
 		_to_idle()
 	bet = ULTRA_BET if ultra_vp else MAX_BET
-	SaveManager.bet_level = bet
-	SaveManager.save_game()
+	SaveManager.set_bet_level(mode_id, bet)
 	bet_changed.emit(bet)
 	SoundManager.play("bet")
 	deal()

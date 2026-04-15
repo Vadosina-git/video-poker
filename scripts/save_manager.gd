@@ -7,7 +7,8 @@ var denomination: int = 1
 var last_variant: String = "jacks_or_better"
 var hand_count: int = 1  # 1=single, 3=triple, 5=five, 10=ten, 12=twelve, 25=twenty-five
 var speed_level: int = 1  # 0-3, default 1 (second speed)
-var bet_level: int = 1    # 1-5, default 1
+var bet_level: int = 1    # Legacy, kept for backward compat
+var bet_levels: Dictionary = {}  # Per-mode: {"single_play": 1, "triple_play": 1, ...}
 var ultra_vp: bool = false  # Ultra VP mode flag
 var spin_poker: bool = false   # Spin Poker mode flag
 var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
@@ -153,6 +154,7 @@ func save_game() -> void:
 		"hand_count": hand_count,
 		"speed_level": speed_level,
 		"bet_level": bet_level,
+		"bet_levels": bet_levels,
 		"ultra_vp": ultra_vp,
 		"spin_poker": spin_poker,
 		"depth_hint_shown": depth_hint_shown,
@@ -181,6 +183,10 @@ func load_game() -> void:
 	hand_count = int(data.get("hand_count", 1))
 	speed_level = int(data.get("speed_level", 1))
 	bet_level = int(data.get("bet_level", 1))
+	var saved_bets: Dictionary = data.get("bet_levels", {})
+	bet_levels.clear()
+	for key in saved_bets:
+		bet_levels[key] = int(saved_bets[key])
 	ultra_vp = bool(data.get("ultra_vp", data.get("ultimate_x", false)))
 	spin_poker = bool(data.get("spin_poker", false))
 	depth_hint_shown = bool(data.get("depth_hint_shown", false))
@@ -190,6 +196,16 @@ func load_game() -> void:
 	for key in saved_settings:
 		if key in settings:
 			settings[key] = saved_settings[key]
+
+
+func get_bet_level(mode_id: String) -> int:
+	return int(bet_levels.get(mode_id, 1))
+
+
+func set_bet_level(mode_id: String, level: int) -> void:
+	bet_levels[mode_id] = level
+	bet_level = level  # keep legacy field in sync
+	save_game()
 
 
 func add_credits(amount: int) -> void:

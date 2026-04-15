@@ -29,7 +29,7 @@ var last_win: int = 0
 
 func setup(p_variant: BaseVariant) -> void:
 	variant = p_variant
-	bet = clampi(SaveManager.bet_level, 1, MAX_BET)
+	bet = clampi(SaveManager.get_bet_level("single_play"), 1, MAX_BET)
 
 
 func bet_one() -> void:
@@ -43,8 +43,7 @@ func bet_one() -> void:
 	else:
 		bet += 1
 	SoundManager.play("bet")
-	SaveManager.bet_level = bet
-	SaveManager.save_game()
+	SaveManager.set_bet_level("single_play", bet)
 	bet_changed.emit(bet)
 
 
@@ -54,7 +53,7 @@ func bet_max() -> void:
 	if state == State.WIN_DISPLAY:
 		_to_idle()
 	bet = MAX_BET
-	SaveManager.bet_level = bet
+	SaveManager.set_bet_level("single_play", bet)
 	SaveManager.save_game()
 	bet_changed.emit(bet)
 	SoundManager.play("bet")

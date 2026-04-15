@@ -124,6 +124,7 @@ func _ready() -> void:
 	_update_bet_display(_game_manager.bet)
 	_bet_one_btn.text = Translations.tr_key("game.bet_one_fmt", [_game_manager.bet])
 	_bet_max_btn.text = Translations.tr_key("game.bet_max")
+	_paytable_display.highlight_bet_column(_game_manager.bet)
 	_set_status(Translations.tr_key("game.place_your_bet"))
 
 
