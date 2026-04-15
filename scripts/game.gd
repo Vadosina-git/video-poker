@@ -186,8 +186,11 @@ func _apply_theme() -> void:
 	_balance_cd["box"].gui_input.connect(_on_credits_toggle)
 	bal_block.add_child(_balance_cd["box"])
 
-	_topup_btn.add_theme_font_size_override("font_size", 18)
+	_topup_btn.add_theme_font_size_override("font_size", 24)
 	_topup_btn.add_theme_color_override("font_color", COL_YELLOW)
+	var topup_bold := SystemFont.new()
+	topup_bold.font_weight = 700
+	_topup_btn.add_theme_font_override("font", topup_bold)
 	var topup_style := StyleBoxFlat.new()
 	topup_style.bg_color = Color(0.1, 0.1, 0.4, 0.8)
 	topup_style.set_border_width_all(2)
