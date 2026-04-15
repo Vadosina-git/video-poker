@@ -20,7 +20,7 @@ static func style_exit_button(btn: Button) -> void:
 	btn.add_theme_stylebox_override("normal", style)
 	btn.add_theme_stylebox_override("hover", style)
 	btn.add_theme_stylebox_override("pressed", style)
-	btn.custom_minimum_size = Vector2(LEFT_MARGIN + 48, 48)
+	btn.custom_minimum_size = Vector2(LEFT_MARGIN + 38, 38)
 
 
 ## Create a new exit button (for modes that build UI in code).
