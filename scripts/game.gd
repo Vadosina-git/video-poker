@@ -218,6 +218,8 @@ func _apply_theme() -> void:
 	var bet_idx := _total_bet_label.get_index()
 	bet_parent.remove_child(_total_bet_label)
 	bet_row.add_child(_total_bet_label)
+	_bet_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_bet_cd["box"].gui_input.connect(_on_credits_toggle)
 	bet_row.add_child(_bet_cd["box"])
 	bet_parent.add_child(bet_row)
 	bet_parent.move_child(bet_row, bet_idx)

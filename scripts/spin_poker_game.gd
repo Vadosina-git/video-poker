@@ -324,6 +324,8 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_bet_display_label.gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_bet_display_label)
 	_bet_display_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_bet_display_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_bet_display_cd["box"].gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_bet_display_cd["box"])
 
 	var spacer := Control.new()

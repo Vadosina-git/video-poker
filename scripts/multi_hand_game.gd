@@ -289,6 +289,8 @@ func _apply_theme() -> void:
 	_total_bet_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_total_bet_label.gui_input.connect(_on_credits_toggle)
 	_bet_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_bet_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
+	_bet_cd["box"].gui_input.connect(_on_credits_toggle)
 	_info_row.add_child(_bet_cd["box"])
 	_info_row.move_child(_bet_cd["box"], _total_bet_label.get_index() + 1)
 	_balance_label.add_theme_font_size_override("font_size", 16)
