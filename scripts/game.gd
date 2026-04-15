@@ -191,7 +191,7 @@ func _apply_theme() -> void:
 	_status_box.add_theme_constant_override("separation", 4)
 	_status_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_last_win_label.add_theme_font_size_override("font_size", 20)
-	_last_win_label.add_theme_color_override("font_color", COL_YELLOW)
+	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_last_win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_last_win_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_status_box.add_child(_last_win_label)
@@ -546,7 +546,7 @@ var _last_win_amount: int = 0
 
 func _set_status(text: String) -> void:
 	_last_win_label.text = text
-	_last_win_label.add_theme_color_override("font_color", COL_YELLOW)
+	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_last_win_label.modulate.a = 1.0
 	_win_cd["box"].visible = false
 	_status_box.modulate.a = 1.0
@@ -566,7 +566,7 @@ func _set_win_active(amount: int) -> void:
 	_last_win_amount = amount
 	_last_win_label.text = Translations.tr_key("game.win_label")
 	_last_win_label.add_theme_font_size_override("font_size", 20)
-	_last_win_label.add_theme_color_override("font_color", COL_YELLOW)
+	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_last_win_label.modulate.a = 1.0
 	if _balance_show_depth:
 		SaveManager.set_currency_value(_win_cd, _format_win(amount), 20, COL_YELLOW, false)

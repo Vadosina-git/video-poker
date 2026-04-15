@@ -1372,6 +1372,7 @@ Translations.tr_key("machine.%s.feature" % variant_id)
 
 ### Правила для Claude Code
 
+- **Всегда отвечать пользователю на русском языке**
 - **Не коммитить без явного одобрения пользователя**
 - Все стили — в GDScript, не в .tscn (Godot 4.6 парсер отвергает `theme_override_`)
 - Использовать `load()` вместо `preload()` для сцен (избежать circular dependencies)

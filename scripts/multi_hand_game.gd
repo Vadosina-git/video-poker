@@ -273,7 +273,7 @@ func _apply_theme() -> void:
 	ir_parent.add_child(ir_margin)
 	ir_parent.move_child(ir_margin, ir_idx)
 	_win_label.add_theme_font_size_override("font_size", 16)
-	_win_label.add_theme_color_override("font_color", COL_YELLOW)
+	_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_win_label.text = Translations.tr_key("game.win_label")
 	_win_cd = SaveManager.create_currency_display(16, COL_YELLOW)
 	_info_row.add_child(_win_cd["box"])
@@ -282,11 +282,11 @@ func _apply_theme() -> void:
 	_total_bet_label.add_theme_font_size_override("font_size", 16)
 	_total_bet_label.add_theme_color_override("font_color", Color.WHITE)
 	_total_bet_label.text = Translations.tr_key("game.total_bet")
-	_bet_cd = SaveManager.create_currency_display(16, Color.WHITE)
+	_bet_cd = SaveManager.create_currency_display(16, COL_YELLOW)
 	_info_row.add_child(_bet_cd["box"])
 	_info_row.move_child(_bet_cd["box"], _total_bet_label.get_index() + 1)
 	_balance_label.add_theme_font_size_override("font_size", 16)
-	_balance_label.add_theme_color_override("font_color", COL_YELLOW)
+	_balance_label.add_theme_color_override("font_color", Color.WHITE)
 	_balance_label.text = Translations.tr_key("game.balance")
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -955,7 +955,7 @@ func _on_state_changed(new_state: int) -> void:
 			_win_label.text = Translations.tr_key("game.win_label")
 			_win_cd["box"].visible = true
 			SaveManager.set_currency_value(_win_cd, "0")
-			_win_label.add_theme_color_override("font_color", COL_YELLOW)
+			_win_label.add_theme_color_override("font_color", Color.WHITE)
 			for card in _primary_cards:
 				card.set_interactive(false)
 			_start_idle_blink_timer()
@@ -1275,7 +1275,7 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 		else:
 			SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
 		_win_cd["box"].visible = true
-		_win_label.add_theme_color_override("font_color", COL_YELLOW)
+		_win_label.add_theme_color_override("font_color", Color.WHITE)
 	else:
 		_win_label.text = Translations.tr_key("game.no_win")
 		_win_cd["box"].visible = false
