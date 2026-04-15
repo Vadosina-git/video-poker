@@ -2169,6 +2169,8 @@ func _show_bet_picker() -> void:
 				_update_multiplier_labels()
 			_update_bet_amount_btn()
 			_update_bet_display(_manager.bet)
+			if _balance_show_depth:
+				_update_balance(SaveManager.credits)
 			_bet_picker_overlay.queue_free()
 			_bet_picker_overlay = null
 		)

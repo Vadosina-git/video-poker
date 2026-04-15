@@ -1137,6 +1137,8 @@ func _select_denomination(amount: int) -> void:
 	_update_bet_amount_btn()
 	_update_bet_display(_game_manager.bet)
 	_bet_one_btn.text = Translations.tr_key("game.bet_one_fmt", [_game_manager.bet])
+	if _balance_show_depth:
+		_update_balance(SaveManager.credits)
 	_hide_bet_picker()
 
 func _hide_bet_picker() -> void:
