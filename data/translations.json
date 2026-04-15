@@ -148,7 +148,9 @@
       "gift.claim": "CLAIM GIFT",
       "settings.vibration": "VIBRATION",
       "common.on": "ON",
-      "common.off": "OFF"
+      "common.off": "OFF",
+      "double.you_won": "You won",
+      "double.double_to": ". Double to"
     },
     "ru": {
       "common.got_it": "ПОНЯТНО",
@@ -182,7 +184,7 @@
       "game.speed": "СКОРОСТЬ",
       "game.hands_n_fmt": "Рук: %d",
       "game.ultra_vp_btn": "ULTRA VP",
-      "game.place_your_bet": "СДЕЛАЙТЕ СТАВКУ",
+      "game.place_your_bet": "СДЕЛАЙТЕ СТАВКУ И ЖМИТЕ РАЗДАТЬ",
       "game.hold_cards_then_draw": "ВЫБЕРИТЕ КАРТЫ И ЖМИТЕ ЗАМЕНА",
       "game.win_label": "ВЫИГРЫШ:",
       "game.no_win": "НЕТ ВЫИГРЫША",
@@ -297,7 +299,9 @@
       "gift.claim": "ЗАБРАТЬ",
       "settings.vibration": "ВИБРАЦИЯ",
       "common.on": "ВКЛ",
-      "common.off": "ВЫКЛ"
+      "common.off": "ВЫКЛ",
+      "double.you_won": "Вы выиграли",
+      "double.double_to": ". Удвоить до"
     },
     "es": {
       "common.got_it": "ENTENDIDO",
@@ -446,7 +450,9 @@
       "gift.claim": "RECLAMAR",
       "settings.vibration": "VIBRACIÓN",
       "common.on": "SÍ",
-      "common.off": "NO"
+      "common.off": "NO",
+      "double.you_won": "Ganaste",
+      "double.double_to": ". Doblar a"
     }
   }
 }

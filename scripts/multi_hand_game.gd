@@ -2547,13 +2547,27 @@ func _show_double_warning() -> void:
 	vbox.add_child(title)
 
 	var doubled := _double_amount * 2
-	var msg := Label.new()
-	msg.text = Translations.tr_key("double.msg_fmt",
-			[SaveManager.format_money(_double_amount), SaveManager.format_money(doubled)])
-	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	msg.add_theme_font_size_override("font_size", 20)
-	msg.add_theme_color_override("font_color", Color.WHITE)
-	vbox.add_child(msg)
+	# Message with chip glyphs: "You won {chip}X. Double to {chip}Y?"
+	var msg_row := HBoxContainer.new()
+	msg_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	msg_row.add_theme_constant_override("separation", 4)
+	vbox.add_child(msg_row)
+	var lbl1 := Label.new()
+	lbl1.text = Translations.tr_key("double.you_won")
+	lbl1.add_theme_font_size_override("font_size", 20)
+	lbl1.add_theme_color_override("font_color", Color.WHITE)
+	msg_row.add_child(lbl1)
+	var cd1 := SaveManager.create_currency_display(20, COL_YELLOW)
+	SaveManager.set_currency_value(cd1, SaveManager.format_money(_double_amount))
+	msg_row.add_child(cd1["box"])
+	var lbl2 := Label.new()
+	lbl2.text = Translations.tr_key("double.double_to")
+	lbl2.add_theme_font_size_override("font_size", 20)
+	lbl2.add_theme_color_override("font_color", Color.WHITE)
+	msg_row.add_child(lbl2)
+	var cd2 := SaveManager.create_currency_display(20, COL_YELLOW)
+	SaveManager.set_currency_value(cd2, SaveManager.format_money(doubled))
+	msg_row.add_child(cd2["box"])
 
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 20)
