@@ -1078,6 +1078,13 @@ func _on_bet_amount_pressed() -> void:
 
 # ─── IDLE BLINK (G.10) ───────────────────────────────────────────────
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		# Any tap resets idle timer (if in idle-eligible state)
+		if _game_manager.state == GameManager.State.IDLE or _game_manager.state == GameManager.State.HOLDING or _game_manager.state == GameManager.State.WIN_DISPLAY:
+			_start_idle_blink_timer()
+
+
 func _start_idle_blink_timer() -> void:
 	_stop_idle_blink()
 	_idle_timer = get_tree().create_timer(5.0)
