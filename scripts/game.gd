@@ -42,7 +42,6 @@ var _win_cd: Dictionary      # currency display for win amount
 var _status_label: Label  # center hint text between BALANCE and WIN
 var _variant: BaseVariant
 var _animating: bool = false
-var _hold_hint_label: Label = null
 
 # Figma colors
 const COL_YELLOW := Color("FFEC00")
@@ -632,36 +631,6 @@ func _stop_win_increment() -> void:
 
 # --- Hold hint (floating label above cards) ---
 
-func _show_hold_hint() -> void:
-	_set_status("")
-	_hold_hint_label = Label.new()
-	_hold_hint_label.text = Translations.tr_key("game.hold_cards_then_draw")
-	_hold_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hold_hint_label.add_theme_font_size_override("font_size", 18)
-	_hold_hint_label.add_theme_color_override("font_color", Color("FFEC00"))
-	var bold := SystemFont.new()
-	bold.font_weight = 700
-	_hold_hint_label.add_theme_font_override("font", bold)
-	_hold_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hold_hint_label.z_index = 20
-	add_child(_hold_hint_label)
-	_position_hold_hint.call_deferred()
-
-func _position_hold_hint() -> void:
-	if not _hold_hint_label or not is_instance_valid(_hold_hint_label):
-		return
-	await get_tree().process_frame
-	var rect := _cards_container.get_global_rect()
-	var lbl_size := _hold_hint_label.get_combined_minimum_size()
-	_hold_hint_label.global_position = Vector2(
-		rect.get_center().x - lbl_size.x / 2,
-		rect.position.y - lbl_size.y - 4
-	)
-
-func _set_status("") -> void:
-	if _hold_hint_label and is_instance_valid(_hold_hint_label):
-		_hold_hint_label.queue_free()
-	_hold_hint_label = null
 
 
 # --- State changes ---
