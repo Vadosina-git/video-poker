@@ -125,6 +125,7 @@ func _ready() -> void:
 	_bet_max_btn.text = Translations.tr_key("game.bet_max")
 	_paytable_display.highlight_bet_column(_game_manager.bet)
 	_set_status(Translations.tr_key("game.place_your_bet"))
+	_start_idle_blink_timer()
 
 
 
