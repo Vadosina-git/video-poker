@@ -657,6 +657,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_max_btn.disabled = false
 			_deal_draw_btn.disabled = false
 			_bet_amount_btn.disabled = false
+			_bet_amount_btn.modulate.a = 1.0
 			_double_btn.disabled = true
 			_in_double = false
 			_set_status(Translations.tr_key("game.place_your_bet"))
@@ -672,6 +673,7 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_one_btn.disabled = true
 			_bet_max_btn.disabled = true
 			_bet_amount_btn.disabled = true
+			_bet_amount_btn.modulate.a = 0.5
 			_set_win_dimmed()
 			_paytable_display.highlight_bet_column(_game_manager.bet)
 
@@ -861,6 +863,8 @@ func _unlock_buttons() -> void:
 	_deal_draw_btn.disabled = false
 	_bet_one_btn.disabled = false
 	_bet_max_btn.disabled = false
+	_bet_amount_btn.disabled = false
+	_bet_amount_btn.modulate.a = 1.0
 
 func _on_bet_changed(new_bet: int) -> void:
 	_update_bet_display(new_bet)
