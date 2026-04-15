@@ -137,20 +137,8 @@ func _apply_theme() -> void:
 	_middle_section.add_theme_constant_override("separation", 2)
 	_layout_middle.call_deferred()
 
-	# Back button — exit icon, 48px
-	_back_btn.text = ""
-	var exit_tex_path := "res://assets/textures/table_exit.svg"
-	if ResourceLoader.exists(exit_tex_path):
-		_back_btn.icon = load(exit_tex_path)
-		_back_btn.expand_icon = true
-	_back_btn.add_theme_color_override("font_color", Color.WHITE)
-	var back_style := StyleBoxFlat.new()
-	back_style.bg_color = Color(0, 0, 0, 0)
-	back_style.content_margin_left = 100  # align with controlbar left edge (side_m)
-	_back_btn.add_theme_stylebox_override("normal", back_style)
-	_back_btn.add_theme_stylebox_override("hover", back_style)
-	_back_btn.add_theme_stylebox_override("pressed", back_style)
-	_back_btn.custom_minimum_size = Vector2(148, 48)
+	# Back button — exit icon, aligned with controlbar
+	TopBarBuilder.style_exit_button(_back_btn)
 
 	# Title — compact to give paytable more room
 	_game_title.add_theme_font_size_override("font_size", 20)
@@ -1072,62 +1060,7 @@ func _stop_idle_blink() -> void:
 
 
 func _on_back_pressed() -> void:
-	var overlay := Control.new()
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	overlay.z_index = 50
-	add_child(overlay)
-	var dim := ColorRect.new()
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.gui_input.connect(func(e: InputEvent) -> void:
-		if e is InputEventMouseButton and e.pressed:
-			overlay.queue_free()
-	)
-	overlay.add_child(dim)
-	var panel := PanelContainer.new()
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color("000086")
-	ps.set_border_width_all(3)
-	ps.border_color = Color.WHITE
-	ps.set_corner_radius_all(12)
-	ps.content_margin_left = 32
-	ps.content_margin_right = 32
-	ps.content_margin_top = 24
-	ps.content_margin_bottom = 24
-	panel.add_theme_stylebox_override("panel", ps)
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	overlay.add_child(panel)
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
-	panel.add_child(vbox)
-	var msg := Label.new()
-	msg.text = Translations.tr_key("game.exit_confirm")
-	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	msg.add_theme_font_size_override("font_size", 24)
-	msg.add_theme_color_override("font_color", Color.WHITE)
-	vbox.add_child(msg)
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 16)
-	btns.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_child(btns)
-	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
-	var tex_g := load("res://assets/textures/btn_rect_green.svg")
-	var stay_btn := Button.new()
-	stay_btn.text = Translations.tr_key("game.exit_stay")
-	_style_button_texture(stay_btn, tex_g, Color.WHITE, 20, 120, 44)
-	stay_btn.pressed.connect(func() -> void: overlay.queue_free())
-	btns.add_child(stay_btn)
-	var leave_btn := Button.new()
-	leave_btn.text = Translations.tr_key("game.exit_leave")
-	_style_button_texture(leave_btn, tex_y, COL_BTN_TEXT, 20, 120, 44)
-	leave_btn.pressed.connect(func() -> void:
-		overlay.queue_free()
-		back_to_lobby.emit()
-	)
-	btns.add_child(leave_btn)
+	TopBarBuilder.show_exit_confirm(self, func() -> void: back_to_lobby.emit())
 
 
 func _show_bet_picker() -> void:
