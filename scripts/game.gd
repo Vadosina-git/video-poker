@@ -423,19 +423,17 @@ func _position_status_label() -> void:
 
 func _update_balance(credits: int) -> void:
 	if _balance_show_depth:
-		var depth := _calculate_game_depth()
+		var cr := _calculate_credits()
 		_balance_label.text = Translations.tr_key("game.games")
-		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(cr), 0, Color(-1, 0, 0), false)
 	else:
 		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
 
 
-func _calculate_game_depth() -> int:
-	var per_round: int = _game_manager.bet * SaveManager.denomination
-	if per_round <= 0:
-		return 0
-	return SaveManager.credits / per_round
+func _calculate_credits() -> int:
+	var denom: int = maxi(SaveManager.denomination, 1)
+	return SaveManager.credits / denom
 
 
 func _on_balance_clicked(event: InputEvent) -> void:
@@ -518,8 +516,12 @@ func _show_depth_tooltip() -> void:
 	vbox.add_child(ok_btn)
 
 func _update_bet_display(bet: int) -> void:
-	var total: int = bet * SaveManager.denomination
-	SaveManager.set_currency_value(_bet_cd, SaveManager.format_money(total))
+	if _balance_show_depth:
+		# Credits mode: bet level × 1 hand
+		SaveManager.set_currency_value(_bet_cd, str(bet), 0, Color(-1, 0, 0), false)
+	else:
+		var total: int = bet * SaveManager.denomination
+		SaveManager.set_currency_value(_bet_cd, SaveManager.format_money(total))
 	_flash_bet_display()
 
 
@@ -547,20 +549,32 @@ func _set_status(text: String) -> void:
 	else:
 		_last_win_label.add_theme_font_size_override("font_size", 20)
 
+func _format_win(amount: int) -> String:
+	if _balance_show_depth:
+		return str(amount / maxi(SaveManager.denomination, 1))
+	return SaveManager.format_short(amount)
+
+
 func _set_win_active(amount: int) -> void:
 	_last_win_amount = amount
 	_last_win_label.text = Translations.tr_key("game.win_label")
 	_last_win_label.add_theme_font_size_override("font_size", 20)
 	_last_win_label.add_theme_color_override("font_color", COL_YELLOW)
 	_last_win_label.modulate.a = 1.0
-	SaveManager.set_currency_value(_win_cd, SaveManager.format_short(amount), 20, COL_YELLOW)
+	if _balance_show_depth:
+		SaveManager.set_currency_value(_win_cd, _format_win(amount), 20, COL_YELLOW, false)
+	else:
+		SaveManager.set_currency_value(_win_cd, _format_win(amount), 20, COL_YELLOW)
 	_win_cd["box"].visible = true
 	_status_box.modulate.a = 1.0
 
 func _set_win_dimmed() -> void:
 	if _last_win_amount > 0:
 		_last_win_label.text = Translations.tr_key("game.last_win_label")
-		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_last_win_amount), 20, Color(0.7, 0.7, 0.4))
+		if _balance_show_depth:
+			SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 20, Color(0.7, 0.7, 0.4), false)
+		else:
+			SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 20, Color(0.7, 0.7, 0.4))
 		_win_cd["box"].visible = true
 	else:
 		_last_win_label.text = ""
@@ -789,10 +803,10 @@ func _animate_credits(target: int) -> void:
 func _update_credit_display(value: int) -> void:
 	_displayed_credits = value
 	if _balance_show_depth:
-		var per_round: int = _game_manager.bet * SaveManager.denomination
-		var depth := (value / per_round) if per_round > 0 else 0
+		var denom: int = maxi(SaveManager.denomination, 1)
+		var cr: int = value / denom
 		_balance_label.text = Translations.tr_key("game.games")
-		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(cr), 0, Color(-1, 0, 0), false)
 	else:
 		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value), 0, Color(-1, 0, 0), true)

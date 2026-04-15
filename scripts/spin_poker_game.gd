@@ -972,7 +972,11 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 		var display_total: int = total_payout / maxi(SaveManager.denomination, 1)
 		_game_pays_label.text = Translations.tr_key("spin.game_pays_fmt", [str(display_total)])
 		_game_pays_label.visible = true
-		SaveManager.set_currency_value(_win_cd, SaveManager.format_money(total_payout))
+		if _balance_show_depth:
+			var win_cr: int = total_payout / maxi(_current_denomination, 1)
+			SaveManager.set_currency_value(_win_cd, str(win_cr), 0, Color(-1, 0, 0), false)
+		else:
+			SaveManager.set_currency_value(_win_cd, SaveManager.format_money(total_payout))
 		_status_label.text = Translations.tr_key("spin.game_over")
 		_highlight_all_winning()
 		if _winning_lines.size() > 0:
@@ -1226,18 +1230,16 @@ func _recommend_denomination() -> int:
 	return best
 
 
-func _calculate_game_depth() -> int:
-	var per_round: int = SpinPokerManager.NUM_LINES * _manager.bet * _current_denomination
-	if per_round <= 0:
-		return 0
-	return SaveManager.credits / per_round
+func _calculate_credits() -> int:
+	var denom: int = maxi(_current_denomination, 1)
+	return SaveManager.credits / denom
 
 
 func _update_balance(credits: int) -> void:
 	if _balance_show_depth:
-		var depth := _calculate_game_depth()
+		var cr := _calculate_credits()
 		_balance_label.text = Translations.tr_key("game.games")
-		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(cr), 0, Color(-1, 0, 0), false)
 	else:
 		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)

@@ -778,12 +778,17 @@ func _is_rushing() -> bool:
 
 func _update_balance(credits: int) -> void:
 	if _balance_show_depth:
-		var depth := _calculate_game_depth()
+		var cr := _calculate_credits()
 		_balance_label.text = Translations.tr_key("game.games")
-		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(cr), 0, Color(-1, 0, 0), false)
 	else:
 		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
+
+
+func _calculate_credits() -> int:
+	var denom: int = maxi(SaveManager.denomination, 1)
+	return SaveManager.credits / denom
 
 
 func _calculate_game_depth() -> int:
@@ -1262,7 +1267,11 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 	if total_payout > 0:
 		VibrationManager.vibrate("win_small")
 		_win_label.text = Translations.tr_key("game.win_label")
-		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
+		if _balance_show_depth:
+			var win_cr: int = total_payout / maxi(SaveManager.denomination, 1)
+			SaveManager.set_currency_value(_win_cd, str(win_cr), 0, Color(-1, 0, 0), false)
+		else:
+			SaveManager.set_currency_value(_win_cd, SaveManager.format_short(total_payout))
 		_win_cd["box"].visible = true
 		_win_label.add_theme_color_override("font_color", COL_YELLOW)
 	else:
@@ -1967,13 +1976,10 @@ func _animate_credits(target: int) -> void:
 func _update_credit_display(value: int) -> void:
 	_displayed_credits = value
 	if _balance_show_depth:
-		# In depth mode, show games count instead of credits
-		var ux_active := _ultra_vp and _manager.bet == MultiHandManager.MAX_BET
-		var bet_mult := 2 if ux_active else 1
-		var per_round: int = _manager.bet * _num_hands * SaveManager.denomination * bet_mult
-		var depth := (value / per_round) if per_round > 0 else 0
+		var denom: int = maxi(SaveManager.denomination, 1)
+		var cr: int = value / denom
 		_balance_label.text = Translations.tr_key("game.games")
-		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(depth), 0, Color(-1, 0, 0), false)
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(cr), 0, Color(-1, 0, 0), false)
 	else:
 		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value), 0, Color(-1, 0, 0), true)
@@ -2580,7 +2586,10 @@ func _on_double_card_picked(index: int) -> void:
 		_animate_credits(SaveManager.credits)
 		_win_label.text = Translations.tr_key("double.win")
 		_win_cd["box"].visible = true
-		SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_double_amount))
+		if _balance_show_depth:
+			SaveManager.set_currency_value(_win_cd, str(_double_amount / maxi(SaveManager.denomination, 1)), 0, Color(-1, 0, 0), false)
+		else:
+			SaveManager.set_currency_value(_win_cd, SaveManager.format_short(_double_amount))
 		await _credit_tween.finished
 		_double_btn.disabled = false
 		_deal_draw_btn.disabled = false
