@@ -570,26 +570,46 @@ func _format_win(amount: int) -> String:
 	return SaveManager.format_short(amount)
 
 
+var _win_increment_tween: Tween = null
+
 func _set_win_active(amount: int) -> void:
 	_last_win_amount = amount
 	_last_win_label.text = Translations.tr_key("game.win_label")
 	_last_win_label.add_theme_font_size_override("font_size", 20)
 	_last_win_label.add_theme_color_override("font_color", Color.WHITE)
 	_last_win_label.modulate.a = 1.0
-	if _balance_show_depth:
-		SaveManager.set_currency_value(_win_cd, _format_win(amount), 20, COL_YELLOW, false)
-	else:
-		SaveManager.set_currency_value(_win_cd, _format_win(amount), 20, COL_YELLOW)
 	_win_cd["box"].visible = true
 	_status_box.modulate.a = 1.0
+	# Animate win increment from 0 to amount
+	_animate_win_increment(0, amount)
 
 func _set_win_dimmed() -> void:
+	_stop_win_increment()
 	_last_win_label.text = Translations.tr_key("game.last_win_label")
 	_last_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 	var show_chip: bool = not _balance_show_depth
 	SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 20, Color(0.7, 0.7, 0.4), show_chip)
 	_win_cd["box"].visible = true
 	_status_box.modulate.a = 0.7
+
+
+func _animate_win_increment(from: int, to: int) -> void:
+	_stop_win_increment()
+	var show_chip: bool = not _balance_show_depth
+	# Show "0" initially
+	SaveManager.set_currency_value(_win_cd, _format_win(from), 20, COL_YELLOW, show_chip)
+	if from == to:
+		return
+	_win_increment_tween = create_tween()
+	_win_increment_tween.tween_method(func(val: int) -> void:
+		SaveManager.set_currency_value(_win_cd, _format_win(val), 0, Color(-1, 0, 0), show_chip)
+	, from, to, 2.0).set_ease(Tween.EASE_OUT)
+
+
+func _stop_win_increment() -> void:
+	if _win_increment_tween:
+		_win_increment_tween.kill()
+		_win_increment_tween = null
 
 
 
