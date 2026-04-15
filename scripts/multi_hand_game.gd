@@ -1166,11 +1166,19 @@ func _on_deal_draw_pressed() -> void:
 				_flash_balance_red()
 				_show_shop()
 				return
-		# Deal immediately (deducts credits), then animate multipliers
-		_manager.deal_or_draw()
-		# Animate NEXT → ACTIVE after deal started (Ultra VP)
+		# Ultra VP: show balance deduction visually, then animate multipliers, then deal
 		if _ultra_vp and _manager.bet == MultiHandManager.ULTRA_BET:
+			# Visual-only balance update (show what it will be after deal)
+			var cost: int = _manager.bet * _num_hands * SaveManager.denomination
+			_update_balance(SaveManager.credits - cost)
+			# Animate NEXT → ACTIVE (reads next_multipliers before deal resets them)
+			_animating = true
+			_deal_draw_btn.disabled = true
+			_bet_btn.disabled = true
+			_bet_max_btn.disabled = true
 			await _animate_multipliers_next_to_active()
+			_animating = false
+		_manager.deal_or_draw()
 
 
 func _on_hands_drawn(all_hands: Array) -> void:
