@@ -458,14 +458,8 @@ func _toggle_credits_mode() -> void:
 	# Refresh WIN display in new mode (always, even if win=0)
 	if _game_manager.state == GameManager.State.WIN_DISPLAY:
 		_set_win_active(_last_win_amount)
-	elif _last_win_amount > 0:
-		_set_win_dimmed()
 	else:
-		# No win yet — update format (chips vs credits "0")
-		if _balance_show_depth:
-			SaveManager.set_currency_value(_win_cd, "0", 0, Color(-1, 0, 0), false)
-		else:
-			SaveManager.set_currency_value(_win_cd, "0")
+		_set_win_dimmed()
 
 
 func _show_depth_tooltip() -> void:
@@ -590,17 +584,11 @@ func _set_win_active(amount: int) -> void:
 	_status_box.modulate.a = 1.0
 
 func _set_win_dimmed() -> void:
-	if _last_win_amount > 0:
-		_last_win_label.text = Translations.tr_key("game.last_win_label")
-		if _balance_show_depth:
-			SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 20, Color(0.7, 0.7, 0.4), false)
-		else:
-			SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 20, Color(0.7, 0.7, 0.4))
-		_win_cd["box"].visible = true
-	else:
-		_last_win_label.text = ""
-		_win_cd["box"].visible = false
+	_last_win_label.text = Translations.tr_key("game.last_win_label")
 	_last_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
+	var show_chip: bool = not _balance_show_depth
+	SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 20, Color(0.7, 0.7, 0.4), show_chip)
+	_win_cd["box"].visible = true
 	_status_box.modulate.a = 0.7
 
 
