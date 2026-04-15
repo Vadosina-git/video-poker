@@ -11,6 +11,7 @@ signal state_changed(new_state: int)
 enum State { IDLE, DEALING, HOLDING, DRAWING, EVALUATING, WIN_DISPLAY }
 
 const MAX_BET := 5
+const ULTRA_BET := 10  # Ultra VP activates at this bet level (2× of MAX_BET)
 
 var state: State = State.IDLE
 var variant: BaseVariant
@@ -33,7 +34,8 @@ func setup(p_variant: BaseVariant, p_num_hands: int, p_ultra_vp: bool = false) -
 	variant = p_variant
 	num_hands = p_num_hands
 	ultra_vp = p_ultra_vp
-	bet = clampi(SaveManager.bet_level, 1, MAX_BET)
+	var max_allowed: int = ULTRA_BET if p_ultra_vp else MAX_BET
+	bet = clampi(SaveManager.bet_level, 1, max_allowed)
 	_extra_decks.clear()
 	for i in (num_hands - 1):
 		_extra_decks.append(Deck.new(p_variant.paytable.deck_size))
@@ -65,11 +67,16 @@ func bet_one() -> void:
 		return
 	if state == State.WIN_DISPLAY:
 		_to_idle()
-	bet = wrapi(bet, 1, MAX_BET + 1)
-	if bet >= MAX_BET:
-		bet = 1
+	if ultra_vp:
+		# Cycle: 1→2→3→4→5→10→1
+		if bet >= ULTRA_BET:
+			bet = 1
+		elif bet >= MAX_BET:
+			bet = ULTRA_BET
+		else:
+			bet += 1
 	else:
-		bet += 1
+		bet = (bet % MAX_BET) + 1
 	SoundManager.play("bet")
 	SaveManager.bet_level = bet
 	SaveManager.save_game()
@@ -81,7 +88,7 @@ func bet_max() -> void:
 		return
 	if state == State.WIN_DISPLAY:
 		_to_idle()
-	bet = MAX_BET
+	bet = ULTRA_BET if ultra_vp else MAX_BET
 	SaveManager.bet_level = bet
 	SaveManager.save_game()
 	bet_changed.emit(bet)
@@ -95,9 +102,9 @@ func deal() -> void:
 	if state != State.IDLE:
 		return
 
-	var ux_active: bool = ultra_vp and bet == MAX_BET
-	var bet_multiplier := 2 if ux_active else 1
-	var cost: int = bet * num_hands * SaveManager.denomination * bet_multiplier
+	var ux_active: bool = ultra_vp and bet == ULTRA_BET
+	# bet=10 already costs 2× of bet=5, no extra multiplier needed
+	var cost: int = bet * num_hands * SaveManager.denomination
 	if not SaveManager.deduct_credits(cost):
 		return
 	credits_changed.emit(SaveManager.credits)
@@ -174,7 +181,7 @@ func _evaluate_all() -> void:
 
 	all_results.clear()
 	var total_payout: int = 0
-	var ux_active: bool = ultra_vp and bet == MAX_BET
+	var ux_active: bool = ultra_vp and bet == ULTRA_BET
 	# Earned multipliers for next round
 	var earned_multipliers: Array[int] = []
 

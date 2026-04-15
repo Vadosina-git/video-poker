@@ -792,7 +792,7 @@ func _calculate_credits() -> int:
 
 
 func _calculate_game_depth() -> int:
-	var ux_active := _ultra_vp and _manager.bet == MultiHandManager.MAX_BET
+	var ux_active := _ultra_vp and _manager.bet == MultiHandManager.ULTRA_BET
 	var bet_mult := 2 if ux_active else 1
 	var per_round: int = _manager.bet * _num_hands * SaveManager.denomination * bet_mult
 	if per_round <= 0:
@@ -880,12 +880,9 @@ func _show_depth_tooltip() -> void:
 	vbox.add_child(ok_btn)
 
 func _update_bet_display(bet: int) -> void:
-	var ux_active := _ultra_vp and bet == MultiHandManager.MAX_BET
-	var bet_mult := 2 if ux_active else 1
-	var total: int = bet * _num_hands * SaveManager.denomination * bet_mult
+	var total: int = bet * _num_hands * SaveManager.denomination
 	if _balance_show_depth:
-		# Credits mode: total / denomination
-		var credits_total: int = bet * _num_hands * bet_mult
+		var credits_total: int = bet * _num_hands
 		SaveManager.set_currency_value(_bet_cd, str(credits_total), 0, Color(-1, 0, 0), false)
 	else:
 		SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(total))
@@ -910,10 +907,10 @@ const MIN_GAME_DEPTH := 30
 func _recommend_denomination() -> int:
 	var balance := SaveManager.credits
 	var best: int = BET_AMOUNTS[0]
-	var ux_mult := 2 if _ultra_vp else 1
+	var max_bet: int = MultiHandManager.ULTRA_BET if _ultra_vp else MultiHandManager.MAX_BET
 	for amount in BET_AMOUNTS:
-		# worst case total_bet = denomination * max_bet * num_hands * (2 for Ultra VP)
-		if balance / (amount * MultiHandManager.MAX_BET * _num_hands * ux_mult) >= MIN_GAME_DEPTH:
+		# worst case total_bet = denomination * max_bet * num_hands
+		if balance / (amount * max_bet * _num_hands) >= MIN_GAME_DEPTH:
 			best = amount
 		else:
 			break
@@ -1149,14 +1146,13 @@ func _on_deal_draw_pressed() -> void:
 		_manager.draw()
 	else:
 		if _manager.state == MultiHandManager.State.IDLE or _manager.state == MultiHandManager.State.WIN_DISPLAY:
-			var ux_mult := 2 if _ultra_vp else 1
-			var cost: int = _manager.bet * _num_hands * SaveManager.denomination * ux_mult
+			var cost: int = _manager.bet * _num_hands * SaveManager.denomination
 			if cost > SaveManager.credits:
 				_flash_balance_red()
 				_show_shop()
 				return
 		# Starting new round — animate NEXT → ACTIVE first (Ultra VP)
-		if _ultra_vp and _manager.bet == MultiHandManager.MAX_BET:
+		if _ultra_vp and _manager.bet == MultiHandManager.ULTRA_BET:
 			_animating = true
 			_deal_draw_btn.disabled = true
 			_bet_btn.disabled = true
@@ -1182,7 +1178,7 @@ func _on_hands_drawn(all_hands: Array) -> void:
 
 	# 1b. Show primary hand result immediately (don't wait for extra hands)
 	var hand_keys := _variant.paytable.get_hand_order()
-	var ux_active := _ultra_vp and _manager.bet == MultiHandManager.MAX_BET
+	var ux_active := _ultra_vp and _manager.bet == MultiHandManager.ULTRA_BET
 	var p_rank := _variant.evaluate(primary)
 	var p_base: int = _variant.get_payout(p_rank, _manager.bet)
 	_primary_win_mask = [false, false, false, false, false]
@@ -1321,7 +1317,7 @@ var _info_pulse_tween: Tween = null
 func _update_info_card_status() -> void:
 	if not _info_card_active_label:
 		return
-	var ux_active := _manager.bet == MultiHandManager.MAX_BET
+	var ux_active := _manager.bet == MultiHandManager.ULTRA_BET
 	if ux_active:
 		_info_card_active_label.text = Translations.tr_key("info_card.active")
 		_info_card_active_label.add_theme_color_override("font_color", Color("07E02F"))
@@ -1354,7 +1350,7 @@ func _refresh_ux_visibility() -> void:
 		return
 	_update_info_card_status()
 	_ensure_mult_labels()
-	var ux_active := _manager.bet == MultiHandManager.MAX_BET
+	var ux_active := _manager.bet == MultiHandManager.ULTRA_BET
 	if not ux_active:
 		for lbl in _next_displays:
 			lbl.visible = false
@@ -1687,7 +1683,7 @@ func _update_multiplier_labels() -> void:
 ## The animation tweens the label's position from top to bottom, then rebuilds
 ## its content from two-row to one-row in place — NO separate label, NO handoff.
 func _animate_multipliers_next_to_active() -> void:
-	if not _ultra_vp or _manager.bet != MultiHandManager.MAX_BET:
+	if not _ultra_vp or _manager.bet != MultiHandManager.ULTRA_BET:
 		return
 	if _next_displays.size() < _num_hands:
 		return
@@ -1899,7 +1895,7 @@ func _on_info_card_clicked(event: InputEvent) -> void:
 			if _manager.state == MultiHandManager.State.WIN_DISPLAY:
 				_manager._to_idle()
 			_save_ux_state()
-			_manager.bet = MultiHandManager.MAX_BET
+			_manager.bet = MultiHandManager.ULTRA_BET if _ultra_vp else MultiHandManager.MAX_BET
 			SaveManager.bet_level = _manager.bet
 			SaveManager.save_game()
 			_load_ux_state()
@@ -2031,7 +2027,7 @@ func _on_bet_max_pressed() -> void:
 	if _ultra_vp:
 		_save_ux_state()
 		# Restore state for MAX bet key (where NEXT mults are stored)
-		var max_key := "%d_%d_%d" % [_num_hands, MultiHandManager.MAX_BET, SaveManager.denomination]
+		var max_key := "%d_%d_%d" % [_num_hands, MultiHandManager.ULTRA_BET, SaveManager.denomination]
 		if max_key in _ux_states:
 			var st: Dictionary = _ux_states[max_key]
 			var saved_hand: Array = st["hand_multipliers"]
