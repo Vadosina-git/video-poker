@@ -165,6 +165,7 @@ func _apply_theme() -> void:
 	var info_vbox := VBoxContainer.new()
 	_info_bar = info_vbox  # reuse _info_bar reference for positioning
 	info_vbox.add_theme_constant_override("separation", 2)
+	info_vbox.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	info_parent.add_child(info_vbox)
 	info_parent.move_child(info_vbox, info_idx)
 
@@ -994,7 +995,7 @@ func _position_overlay() -> void:
 	var cards_rect := _cards_container.get_global_rect()
 	var cards_center := cards_rect.get_center()
 	var overlay_size := _win_overlay.get_combined_minimum_size()
-	_win_overlay.position = Vector2(
+	_win_overlay.global_position = Vector2(
 		cards_center.x - overlay_size.x / 2,
 		cards_center.y - overlay_size.y / 2
 	)
