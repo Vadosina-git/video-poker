@@ -1251,6 +1251,7 @@ func _on_balance_clicked(event: InputEvent) -> void:
 			SaveManager.save_game()
 		_balance_show_depth = not _balance_show_depth
 		_update_balance(SaveManager.credits)
+		_update_bet_display(_manager.bet)
 
 
 func _show_depth_tooltip() -> void:
@@ -1323,7 +1324,11 @@ func _show_depth_tooltip() -> void:
 
 func _update_bet_display(bet: int) -> void:
 	var total: int = SpinPokerManager.NUM_LINES * bet * _current_denomination
-	SaveManager.set_currency_value(_bet_display_cd, SaveManager.format_auto(total, 80, 16))
+	if _balance_show_depth:
+		var credits_total: int = SpinPokerManager.NUM_LINES * bet
+		SaveManager.set_currency_value(_bet_display_cd, str(credits_total), 0, Color(-1, 0, 0), false)
+	else:
+		SaveManager.set_currency_value(_bet_display_cd, SaveManager.format_auto(total, 80, 16))
 
 
 var _bet_btn_cd: Dictionary

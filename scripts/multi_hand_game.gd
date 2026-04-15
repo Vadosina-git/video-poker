@@ -803,6 +803,7 @@ func _on_balance_clicked(event: InputEvent) -> void:
 			SaveManager.save_game()
 		_balance_show_depth = not _balance_show_depth
 		_update_balance(SaveManager.credits)
+		_update_bet_display(_manager.bet)
 
 
 func _show_depth_tooltip() -> void:
@@ -877,7 +878,12 @@ func _update_bet_display(bet: int) -> void:
 	var ux_active := _ultra_vp and bet == MultiHandManager.MAX_BET
 	var bet_mult := 2 if ux_active else 1
 	var total: int = bet * _num_hands * SaveManager.denomination * bet_mult
-	SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(total))
+	if _balance_show_depth:
+		# Credits mode: total / denomination
+		var credits_total: int = bet * _num_hands * bet_mult
+		SaveManager.set_currency_value(_bet_cd, str(credits_total), 0, Color(-1, 0, 0), false)
+	else:
+		SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(total))
 	_flash_bet_display()
 	# Refresh multiplier display when bet changes
 	if _ultra_vp:
