@@ -65,7 +65,7 @@ var BET_AMOUNTS: Array = []
 var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 var _idle_blink_tween: Tween = null
-var _idle_timer: SceneTreeTimer = null
+var _idle_timer: Timer = null
 
 
 func setup(variant: BaseVariant) -> void:
