@@ -1080,22 +1080,23 @@ func _on_bet_amount_pressed() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
-		# Any tap resets idle timer (if in idle-eligible state)
 		if _game_manager.state == GameManager.State.IDLE or _game_manager.state == GameManager.State.HOLDING or _game_manager.state == GameManager.State.WIN_DISPLAY:
 			_start_idle_blink_timer()
 
 
 func _start_idle_blink_timer() -> void:
 	_stop_idle_blink()
-	_idle_timer = get_tree().create_timer(5.0)
-	_idle_timer.timeout.connect(_begin_deal_blink)
+	if not _idle_timer:
+		_idle_timer = Timer.new()
+		_idle_timer.one_shot = true
+		_idle_timer.timeout.connect(_begin_deal_blink)
+		add_child(_idle_timer)
+	_idle_timer.start(5.0)
 
 
 func _begin_deal_blink() -> void:
-	_idle_timer = null
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
-	# 3 pulses then 5s pause, repeat
 	_idle_blink_tween = create_tween().set_loops()
 	for _i in 3:
 		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
@@ -1104,10 +1105,8 @@ func _begin_deal_blink() -> void:
 
 
 func _stop_idle_blink() -> void:
-	if _idle_timer and _idle_timer.time_left > 0:
-		# Can't cancel SceneTreeTimer, just disconnect
-		pass
-	_idle_timer = null
+	if _idle_timer:
+		_idle_timer.stop()
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
 		_idle_blink_tween = null
