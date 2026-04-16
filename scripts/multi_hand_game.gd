@@ -1279,6 +1279,9 @@ func _on_hands_drawn(all_hands: Array) -> void:
 func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 	# Extra hand results + NEXT multipliers already shown during draw animation
 	_start_result_blink()
+	# Persist earned multipliers
+	if _ultra_vp:
+		_save_ux_state()
 
 	# Primary hand result already shown during draw animation (in _on_hands_drawn)
 
