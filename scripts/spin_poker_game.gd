@@ -103,6 +103,7 @@ func _ready() -> void:
 	_speed_level = SaveManager.speed_level
 	_current_denomination = SaveManager.denomination
 	_build_ui()
+	_resize_grid.call_deferred()
 	_current_denomination = _recommend_denomination()
 	SaveManager.denomination = _current_denomination
 	_update_balance(SaveManager.credits)
@@ -283,6 +284,22 @@ func _build_ui() -> void:
 
 	# ── Bottom bar
 	_build_bottom_bar(root_vbox, bold)
+
+
+func _resize_grid() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	# Calculate available height between title and bottom bar
+	var viewport_h: float = get_viewport_rect().size.y
+	var title_bottom: float = _game_title.get_global_rect().end.y
+	# Bottom bar area ~120px from bottom
+	var available_h: float = viewport_h - title_bottom - 140
+	# 3 rows of square cells → cell size = available_h / 3
+	var cell_sz: float = floorf(available_h / 3.0)
+	cell_sz = maxf(cell_sz, 80.0)  # minimum 80
+	for row in 3:
+		for col in 5:
+			(_card_rects[row][col] as TextureRect).custom_minimum_size = Vector2(cell_sz, cell_sz)
 
 
 func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
