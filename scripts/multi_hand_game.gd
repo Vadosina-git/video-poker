@@ -1854,10 +1854,10 @@ func _build_info_card() -> void:
 	style.set_border_width_all(3)
 	style.border_color = Color("FFEC00")
 	style.set_corner_radius_all(8)
-	style.content_margin_left = 8
-	style.content_margin_right = 8
-	style.content_margin_top = 12
-	style.content_margin_bottom = 12
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
 	_info_card.add_theme_stylebox_override("panel", style)
 	var card_sz := _get_primary_card_size()
 	_info_card.custom_minimum_size = Vector2(card_sz.x, card_sz.y)
@@ -1867,39 +1867,38 @@ func _build_info_card() -> void:
 
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.add_theme_constant_override("separation", 6)
-	vbox.size_flags_vertical = Control.SIZE_FILL
+	vbox.add_theme_constant_override("separation", 3)
 	_info_card.add_child(vbox)
+
+	var bold := SystemFont.new()
+	bold.font_weight = 700
 
 	var title := Label.new()
 	title.text = Translations.tr_key("info_card.ultra_vp_title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_font_size_override("font_size", 16)
 	title.add_theme_color_override("font_color", Color("FFEC00"))
-	var bold := SystemFont.new()
-	bold.font_weight = 700
 	title.add_theme_font_override("font", bold)
 	vbox.add_child(title)
 
 	var sep := ColorRect.new()
 	sep.color = Color("FFEC00")
-	sep.custom_minimum_size = Vector2(0, 2)
+	sep.custom_minimum_size = Vector2(0, 1)
 	vbox.add_child(sep)
 
 	var desc := Label.new()
 	desc.text = Translations.tr_key("info_card.description")
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
-	desc.add_theme_font_size_override("font_size", 12)
+	desc.add_theme_font_size_override("font_size", 10)
 	desc.add_theme_color_override("font_color", Color.WHITE)
 	vbox.add_child(desc)
 
 	_info_card_active_label = Label.new()
 	_info_card_active_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_info_card_active_label.add_theme_font_size_override("font_size", 14)
+	_info_card_active_label.add_theme_font_size_override("font_size", 12)
 	_info_card_active_label.add_theme_font_override("font", bold)
 	_info_card_active_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	_info_card_active_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	vbox.add_child(_info_card_active_label)
 	_update_info_card_status()
 
