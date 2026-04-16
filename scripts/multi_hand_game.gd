@@ -1434,6 +1434,13 @@ func _build_mult_zone(width: int, is_primary: bool) -> Control:
 	zone.size_flags_vertical = Control.SIZE_FILL
 	zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	zone.clip_contents = false
+	# Draw dark backdrop on the zone (sits inside grid, visually under the hand)
+	zone.draw.connect(func() -> void:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0, 0, 0.08, 0.35)
+		sb.set_corner_radius_all(6)
+		zone.draw_style_box(sb, Rect2(Vector2.ZERO, zone.size))
+	)
 
 	# Glyph containers live at the game root level (absolute positioning).
 	# NO custom_minimum_size — their size must shrink to content so
@@ -1445,14 +1452,7 @@ func _build_mult_zone(width: int, is_primary: bool) -> Control:
 	next_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	next_display.visible = false
 	next_display.z_index = 10
-	# I.3: Dark backdrop for contrast (lighter, rounded)
-	next_display.draw.connect(func() -> void:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0, 0, 0.08, 0.35)
-		sb.set_corner_radius_all(6)
-		var pad := Vector2(4, 4)
-		next_display.draw_style_box(sb, Rect2(-pad, next_display.size + pad * 2))
-	)
+	# Backdrop drawn on zone (sits inside grid, under the hand)
 	add_child(next_display)
 	_next_displays.append(next_display)
 
@@ -1462,14 +1462,7 @@ func _build_mult_zone(width: int, is_primary: bool) -> Control:
 	active_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	active_display.visible = false
 	active_display.z_index = 10
-	# I.3: Dark backdrop for contrast (lighter, rounded)
-	active_display.draw.connect(func() -> void:
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0, 0, 0.08, 0.35)
-		sb.set_corner_radius_all(6)
-		var pad := Vector2(4, 4)
-		active_display.draw_style_box(sb, Rect2(-pad, active_display.size + pad * 2))
-	)
+	# Backdrop on zone instead of display
 	add_child(active_display)
 	_active_displays.append(active_display)
 
