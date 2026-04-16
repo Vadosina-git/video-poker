@@ -1625,12 +1625,11 @@ func _show_paytable() -> void:
 			left_rows[start_row_l].append(li)
 		else:
 			right_rows[start_row_r].append(li)
-	# Build left column
+	# Build left column — all 10 stacked vertically, grouped by row with spacers
 	var left_vbox := VBoxContainer.new()
-	left_vbox.add_theme_constant_override("separation", 0)
+	left_vbox.add_theme_constant_override("separation", 2)
 	left_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	left_vbox.custom_minimum_size.x = 40
-	# Insert before mini_panel in its parent
 	var grid_parent := mini_panel.get_parent()
 	var grid_hbox := HBoxContainer.new()
 	grid_hbox.add_theme_constant_override("separation", 4)
@@ -1643,31 +1642,31 @@ func _show_paytable() -> void:
 	grid_hbox.add_child(left_vbox)
 	grid_hbox.add_child(mini_panel)
 	var right_vbox := VBoxContainer.new()
-	right_vbox.add_theme_constant_override("separation", 0)
+	right_vbox.add_theme_constant_override("separation", 2)
 	right_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	right_vbox.custom_minimum_size.x = 40
 	grid_hbox.add_child(right_vbox)
-	# Build ribbon rows
+	# Left: ribbons stacked, grouped by row (T, M, B) with small spacers
 	for row_idx in 3:
-		var lrow := HBoxContainer.new()
-		lrow.add_theme_constant_override("separation", 1)
-		lrow.alignment = BoxContainer.ALIGNMENT_CENTER
-		lrow.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		left_vbox.add_child(lrow)
+		if row_idx > 0:
+			var spacer_l := Control.new()
+			spacer_l.custom_minimum_size.y = 6
+			left_vbox.add_child(spacer_l)
 		for li in left_rows[row_idx]:
 			var r := _make_line_ribbon(li, false)
-			r.custom_minimum_size = Vector2(32, 16)
-			lrow.add_child(r)
+			r.custom_minimum_size = Vector2(36, 16)
+			left_vbox.add_child(r)
 			_paytable_left_ribbons.append({"idx": li, "node": r})
-		var rrow := HBoxContainer.new()
-		rrow.add_theme_constant_override("separation", 1)
-		rrow.alignment = BoxContainer.ALIGNMENT_CENTER
-		rrow.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		right_vbox.add_child(rrow)
+	# Right: same layout
+	for row_idx in 3:
+		if row_idx > 0:
+			var spacer_r := Control.new()
+			spacer_r.custom_minimum_size.y = 6
+			right_vbox.add_child(spacer_r)
 		for li in right_rows[row_idx]:
 			var r := _make_line_ribbon(li, true)
-			r.custom_minimum_size = Vector2(32, 16)
-			rrow.add_child(r)
+			r.custom_minimum_size = Vector2(36, 16)
+			right_vbox.add_child(r)
 			_paytable_right_ribbons.append({"idx": li, "node": r})
 
 	# 20 line buttons horizontal at bottom
@@ -1794,17 +1793,13 @@ func _highlight_line_in_overlay(line_idx: int) -> void:
 	for r in _paytable_left_ribbons:
 		if r["idx"] == line_idx:
 			(r["node"] as Control).modulate = Color(1.5, 1.5, 1.5)
-			(r["node"] as Control).scale = Vector2(1.2, 1.2)
 		else:
 			(r["node"] as Control).modulate = Color(0.5, 0.5, 0.5)
-			(r["node"] as Control).scale = Vector2.ONE
 	for r in _paytable_right_ribbons:
 		if r["idx"] == line_idx:
 			(r["node"] as Control).modulate = Color(1.5, 1.5, 1.5)
-			(r["node"] as Control).scale = Vector2(1.2, 1.2)
 		else:
 			(r["node"] as Control).modulate = Color(0.5, 0.5, 0.5)
-			(r["node"] as Control).scale = Vector2.ONE
 	# Remove old badge
 	if _paytable_badge and is_instance_valid(_paytable_badge):
 		_paytable_badge.queue_free()
