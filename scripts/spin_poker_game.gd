@@ -1518,6 +1518,8 @@ func _show_bet_picker() -> void:
 # ─── PAYTABLE POPUP ──────────────────────────────────────────────────
 
 var _paytable_overlay: Control = null
+var _paytable_grid_rects: Array = [[], [], []]
+var _paytable_line_draw: Control = null
 var _paytable_cycle_timer: Timer = null
 var _paytable_cycle_idx: int = 0
 
@@ -1531,10 +1533,10 @@ func _show_paytable() -> void:
 	_paytable_overlay.z_index = 50
 	add_child(_paytable_overlay)
 
-	# Dim overlay (opacity 0.5 so the card grid is partially visible)
+	# Dim overlay
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.5)
+	dim.color = Color(0, 0, 0, 0.85)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	dim.gui_input.connect(func(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton and ev.pressed:
@@ -1559,6 +1561,51 @@ func _show_paytable() -> void:
 	title.offset_left = -100
 	title.offset_right = 100
 	_paytable_overlay.add_child(title)
+
+	# Mini grid copy with card backs (centered)
+	var mini_panel := PanelContainer.new()
+	var mp_style := StyleBoxFlat.new()
+	mp_style.bg_color = Color(0.75, 0.75, 0.8)
+	mp_style.set_border_width_all(2)
+	mp_style.border_color = Color(0.6, 0.6, 0.7)
+	mp_style.set_corner_radius_all(4)
+	mp_style.content_margin_left = 2
+	mp_style.content_margin_right = 2
+	mp_style.content_margin_top = 2
+	mp_style.content_margin_bottom = 2
+	mini_panel.add_theme_stylebox_override("panel", mp_style)
+	mini_panel.set_anchors_preset(Control.PRESET_CENTER)
+	mini_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	mini_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_paytable_overlay.add_child(mini_panel)
+
+	var mini_grid := GridContainer.new()
+	mini_grid.columns = 5
+	mini_grid.add_theme_constant_override("h_separation", 0)
+	mini_grid.add_theme_constant_override("v_separation", 0)
+	mini_panel.add_child(mini_grid)
+
+	var back_path := SPIN_CARD_DIR + "card_back_spin.svg"
+	var back_tex: Texture2D = load(back_path) if ResourceLoader.exists(back_path) else null
+	var cell_sz := 120.0
+	_paytable_grid_rects = [[], [], []]
+	for row in 3:
+		for col in 5:
+			var tex := TextureRect.new()
+			tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			tex.custom_minimum_size = Vector2(cell_sz, cell_sz)
+			tex.texture = back_tex
+			tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			mini_grid.add_child(tex)
+			_paytable_grid_rects[row].append(tex)
+
+	# Line draw node on top of mini grid
+	_paytable_line_draw = Control.new()
+	_paytable_line_draw.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_paytable_line_draw.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paytable_line_draw.draw.connect(_draw_paytable_line)
+	mini_panel.add_child(_paytable_line_draw)
 
 	# 20 line buttons horizontal at bottom
 	var btn_container := HBoxContainer.new()
@@ -1629,6 +1676,8 @@ func _close_paytable_overlay() -> void:
 	if _paytable_overlay:
 		_paytable_overlay.queue_free()
 		_paytable_overlay = null
+	_paytable_grid_rects = [[], [], []]
+	_paytable_line_draw = null
 	_clear_line_display()
 
 
@@ -1654,7 +1703,24 @@ func _stop_paytable_cycle() -> void:
 
 
 func _highlight_line_in_overlay(line_idx: int) -> void:
-	# Show this line on the grid behind the overlay
-	_winning_lines = [{"line_idx": line_idx, "hand_name": "", "payout": 0}]
-	_current_win_cycle = 0
-	_line_draw_node.queue_redraw()
+	_paytable_cycle_idx = line_idx
+	if _paytable_line_draw:
+		_paytable_line_draw.queue_redraw()
+
+
+func _draw_paytable_line() -> void:
+	if _paytable_cycle_idx < 0 or _paytable_cycle_idx >= 20:
+		return
+	if _paytable_grid_rects[0].size() < 5:
+		return
+	var line_idx: int = _paytable_cycle_idx
+	var color: Color = SpinPokerManager.LINE_COLORS[line_idx]
+	var points: PackedVector2Array = PackedVector2Array()
+	for col in 5:
+		var row: int = SpinPokerManager.LINES[line_idx][col]
+		var cell: TextureRect = _paytable_grid_rects[row][col]
+		var global_center := cell.global_position + cell.size / 2
+		var local_pos := _paytable_line_draw.get_global_transform().affine_inverse() * global_center
+		points.append(local_pos)
+	if points.size() >= 2:
+		_paytable_line_draw.draw_polyline(points, color, 4.0, true)
