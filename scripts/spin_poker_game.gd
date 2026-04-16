@@ -1523,6 +1523,8 @@ var _paytable_line_draw: Control = null
 var _paytable_line_btns: Array[Button] = []
 var _paytable_badge: PanelContainer = null
 var _paytable_prev_btn_idx: int = -1
+var _paytable_left_ribbons: Array = []  # [{idx, node}]
+var _paytable_right_ribbons: Array = []
 var _paytable_cycle_timer: Timer = null
 var _paytable_cycle_idx: int = 0
 
@@ -1610,6 +1612,64 @@ func _show_paytable() -> void:
 	_paytable_line_draw.draw.connect(_draw_paytable_line)
 	mini_panel.add_child(_paytable_line_draw)
 
+	# Line ribbon indicators on left and right of mini grid
+	# Distribute by start row (col 0 for left, col 4 for right)
+	_paytable_left_ribbons = []
+	_paytable_right_ribbons = []
+	var left_rows := [[], [], []]  # T, M, B
+	var right_rows := [[], [], []]
+	for li in 20:
+		var start_row_l: int = SpinPokerManager.LINES[li][0]
+		var start_row_r: int = SpinPokerManager.LINES[li][4]
+		if li < 10:
+			left_rows[start_row_l].append(li)
+		else:
+			right_rows[start_row_r].append(li)
+	# Build left column
+	var left_vbox := VBoxContainer.new()
+	left_vbox.add_theme_constant_override("separation", 0)
+	left_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_vbox.custom_minimum_size.x = 40
+	# Insert before mini_panel in its parent
+	var grid_parent := mini_panel.get_parent()
+	var grid_hbox := HBoxContainer.new()
+	grid_hbox.add_theme_constant_override("separation", 4)
+	grid_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	grid_hbox.set_anchors_preset(Control.PRESET_CENTER)
+	grid_hbox.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	grid_hbox.grow_vertical = Control.GROW_DIRECTION_BOTH
+	grid_parent.remove_child(mini_panel)
+	grid_parent.add_child(grid_hbox)
+	grid_hbox.add_child(left_vbox)
+	grid_hbox.add_child(mini_panel)
+	var right_vbox := VBoxContainer.new()
+	right_vbox.add_theme_constant_override("separation", 0)
+	right_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_vbox.custom_minimum_size.x = 40
+	grid_hbox.add_child(right_vbox)
+	# Build ribbon rows
+	for row_idx in 3:
+		var lrow := HBoxContainer.new()
+		lrow.add_theme_constant_override("separation", 1)
+		lrow.alignment = BoxContainer.ALIGNMENT_CENTER
+		lrow.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		left_vbox.add_child(lrow)
+		for li in left_rows[row_idx]:
+			var r := _make_line_ribbon(li, false)
+			r.custom_minimum_size = Vector2(32, 16)
+			lrow.add_child(r)
+			_paytable_left_ribbons.append({"idx": li, "node": r})
+		var rrow := HBoxContainer.new()
+		rrow.add_theme_constant_override("separation", 1)
+		rrow.alignment = BoxContainer.ALIGNMENT_CENTER
+		rrow.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		right_vbox.add_child(rrow)
+		for li in right_rows[row_idx]:
+			var r := _make_line_ribbon(li, true)
+			r.custom_minimum_size = Vector2(32, 16)
+			rrow.add_child(r)
+			_paytable_right_ribbons.append({"idx": li, "node": r})
+
 	# 20 line buttons horizontal at bottom
 	var btn_container := HBoxContainer.new()
 	btn_container.add_theme_constant_override("separation", 4)
@@ -1687,6 +1747,8 @@ func _close_paytable_overlay() -> void:
 	_paytable_line_btns.clear()
 	_paytable_badge = null
 	_paytable_prev_btn_idx = -1
+	_paytable_left_ribbons.clear()
+	_paytable_right_ribbons.clear()
 	_clear_line_display()
 
 
@@ -1728,6 +1790,21 @@ func _highlight_line_in_overlay(line_idx: int) -> void:
 		btn.scale = Vector2(1.25, 1.25)
 	_paytable_prev_btn_idx = line_idx
 	_paytable_cycle_idx = line_idx
+	# Highlight/dim ribbons
+	for r in _paytable_left_ribbons:
+		if r["idx"] == line_idx:
+			(r["node"] as Control).modulate = Color(1.5, 1.5, 1.5)
+			(r["node"] as Control).scale = Vector2(1.2, 1.2)
+		else:
+			(r["node"] as Control).modulate = Color(0.5, 0.5, 0.5)
+			(r["node"] as Control).scale = Vector2.ONE
+	for r in _paytable_right_ribbons:
+		if r["idx"] == line_idx:
+			(r["node"] as Control).modulate = Color(1.5, 1.5, 1.5)
+			(r["node"] as Control).scale = Vector2(1.2, 1.2)
+		else:
+			(r["node"] as Control).modulate = Color(0.5, 0.5, 0.5)
+			(r["node"] as Control).scale = Vector2.ONE
 	# Remove old badge
 	if _paytable_badge and is_instance_valid(_paytable_badge):
 		_paytable_badge.queue_free()
