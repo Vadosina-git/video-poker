@@ -132,9 +132,9 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var badge_w: float = size.x * badge_width_ratio
-	badge_w = minf(badge_w, size.x)  # never wider than hand
+	badge_w = minf(badge_w, 200.0)  # absolute max width
 	_result_overlay.custom_minimum_size.x = badge_w
-	_result_overlay.custom_maximum_size.x = size.x
+	_result_overlay.custom_maximum_size.x = minf(size.x, 200.0)
 
 	var label := Label.new()
 	if active_mult > 1:
