@@ -2438,7 +2438,7 @@ func _show_info() -> void:
 
 		var table := GridContainer.new()
 		table.columns = 2
-		table.add_theme_constant_override("h_separation", 40)
+		table.add_theme_constant_override("h_separation", 0)
 		table.add_theme_constant_override("v_separation", 6)
 		content.add_child(table)
 
