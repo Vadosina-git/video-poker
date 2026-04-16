@@ -1351,43 +1351,14 @@ func _update_info_card_status() -> void:
 		_stop_info_pulse()
 
 
-var _info_glow: ColorRect = null
-
 func _start_info_pulse() -> void:
-	_stop_info_pulse()
-	if not _info_card:
-		return
-	# Glow behind the card (doesn't affect card content)
-	_info_glow = ColorRect.new()
-	_info_glow.color = Color(1, 1, 0.5, 0.0)
-	_info_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_info_glow.z_index = -1
-	_info_card.add_child(_info_glow)
-	_info_glow.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_info_glow.offset_left = -6
-	_info_glow.offset_right = 6
-	_info_glow.offset_top = -6
-	_info_glow.offset_bottom = 6
-	# Scale breathing on the card
-	_info_card.pivot_offset = _info_card.size / 2
-	_info_pulse_tween = create_tween().set_loops()
-	# Breathe: scale up slightly + glow appears
-	_info_pulse_tween.tween_property(_info_card, "scale", Vector2(1.03, 1.03), 0.8).set_ease(Tween.EASE_IN_OUT)
-	_info_pulse_tween.parallel().tween_property(_info_glow, "color:a", 0.15, 0.8).set_ease(Tween.EASE_IN_OUT)
-	# Breathe back + glow fades
-	_info_pulse_tween.tween_property(_info_card, "scale", Vector2.ONE, 0.8).set_ease(Tween.EASE_IN_OUT)
-	_info_pulse_tween.parallel().tween_property(_info_glow, "color:a", 0.0, 0.8).set_ease(Tween.EASE_IN_OUT)
+	pass  # No animation
 
 
 func _stop_info_pulse() -> void:
 	if _info_pulse_tween:
 		_info_pulse_tween.kill()
 		_info_pulse_tween = null
-	if _info_glow and is_instance_valid(_info_glow):
-		_info_glow.queue_free()
-		_info_glow = null
-	if _info_card:
-		_info_card.scale = Vector2.ONE
 
 
 func _refresh_ux_visibility() -> void:
