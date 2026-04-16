@@ -1635,7 +1635,7 @@ func _close_paytable_overlay() -> void:
 func _start_paytable_cycle() -> void:
 	_stop_paytable_cycle()
 	_paytable_cycle_timer = Timer.new()
-	_paytable_cycle_timer.wait_time = 0.3
+	_paytable_cycle_timer.wait_time = 2.0
 	_paytable_cycle_timer.autostart = true
 	_paytable_cycle_timer.timeout.connect(_advance_paytable_cycle)
 	add_child(_paytable_cycle_timer)
