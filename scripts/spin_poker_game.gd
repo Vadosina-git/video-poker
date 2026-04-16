@@ -47,8 +47,10 @@ var _held_indicators: Array = []  # 5 Control nodes (held_rect.svg + HELD label)
 
 # Line indicators (ribbon icons on left/right of grid)
 
-# Shutters (top/bottom row covers during spin)
-var _shutters: Array = []
+# Persistent shutters: _col_shutters[col] = {top: TextureRect, bot: TextureRect, open: bool}
+var _col_shutters: Array = []  # 5 entries, one per column
+# Card-back overlay on middle row — shown only at initial sit-down, removed on first DEAL
+var _mid_back_overlays: Array[TextureRect] = []
 
 # Win line drawing + badge
 var _line_draw_node: Control
@@ -57,16 +59,16 @@ var _current_win_cycle: int = -1
 var _blink_tween: Tween
 var _win_badge: PanelContainer = null
 var _idle_blink_tween: Tween = null
-var _idle_timer: SceneTreeTimer = null
+var _idle_timer: Timer = null
 
 # Speed
 var _speed_level: int = 1
-const SPEED_LABELS := ["1x", "2x", "3x", "MAX"]
+const SPEED_LABELS := ["1x", "2x", "3x", "4x"]
 const SPEED_CONFIGS := [
 	{"spin_ms": 50, "base_spin_ms": 3500, "col_stop_ms": 900, "inertia_ms": 700},
 	{"spin_ms": 40, "base_spin_ms": 2200, "col_stop_ms": 600, "inertia_ms": 500},
 	{"spin_ms": 30, "base_spin_ms": 1200, "col_stop_ms": 350, "inertia_ms": 300},
-	{"spin_ms": 20, "base_spin_ms": 0,    "col_stop_ms": 0,   "inertia_ms": 0},
+	{"spin_ms": 25, "base_spin_ms": 800,  "col_stop_ms": 200, "inertia_ms": 200},
 ]
 
 # Card path helpers — spin poker uses square SVG cards from cards_spin/
@@ -104,12 +106,31 @@ func _ready() -> void:
 	_current_denomination = SaveManager.denomination
 	_build_ui()
 	_resize_grid.call_deferred()
+	# Initial state: card backs under closed shutters
+	_init_shutters_closed.call_deferred()
 	_current_denomination = _recommend_denomination()
 	SaveManager.denomination = _current_denomination
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
 	_update_bet_amount_btn()
 	_update_speed_label()
+
+
+func _init_shutters_closed() -> void:
+	# Wait for _resize_grid to finish (it awaits 2 frames + deferred position)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	# All 15 cells get random face cards (never card_backs)
+	var init_paths := _build_random_card_paths(15)
+	for col in 5:
+		for row in 3:
+			var path: String = init_paths[(col * 3 + row) % init_paths.size()]
+			if ResourceLoader.exists(path):
+				_card_rects[row][col].texture = load(path)
+	_close_all_shutters_instant()
+	# Place card-back overlays on middle row (first-sit-down look)
+	_build_mid_back_overlays()
 
 
 # ─── UI CONSTRUCTION ──────────────────────────────────────────────────
@@ -146,6 +167,11 @@ func _build_ui() -> void:
 	_game_title.add_theme_font_override("font", bold)
 	_game_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_bar.add_child(_game_title)
+
+	# Right spacer to balance exit button width — keeps title centered on screen
+	var title_spacer := Control.new()
+	title_spacer.custom_minimum_size.x = _back_btn.custom_minimum_size.x
+	title_bar.add_child(title_spacer)
 
 	# ── Middle: grid area with line labels — centered, fixed proportions
 	var grid_area := HBoxContainer.new()
@@ -221,6 +247,9 @@ func _build_ui() -> void:
 	_line_draw_node.draw.connect(_draw_lines)
 	_grid_panel.add_child(_line_draw_node)
 
+	# Persistent shutters — created once, repositioned in _resize_grid
+	_build_persistent_shutters()
+
 	# Right line ribbons — stacked vertically, grouped by start row (T/M/B)
 	var right_col := VBoxContainer.new()
 	right_col.add_theme_constant_override("separation", 0)
@@ -270,6 +299,8 @@ func _resize_grid() -> void:
 	for row in 3:
 		for col in 5:
 			(_card_rects[row][col] as TextureRect).custom_minimum_size = Vector2(cell_sz, cell_sz)
+	# Reposition persistent shutters after grid resize
+	_position_shutters.call_deferred()
 
 
 func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
@@ -587,6 +618,13 @@ func _on_state_changed(new_state: int) -> void:
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
 			_status_label.text = ""
+			# Apply auto-hold visuals (held[] set by manager)
+			for col in 5:
+				if _manager.held[col]:
+					_show_held(col, true)
+					_set_card_texture(0, col, _manager.middle_row[col])
+					_set_card_texture(2, col, _manager.middle_row[col])
+					_animate_shutter_open(col, 0.2)
 
 		SpinPokerManager.State.DRAW_SPINNING:
 			_deal_draw_btn.text = "STOP\nSPIN"
@@ -599,69 +637,141 @@ func _on_state_changed(new_state: int) -> void:
 			_deal_draw_btn.disabled = false
 			_bet_btn.disabled = true
 			_bet_max_btn.disabled = true
+			_bet_amount_btn.disabled = false
+			_bet_amount_btn.modulate.a = 1.0
 
 
-# ─── ROW FOLD ANIMATION (J.7) ─────────────────────────────────────────
+# ─── PERSISTENT SHUTTERS ──────────────────────────────────────────────
 
-func _animate_rows_fold() -> void:
-	_clear_shutters()
-	if _rush or SPEED_CONFIGS[_speed_level]["base_spin_ms"] == 0:
-		for col in 5:
-			_set_card_back(0, col)
-			_set_card_back(2, col)
+func _build_persistent_shutters() -> void:
+	_col_shutters.clear()
+	var back_path := SPIN_CARD_DIR + "card_back_spin.svg"
+	var back_tex: Texture2D = load(back_path) if ResourceLoader.exists(back_path) else null
+	for col in 5:
+		var top := TextureRect.new()
+		top.texture = back_tex
+		top.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		top.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top.z_index = 3
+		add_child(top)
+		var bot := TextureRect.new()
+		bot.texture = back_tex
+		bot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		bot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bot.z_index = 3
+		add_child(bot)
+		_col_shutters.append({"top": top, "bot": bot, "open": false})
+
+
+func _position_shutters() -> void:
+	for col in 5:
+		if col >= _col_shutters.size():
+			break
+		var top_cell: TextureRect = _card_rects[0][col]
+		var bot_cell: TextureRect = _card_rects[2][col]
+		var s: Dictionary = _col_shutters[col]
+		var top_sh: TextureRect = s["top"]
+		var bot_sh: TextureRect = s["bot"]
+		if s["open"]:
+			# Open: shutters collapsed (zero height)
+			top_sh.global_position = top_cell.global_position
+			top_sh.size = Vector2(top_cell.size.x, 0)
+			bot_sh.global_position = Vector2(bot_cell.global_position.x, bot_cell.global_position.y + bot_cell.size.y)
+			bot_sh.size = Vector2(bot_cell.size.x, 0)
+		else:
+			# Closed: shutters fully cover their cells
+			top_sh.global_position = top_cell.global_position
+			top_sh.size = top_cell.size
+			bot_sh.global_position = bot_cell.global_position
+			bot_sh.size = bot_cell.size
+
+
+## Close all shutters instantly (no animation). Used for initial state and reset.
+func _close_all_shutters_instant() -> void:
+	for col in 5:
+		if col >= _col_shutters.size():
+			break
+		_col_shutters[col]["open"] = false
+	_position_shutters()
+
+
+## Open shutter for one column with animation.
+func _animate_shutter_open(col: int, duration: float = 0.25) -> void:
+	if col >= _col_shutters.size():
 		return
+	var s: Dictionary = _col_shutters[col]
+	if s["open"]:
+		return
+	s["open"] = true
+	var top_cell: TextureRect = _card_rects[0][col]
+	var bot_cell: TextureRect = _card_rects[2][col]
+	var top_sh: TextureRect = s["top"]
+	var bot_sh: TextureRect = s["bot"]
+	# Top: shrinks upward (size.y → 0, position stays)
+	var tw := create_tween()
+	tw.parallel().tween_property(top_sh, "size:y", 0.0, duration).set_ease(Tween.EASE_OUT)
+	# Bottom: shrinks downward (size.y → 0, position moves to bottom edge)
+	var bot_target_y: float = bot_cell.global_position.y + bot_cell.size.y
+	tw.parallel().tween_property(bot_sh, "size:y", 0.0, duration).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(bot_sh, "global_position:y", bot_target_y, duration).set_ease(Tween.EASE_OUT)
+	await tw.finished
 
-	var shutter_color := Color(0.2, 0.15, 0.35)  # match grid bg
-	var close_ms := 400.0
-	var cascade_ms := 150.0
 
+## Close shutter for one column with animation.
+func _animate_shutter_close(col: int, duration: float = 0.25) -> void:
+	if col >= _col_shutters.size():
+		return
+	var s: Dictionary = _col_shutters[col]
+	if not s["open"]:
+		return
+	s["open"] = false
+	var top_cell: TextureRect = _card_rects[0][col]
+	var bot_cell: TextureRect = _card_rects[2][col]
+	var top_sh: TextureRect = s["top"]
+	var bot_sh: TextureRect = s["bot"]
+	# Top: grows downward to cover cell
+	var tw := create_tween()
+	tw.parallel().tween_property(top_sh, "size:y", top_cell.size.y, duration).set_ease(Tween.EASE_OUT)
+	# Bottom: grows upward
+	tw.parallel().tween_property(bot_sh, "size:y", bot_cell.size.y, duration).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(bot_sh, "global_position:y", bot_cell.global_position.y, duration).set_ease(Tween.EASE_OUT)
+	await tw.finished
+
+
+func _build_mid_back_overlays() -> void:
+	_remove_mid_back_overlays()
+	var back_path := SPIN_CARD_DIR + "card_back_spin.svg"
+	var back_tex: Texture2D = load(back_path) if ResourceLoader.exists(back_path) else null
 	for col in 5:
-		for row in [0, 2]:  # top and bottom
-			var cell: TextureRect = _card_rects[row][col]
-			var shutter := ColorRect.new()
-			shutter.color = shutter_color
-			shutter.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			shutter.z_index = 3
-			shutter.global_position = cell.global_position
-			if row == 0:
-				# Top: grows downward
-				shutter.size = Vector2(cell.size.x, 0)
-			else:
-				# Bottom: grows upward from bottom
-				shutter.size = Vector2(cell.size.x, 0)
-				shutter.global_position.y += cell.size.y
-			add_child(shutter)
-			_shutters.append(shutter)
-
-			var tw := create_tween()
-			var delay := col * cascade_ms / 1000.0
-			if row == 0:
-				tw.tween_property(shutter, "size:y", cell.size.y, close_ms / 1000.0).set_delay(delay)
-			else:
-				tw.tween_property(shutter, "size:y", cell.size.y, close_ms / 1000.0).set_delay(delay)
-				tw.parallel().tween_property(shutter, "global_position:y", cell.global_position.y, close_ms / 1000.0).set_delay(delay)
-
-	# Wait for last column
-	await get_tree().create_timer((4 * cascade_ms + close_ms) / 1000.0 + 0.05).timeout
-
-	# Set card backs under shutters
-	for col in 5:
-		_set_card_back(0, col)
-		_set_card_back(2, col)
+		var cell: TextureRect = _card_rects[1][col]
+		var overlay := TextureRect.new()
+		overlay.texture = back_tex
+		overlay.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		overlay.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		overlay.size = cell.size
+		overlay.global_position = cell.global_position
+		overlay.z_index = 4  # above cards (0), below reel overlays (20)
+		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(overlay)
+		_mid_back_overlays.append(overlay)
 
 
-func _clear_shutters() -> void:
-	for s in _shutters:
-		if is_instance_valid(s):
-			s.queue_free()
-	_shutters.clear()
+func _remove_mid_back_overlays() -> void:
+	for ov in _mid_back_overlays:
+		if is_instance_valid(ov):
+			ov.queue_free()
+	_mid_back_overlays.clear()
 
 
 # ─── DEAL SPIN ────────────────────────────────────────────────────────
 
 func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
+	_remove_mid_back_overlays()
 	_animating = true
 	_rush = false
+	_spin_started_frame = Engine.get_process_frames()
 	_stop_win_cycle()
 	_clear_line_display()
 	_hide_win_badge()
@@ -670,14 +780,26 @@ func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
 	_set_win_dimmed()
 	_reset_all_modulate()
 
-	# Clear held
+
+	# Clear held indicators
 	for col in 5:
 		_show_held(col, false)
 
-	# J.7: Animate top/bottom rows folding closed (collapse → card backs)
-	await _animate_rows_fold()
+	# Animate shutters closed (if any were open from previous round)
+	var any_to_close := false
+	for col in 5:
+		if col < _col_shutters.size() and _col_shutters[col]["open"]:
+			_animate_shutter_close(col, 0.25)
+			any_to_close = true
+	if any_to_close:
+		await get_tree().create_timer(0.3).timeout
+	else:
+		_close_all_shutters_instant()
 
-	# Animate middle row
+	# Don't replace card textures — keep cards from previous round under shutters
+	# Middle row keeps its current cards, reel strip will start from them
+
+	# Spin middle row — reels visible through middle row opening
 	await _animate_spin_deal(mid_row)
 	_build_held_indicators()
 	_animating = false
@@ -687,106 +809,146 @@ func _on_deal_spin_complete(mid_row: Array[CardData]) -> void:
 func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 	var cfg: Dictionary = SPEED_CONFIGS[_speed_level]
 	var base_ms: int = cfg["base_spin_ms"]
-	var col_ms: int = cfg["col_stop_ms"]
-	var inertia_ms: int = cfg["inertia_ms"]
 
 	if _rush or base_ms == 0:
 		for col in 5:
 			_set_card_texture(1, col, mid_row[col])
 		return
 
-	# Drum reel: overlay a scrolling strip on each middle-row cell
-	var filler_count: int = int(ConfigManager.get_animation("spin_filler_cards_count", 15))
+	var filler_count := 20
+	var col_delay_ms: float = ConfigManager.get_animation("spin_reel_column_delay_ms", 300.0)
 	var bounce_px: float = ConfigManager.get_animation("spin_reel_bounce_px", 5.0)
 	var decel_ms: float = ConfigManager.get_animation("spin_reel_deceleration_ms", 800.0)
-	var col_delay_ms: float = ConfigManager.get_animation("spin_reel_column_delay_ms", 300.0)
 	var random_paths := _build_random_card_paths(filler_count)
-	var reel_overlays: Array[Control] = []
+	var reel_clips: Array[Control] = []
 
-	# Create a reel strip overlay for each column
 	for col in 5:
 		var cell: TextureRect = _card_rects[1][col]
-		var cell_size := cell.size
-		# Clip container — sits on top of the cell, clips overflow
+		var cw: float = cell.size.x
+		var ch: float = cell.size.y
+
+		# Clip = 1 cell tall, positioned over middle row cell
 		var clip := Control.new()
 		clip.clip_contents = true
-		clip.size = cell_size
+		clip.custom_minimum_size = Vector2(cw, ch)
+		clip.size = Vector2(cw, ch)
 		clip.global_position = cell.global_position
-		clip.z_index = 5
+		clip.z_index = 20
 		clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(clip)
-		# Vertical strip: filler cards + target card at bottom
-		var strip := VBoxContainer.new()
-		strip.add_theme_constant_override("separation", 0)
+
+		# Strip: [target] [filler×N] [filler×N copy] [prev_card]
+		# Scrolls upward (position.y increases) so cards move DOWN
+		var loop_cards := filler_count * 2
+		var total_cards := 1 + loop_cards + 1
+		var strip := Control.new()
+		strip.size = Vector2(cw, ch * total_cards)
 		strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		for i in filler_count:
+		clip.add_child(strip)
+
+		# Card 0: target (at top of strip, starts offscreen above)
+		var target := TextureRect.new()
+		target.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		target.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		target.size = Vector2(cw, ch)
+		target.position = Vector2(0, 0)
+		target.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var tp := _get_card_path(mid_row[col])
+		if ResourceLoader.exists(tp):
+			target.texture = load(tp)
+		strip.add_child(target)
+
+		# Cards 1..loop_cards: filler cards (doubled for seamless loop)
+		for i in loop_cards:
 			var tex := TextureRect.new()
 			tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tex.custom_minimum_size = cell_size
+			tex.size = Vector2(cw, ch)
+			tex.position = Vector2(0, ch * (1 + i))
 			tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var path: String = random_paths[(col * 3 + i) % random_paths.size()]
+			var path: String = random_paths[(col * 3 + i % filler_count) % random_paths.size()]
 			if ResourceLoader.exists(path):
 				tex.texture = load(path)
 			strip.add_child(tex)
-		# Target card at the end
-		var target_tex := TextureRect.new()
-		target_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		target_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		target_tex.custom_minimum_size = cell_size
-		target_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var target_path := _get_card_path(mid_row[col])
-		if ResourceLoader.exists(target_path):
-			target_tex.texture = load(target_path)
-		strip.add_child(target_tex)
-		clip.add_child(strip)
-		# Position strip so first filler is visible
-		strip.position.y = 0
-		reel_overlays.append(clip)
-		# Hide actual card during spin
+
+		# Last card: prev card from previous round (starts visible)
+		var prev := TextureRect.new()
+		prev.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		prev.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		prev.size = Vector2(cw, ch)
+		prev.position = Vector2(0, ch * (1 + loop_cards))
+		prev.texture = cell.texture
+		prev.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		strip.add_child(prev)
+
+		# Start showing prev_card (bottom of strip)
+		strip.position.y = -(ch * (1 + loop_cards))
+		reel_clips.append(clip)
+		# Hide real cell under overlay
 		cell.modulate.a = 0.0
 
-	# Animate: scroll strips, then stop column by column
-	var total_strip_h: float = (_card_rects[1][0].size.y) * (filler_count + 1)
-	var target_y: float = -(total_strip_h - _card_rects[1][0].size.y)
+	# Wait for layout to settle
+	await get_tree().process_frame
+	await get_tree().process_frame
 
-	# Base spin phase: all columns scrolling fast (loop scroll via texture cycling)
+	var cell_h: float = _card_rects[1][0].size.y
+	var loop_cards := filler_count * 2
+	var loop_h: float = cell_h * filler_count
+	var start_y: float = -(cell_h * (1 + loop_cards))
+	var target_y: float = 0.0
+
+	# Spin phase: scroll strips via timer with per-column staggered start + acceleration
+	var max_speed: float = cell_h * 0.6
+	var accel_time: float = 0.5
+	var col_start_delay: float = 0.1
 	var spin_timer := Timer.new()
-	spin_timer.wait_time = SPEED_CONFIGS[_speed_level]["spin_ms"] / 1000.0
+	var tick_s: float = cfg["spin_ms"] / 1000.0
+	spin_timer.wait_time = tick_s
 	spin_timer.autostart = true
 	add_child(spin_timer)
-	var frame_offsets := [0, 0, 0, 0, 0]
+	var frame_offsets: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0]
 	var col_stopped := [false, false, false, false, false]
+	var elapsed := [0.0]
 	spin_timer.timeout.connect(func() -> void:
+		elapsed[0] += tick_s
 		for col in 5:
 			if col_stopped[col]:
 				continue
-			frame_offsets[col] += int(_card_rects[1][col].size.y * 0.6)
-			var strip: VBoxContainer = reel_overlays[col].get_child(0)
-			strip.position.y = -(frame_offsets[col] % int(total_strip_h))
+			var col_elapsed: float = elapsed[0] - col * col_start_delay
+			if col_elapsed <= 0.0:
+				continue
+			var t: float = clampf(col_elapsed / accel_time, 0.0, 1.0)
+			var speed: float = max_speed * t * t if t < 1.0 else max_speed
+			frame_offsets[col] += speed
+			var strip: Control = reel_clips[col].get_child(0)
+			strip.position.y = start_y + fmod(frame_offsets[col], loop_h)
+			# Stretch + dim at speed (simulates motion blur)
+			var stretch: float = 1.0 + 0.15 * t  # up to 1.15x vertical stretch
+			strip.scale.y = stretch
+			strip.modulate = Color(1.0 - 0.15 * t, 1.0 - 0.15 * t, 1.0 - 0.1 * t)
 	)
 
-	await get_tree().create_timer(base_ms / 1000.0).timeout
+	# Wait for spin phase (or until rush)
+	if not _rush:
+		await get_tree().create_timer(base_ms / 1000.0).timeout
 
-	# Stop columns left to right with deceleration + bounce
+	# Stop columns left to right with deceleration
+	var decel_distance: float = cell_h * 3
 	for col in 5:
-		if _rush:
-			col_stopped[col] = true
-			reel_overlays[col].queue_free()
-			_card_rects[1][col].modulate.a = 1.0
-			_set_card_texture(1, col, mid_row[col])
-			continue
 		col_stopped[col] = true
-		var strip: VBoxContainer = reel_overlays[col].get_child(0)
-		# Decelerate to target position
+		var strip: Control = reel_clips[col].get_child(0)
+		strip.position.y = target_y - decel_distance
+		# Restore stretch + brightness during deceleration
+		var fx_tw := create_tween()
+		fx_tw.parallel().tween_property(strip, "scale:y", 1.0, decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
+		fx_tw.parallel().tween_property(strip, "modulate", Color.WHITE, decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
 		var tw := create_tween()
 		tw.tween_property(strip, "position:y", target_y - bounce_px, decel_ms / 1000.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 		tw.tween_property(strip, "position:y", target_y, 0.1).set_ease(Tween.EASE_IN_OUT)
 		await tw.finished
-		# Reveal real card, remove overlay
 		_card_rects[1][col].modulate.a = 1.0
 		_set_card_texture(1, col, mid_row[col])
-		reel_overlays[col].queue_free()
+		reel_clips[col].queue_free()
 		SoundManager.play("spin_stop")
 		VibrationManager.vibrate("spin_stop")
 		if col < 4:
@@ -800,16 +962,27 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 
 func _on_draw_spin_complete(grid: Array) -> void:
 	_animating = true
+	_rush = false
+	_spin_started_frame = Engine.get_process_frames()
 
-	# Held columns: duplicate mid card to top/bottom instantly
+
+	# Held columns already have shutters open — set final cards
 	for col in 5:
 		if _manager.held[col]:
 			_set_card_texture(0, col, grid[0][col])
 			_set_card_texture(2, col, grid[2][col])
 
-	# Animate unheld columns
+	# Open remaining shutters first, then start reel spin
+	var any_opened := false
+	for col in 5:
+		if not _manager.held[col] and col < _col_shutters.size():
+			if not _col_shutters[col]["open"]:
+				_animate_shutter_open(col, 0.25)
+				any_opened = true
+	if any_opened:
+		await get_tree().create_timer(0.3).timeout
+
 	await _animate_spin_draw(grid)
-	_clear_shutters()
 	_animating = false
 	_manager.on_draw_spin_complete()
 
@@ -817,7 +990,6 @@ func _on_draw_spin_complete(grid: Array) -> void:
 func _animate_spin_draw(grid: Array) -> void:
 	var cfg: Dictionary = SPEED_CONFIGS[_speed_level]
 	var base_ms: int = cfg["base_spin_ms"]
-	var col_ms: int = cfg["col_stop_ms"]
 
 	if _rush or base_ms == 0:
 		for row in 3:
@@ -825,101 +997,141 @@ func _animate_spin_draw(grid: Array) -> void:
 				_set_card_texture(row, col, grid[row][col])
 		return
 
-	var filler_count: int = int(ConfigManager.get_animation("spin_filler_cards_count", 15))
+	var filler_count := 20
+	var col_delay_ms: float = ConfigManager.get_animation("spin_reel_column_delay_ms", 300.0)
 	var bounce_px: float = ConfigManager.get_animation("spin_reel_bounce_px", 5.0)
 	var decel_ms: float = ConfigManager.get_animation("spin_reel_deceleration_ms", 800.0)
-	var col_delay_ms: float = ConfigManager.get_animation("spin_reel_column_delay_ms", 300.0)
-	var random_paths := _build_random_card_paths(filler_count * 3)
-	var reel_overlays: Array[Control] = []
+	var random_paths := _build_random_card_paths(filler_count)
+	var reel_clips: Array = []  # null for held, Control for unheld
 
-	# For each unheld column, create a reel strip covering all 3 rows
 	for col in 5:
 		if _manager.held[col]:
-			reel_overlays.append(null)
+			reel_clips.append(null)
 			continue
 		var top_cell: TextureRect = _card_rects[0][col]
-		var bot_cell: TextureRect = _card_rects[2][col]
-		var cell_w := top_cell.size.x
-		var cell_h := top_cell.size.y
-		var full_h := cell_h * 3  # 3 rows
+		var cw: float = top_cell.size.x
+		var ch: float = top_cell.size.y
 
+		# Clip = 3 cells tall, positioned over all 3 rows
 		var clip := Control.new()
 		clip.clip_contents = true
-		clip.size = Vector2(cell_w, full_h)
+		clip.custom_minimum_size = Vector2(cw, ch * 3)
+		clip.size = Vector2(cw, ch * 3)
 		clip.global_position = top_cell.global_position
-		clip.z_index = 5
+		clip.z_index = 20
 		clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(clip)
 
-		var strip := VBoxContainer.new()
-		strip.add_theme_constant_override("separation", 0)
+		# Strip: [3 targets] [filler×N] [filler×N copy] [3 current cards]
+		# Scrolls upward (position.y increases) so cards move DOWN
+		var loop_cards := filler_count * 2
+		var total_cards := 3 + loop_cards + 3
+		var strip := Control.new()
+		strip.size = Vector2(cw, ch * total_cards)
 		strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Filler cards (groups of 3 for each "row set")
-		for i in filler_count:
+		clip.add_child(strip)
+
+		# Cards 0-2: targets (at top of strip, starts offscreen above)
+		for row in 3:
+			var target := TextureRect.new()
+			target.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			target.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			target.size = Vector2(cw, ch)
+			target.position = Vector2(0, ch * row)
+			target.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var tp := _get_card_path(grid[row][col])
+			if ResourceLoader.exists(tp):
+				target.texture = load(tp)
+			strip.add_child(target)
+
+		# Cards 3..3+loop_cards: filler cards (doubled for seamless loop)
+		for i in loop_cards:
 			var tex := TextureRect.new()
 			tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			tex.custom_minimum_size = Vector2(cell_w, cell_h)
+			tex.size = Vector2(cw, ch)
+			tex.position = Vector2(0, ch * (3 + i))
 			tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var path: String = random_paths[(col * 5 + i) % random_paths.size()]
+			var path: String = random_paths[(col * 7 + i % filler_count) % random_paths.size()]
 			if ResourceLoader.exists(path):
 				tex.texture = load(path)
 			strip.add_child(tex)
-		# Target 3 cards (top, mid, bot) at end of strip
+
+		# Last 3 cards: current visible cards (starts visible at bottom)
 		for row in 3:
-			var target_tex := TextureRect.new()
-			target_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			target_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			target_tex.custom_minimum_size = Vector2(cell_w, cell_h)
-			target_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var tp := _get_card_path(grid[row][col])
-			if ResourceLoader.exists(tp):
-				target_tex.texture = load(tp)
-			strip.add_child(target_tex)
-		clip.add_child(strip)
-		reel_overlays.append(clip)
-		# Hide real cards
+			var cur := TextureRect.new()
+			cur.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			cur.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			cur.size = Vector2(cw, ch)
+			cur.position = Vector2(0, ch * (3 + loop_cards + row))
+			cur.texture = _card_rects[row][col].texture
+			cur.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			strip.add_child(cur)
+
+		# Start showing current cards (bottom of strip)
+		strip.position.y = -(ch * (3 + loop_cards))
+		reel_clips.append(clip)
 		for row in 3:
 			_card_rects[row][col].modulate.a = 0.0
 
-	var cell_h: float = (_card_rects[0][0] as TextureRect).size.y
-	var total_strip_h: float = cell_h * (filler_count + 3)
-	var target_y: float = -(total_strip_h - cell_h * 3)
+	# Wait for layout
+	await get_tree().process_frame
+	await get_tree().process_frame
 
-	# Spin phase
+	var cell_h: float = _card_rects[0][0].size.y
+	var loop_cards_d := filler_count * 2
+	var loop_h: float = cell_h * filler_count
+	var start_y: float = -(cell_h * (3 + loop_cards_d))
+	var target_y: float = 0.0  # targets at top of strip
+
+	# Spin phase with per-column staggered start + acceleration (cards move DOWN)
+	var max_speed: float = cell_h * 0.6
+	var accel_time: float = 0.5
+	var col_start_delay: float = 0.1
 	var spin_timer := Timer.new()
-	spin_timer.wait_time = SPEED_CONFIGS[_speed_level]["spin_ms"] / 1000.0
+	var tick_s: float = cfg["spin_ms"] / 1000.0
+	spin_timer.wait_time = tick_s
 	spin_timer.autostart = true
 	add_child(spin_timer)
-	var frame_offsets := [0, 0, 0, 0, 0]
+	var frame_offsets: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0]
 	var col_stopped := [false, false, false, false, false]
 	for col in 5:
 		if _manager.held[col]:
 			col_stopped[col] = true
+	var elapsed := [0.0]
 	spin_timer.timeout.connect(func() -> void:
+		elapsed[0] += tick_s
 		for col in 5:
-			if col_stopped[col] or reel_overlays[col] == null:
+			if col_stopped[col] or reel_clips[col] == null:
 				continue
-			frame_offsets[col] += int(cell_h * 0.6)
-			var strip: VBoxContainer = reel_overlays[col].get_child(0)
-			strip.position.y = -(frame_offsets[col] % int(total_strip_h))
+			var col_elapsed: float = elapsed[0] - col * col_start_delay
+			if col_elapsed <= 0.0:
+				continue
+			var t: float = clampf(col_elapsed / accel_time, 0.0, 1.0)
+			var speed: float = max_speed * t * t if t < 1.0 else max_speed
+			frame_offsets[col] += speed
+			var strip: Control = reel_clips[col].get_child(0)
+			strip.position.y = start_y + fmod(frame_offsets[col], loop_h)
+			var stretch: float = 1.0 + 0.15 * t
+			strip.scale.y = stretch
+			strip.modulate = Color(1.0 - 0.15 * t, 1.0 - 0.15 * t, 1.0 - 0.1 * t)
 	)
 
-	await get_tree().create_timer(base_ms / 1000.0).timeout
+	# Wait for spin phase (or until rush)
+	if not _rush:
+		await get_tree().create_timer(base_ms / 1000.0).timeout
 
-	# Stop columns left to right
+	# Stop columns left to right with deceleration
+	var decel_distance: float = cell_h * 3
 	for col in 5:
-		if _manager.held[col] or reel_overlays[col] == null:
-			continue
-		if _rush:
-			col_stopped[col] = true
-			reel_overlays[col].queue_free()
-			for row in 3:
-				_card_rects[row][col].modulate.a = 1.0
-				_set_card_texture(row, col, grid[row][col])
+		if _manager.held[col] or reel_clips[col] == null:
 			continue
 		col_stopped[col] = true
-		var strip: VBoxContainer = reel_overlays[col].get_child(0)
+		var strip: Control = reel_clips[col].get_child(0)
+		strip.position.y = target_y - decel_distance
+		var fx_tw := create_tween()
+		fx_tw.parallel().tween_property(strip, "scale:y", 1.0, decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
+		fx_tw.parallel().tween_property(strip, "modulate", Color.WHITE, decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
 		var tw := create_tween()
 		tw.tween_property(strip, "position:y", target_y - bounce_px, decel_ms / 1000.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 		tw.tween_property(strip, "position:y", target_y, 0.1).set_ease(Tween.EASE_IN_OUT)
@@ -927,7 +1139,7 @@ func _animate_spin_draw(grid: Array) -> void:
 		for row in 3:
 			_card_rects[row][col].modulate.a = 1.0
 			_set_card_texture(row, col, grid[row][col])
-		reel_overlays[col].queue_free()
+		reel_clips[col].queue_free()
 		SoundManager.play("spin_stop")
 		VibrationManager.vibrate("spin_stop")
 		if col < 4:
@@ -1049,14 +1261,14 @@ func _show_win_badge(w: Dictionary) -> void:
 
 	_win_badge = PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.02, 0.02, 0.12, 0.92)
+	style.bg_color = Color(0.05, 0.05, 0.2, 0.9)
 	style.set_border_width_all(2)
 	style.border_color = color
 	style.set_corner_radius_all(4)
-	style.content_margin_left = 6
-	style.content_margin_right = 6
-	style.content_margin_top = 2
-	style.content_margin_bottom = 2
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
 	_win_badge.add_theme_stylebox_override("panel", style)
 	_win_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_win_badge.z_index = 10
@@ -1064,10 +1276,11 @@ func _show_win_badge(w: Dictionary) -> void:
 	var label := Label.new()
 	label.text = "%s\n%d" % [w["hand_name"], payout_coins]
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 10)
+	label.add_theme_font_size_override("font_size", 14)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	_win_badge.add_child(label)
 
+	_win_badge.modulate.a = 0.0
 	add_child(_win_badge)
 	# Position on center reel (col 2) at the row this line passes through
 	var center_row: int = SpinPokerManager.LINES[line_idx][2]
@@ -1085,6 +1298,7 @@ func _position_badge_on_card(card_rect: TextureRect) -> void:
 		rect.get_center().x - badge_size.x / 2,
 		rect.get_center().y - badge_size.y / 2
 	)
+	_win_badge.modulate.a = 1.0
 
 
 func _hide_win_badge() -> void:
@@ -1116,22 +1330,29 @@ func _draw_lines() -> void:
 
 func _start_idle_blink_timer() -> void:
 	_stop_idle_blink()
-	_idle_timer = get_tree().create_timer(5.0)
-	_idle_timer.timeout.connect(_begin_deal_blink)
+	if not _idle_timer:
+		_idle_timer = Timer.new()
+		_idle_timer.one_shot = true
+		_idle_timer.timeout.connect(_begin_deal_blink)
+		add_child(_idle_timer)
+	_idle_timer.start(5.0)
 
 func _begin_deal_blink() -> void:
-	_idle_timer = null
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
 	_idle_blink_tween = create_tween().set_loops()
-	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
-	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
+	for _i in 3:
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
+	_idle_blink_tween.tween_interval(5.0)
 
 func _stop_idle_blink() -> void:
-	_idle_timer = null
+	if _idle_timer:
+		_idle_timer.stop()
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
 		_idle_blink_tween = null
+	_deal_draw_btn.modulate.a = 1.0
 	_deal_draw_btn.modulate.a = 1.0
 
 func _flash_balance_red() -> void:
@@ -1168,11 +1389,13 @@ func _on_card_clicked(event: InputEvent, col: int) -> void:
 			_show_held(col, _manager.held[col])
 			VibrationManager.vibrate("card_hold")
 			if _manager.held[col]:
+				# Show same card in top/bottom, then animate shutters open
 				_set_card_texture(0, col, _manager.middle_row[col])
 				_set_card_texture(2, col, _manager.middle_row[col])
+				_animate_shutter_open(col, 0.2)
 			else:
-				_set_card_back(0, col)
-				_set_card_back(2, col)
+				# Animate shutters closed — shutters look like card backs already
+				_animate_shutter_close(col, 0.2)
 
 
 func _on_bet_one_pressed() -> void:
@@ -1394,10 +1617,16 @@ func _update_bet_amount_btn() -> void:
 
 # ─── INPUT ────────────────────────────────────────────────────────────
 
+var _spin_started_frame: int = -1  # frame when spin started, to ignore the triggering click
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
+		# Reset idle blink on any tap
+		if _manager.state == SpinPokerManager.State.IDLE or _manager.state == SpinPokerManager.State.HOLDING or _manager.state == SpinPokerManager.State.WIN_DISPLAY:
+			_start_idle_blink_timer()
 		if _manager.state == SpinPokerManager.State.SPINNING or _manager.state == SpinPokerManager.State.DRAW_SPINNING:
-			_rush = true
+			if Engine.get_process_frames() > _spin_started_frame:
+				_rush = true
 
 
 # ─── BET PICKER ───────────────────────────────────────────────────────
@@ -1522,20 +1751,52 @@ func _show_paytable() -> void:
 	var bold := SystemFont.new()
 	bold.font_weight = 700
 
-	# Title "20 LINES" top center
+	# Top section: title + rules (scrollable if needed)
+	var top_panel := PanelContainer.new()
+	var tp_style := StyleBoxFlat.new()
+	tp_style.bg_color = Color(0.02, 0.02, 0.12, 0.9)
+	tp_style.set_border_width_all(2)
+	tp_style.border_color = COL_YELLOW
+	tp_style.set_corner_radius_all(8)
+	tp_style.content_margin_left = 20
+	tp_style.content_margin_right = 20
+	tp_style.content_margin_top = 10
+	tp_style.content_margin_bottom = 10
+	top_panel.add_theme_stylebox_override("panel", tp_style)
+	top_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	top_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	top_panel.offset_top = 8
+	top_panel.offset_bottom = 160
+	top_panel.offset_left = -320
+	top_panel.offset_right = 320
+	_paytable_overlay.add_child(top_panel)
+
+	var top_vbox := VBoxContainer.new()
+	top_vbox.add_theme_constant_override("separation", 8)
+	top_panel.add_child(top_vbox)
+
 	var title := Label.new()
-	title.text = "20 LINES"
+	title.text = Translations.tr_key("spin.info_title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", COL_YELLOW)
 	title.add_theme_font_override("font", bold)
-	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	title.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	title.offset_top = 12
-	title.offset_bottom = 44
-	title.offset_left = -100
-	title.offset_right = 100
-	_paytable_overlay.add_child(title)
+	top_vbox.add_child(title)
+
+	var rules := Label.new()
+	rules.text = Translations.tr_key("spin.info_rules")
+	rules.add_theme_font_size_override("font_size", 13)
+	rules.add_theme_color_override("font_color", Color.WHITE)
+	rules.autowrap_mode = TextServer.AUTOWRAP_WORD
+	top_vbox.add_child(rules)
+
+	var bet_info := Label.new()
+	bet_info.text = Translations.tr_key("spin.info_bet")
+	bet_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bet_info.add_theme_font_size_override("font_size", 14)
+	bet_info.add_theme_color_override("font_color", COL_YELLOW)
+	bet_info.add_theme_font_override("font", bold)
+	top_vbox.add_child(bet_info)
 
 	# Mini grid copy with card backs (centered)
 	var mini_panel := PanelContainer.new()
@@ -1552,6 +1813,8 @@ func _show_paytable() -> void:
 	mini_panel.set_anchors_preset(Control.PRESET_CENTER)
 	mini_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	mini_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	mini_panel.offset_top = 80  # shift down to avoid rules panel overlap
+	mini_panel.offset_bottom = 80
 	_paytable_overlay.add_child(mini_panel)
 
 	var mini_grid := GridContainer.new()
@@ -1800,8 +2063,8 @@ func _highlight_line_in_overlay(line_idx: int) -> void:
 		lbl.add_theme_font_size_override("font_size", 11)
 		lbl.add_theme_color_override("font_color", Color.WHITE)
 		_paytable_badge.add_child(lbl)
+		_paytable_badge.modulate.a = 0.0
 		_paytable_overlay.add_child(_paytable_badge)
-		# Position on center of cell
 		_position_paytable_badge.call_deferred(cell)
 	if _paytable_line_draw:
 		_paytable_line_draw.queue_redraw()
@@ -1817,6 +2080,7 @@ func _position_paytable_badge(cell: TextureRect) -> void:
 		rect.get_center().x - badge_sz.x / 2,
 		rect.get_center().y - badge_sz.y / 2
 	)
+	_paytable_badge.modulate.a = 1.0
 
 
 func _draw_paytable_line() -> void:

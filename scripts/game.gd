@@ -145,6 +145,11 @@ func _apply_theme() -> void:
 	_game_title.add_theme_font_size_override("font_size", 20)
 	_game_title.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
 
+	# Right spacer to balance exit button — keeps title centered on screen
+	var title_spacer := Control.new()
+	title_spacer.custom_minimum_size.x = _back_btn.custom_minimum_size.x
+	_back_btn.get_parent().add_child(title_spacer)
+
 	# Paytable & InfoBar margins
 	var side_m := 160
 	$TopSection/PaytableMargin.add_theme_constant_override("margin_left", side_m)
@@ -974,8 +979,9 @@ func _create_overlay(text: String) -> void:
 	add_child(_win_overlay)
 
 	await get_tree().process_frame
-	_position_overlay()
-	_win_overlay.modulate.a = 1.0
+	await _position_overlay()
+	if _win_overlay and is_instance_valid(_win_overlay):
+		_win_overlay.modulate.a = 1.0
 
 
 func _position_overlay() -> void:

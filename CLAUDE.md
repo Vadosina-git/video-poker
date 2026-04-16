@@ -1141,6 +1141,64 @@ value сдвигается вниз) + новый ACTIVE pop-in.
 20 линий. Использует собственный `SpinPokerManager`, `spin_poker_game.gd` UI
 и квадратные SVG-карты из `assets/cards/cards_spin/`.
 
+### Техническая реализация Spin Poker — барабаны и шторки
+
+**Архитектура рилов.** Каждый из 5 столбцов — это «барабан» (reel). Визуально
+представлен 3 ячейками (`_card_rects[row][col]`, row 0/1/2 = top/mid/bot)
+из GridContainer. Верхний и нижний ряды закрываются **шторками** — persistent
+`TextureRect` с текстурой `card_back_spin.svg`, позиционированные поверх
+ячеек (z_index=3). Шторки создаются один раз в `_build_persistent_shutters()`
+и живут всё время. Массив: `_col_shutters[col] = {top: TextureRect, bot: TextureRect, open: bool}`.
+
+**Важно: под шторками всегда лицевые карты, никогда не card_back.** При первом
+запуске — случайные (`_init_shutters_closed`). При последующих раундах —
+карты остаются от предыдущего результата. `_set_card_back()` не вызывается
+для строк 0 и 2.
+
+**Анимация барабанов (reel spin).** Используется `Control` с `clip_contents=true`
+поверх ячеек (z_index=20). Внутри — plain `Control` (strip) с дочерними
+`TextureRect`, расположенными вручную через `tex.position = Vector2(0, ch*i)`
+и `tex.size = Vector2(cw, ch)`. **Не VBoxContainer** — он перезаписывает
+position дочерних нод при layout, убивая анимацию. Анимация прокрутки:
+`strip.position.y` через Timer. Перед стартом анимации обязательно
+`await get_tree().process_frame × 2` чтобы clip получил ненулевой size.
+
+**Структура strip:** `[prev_card(s)] [filler×N] [filler×N copy] [target(s)]`.
+- Первая карта(ы) = текущие карты на экране (из предыдущего раунда)
+- Филлеры удвоены для бесшовной зацикленной прокрутки
+- Последняя карта(ы) = целевые (новая раздача)
+- Прокрутка: `strip.position.y = -fmod(offset, loop_h)` где `loop_h = cell_h × filler_count`
+
+**Разгон/торможение.** Скорость прокрутки нарастает от 0 до max за ~0.5с
+(квадратичный ease-in: `speed = max_speed × t²`). Торможение при остановке:
+Tween с `EASE_OUT + TRANS_QUAD` + bounce (отскок ~5px).
+
+**Сценарий DEAL/SPIN:**
+1. Шторки закрываются анимированно (если были открыты от прошлого раунда)
+2. Под шторками и в среднем ряду — карты прошлого раунда
+3. Strip среднего ряда начинается с предыдущей карты (`cell.texture`)
+4. Барабаны крутятся через окно среднего ряда (clip = 1 cell tall)
+5. Остановка слева направо с задержкой между столбцами
+
+**Сценарий HOLD:**
+- При холде: `_animate_shutter_open(col)` — шторки раздвигаются, показывая
+  ту же карту из среднего ряда в top/bottom
+- При снятии холда: `_animate_shutter_close(col)` — шторки закрываются
+
+**Сценарий DRAW:**
+1. Шторки нехолденных столбцов открываются (0.25с), ждём завершения
+2. Strip 3 ряда начинается с текущих 3 карт (`_card_rects[row][col].texture`)
+3. Барабаны крутятся через все 3 ряда (clip = 3 cells tall)
+4. Остановка слева направо
+
+**`_rush` механика.** Тап во время вращения ставит `_rush = true`, все
+барабаны мгновенно показывают целевые карты. Защита: `_spin_started_frame`
+предотвращает rush от того же клика, что запустил спин. `_rush` сбрасывается
+в `false` в начале `_on_deal_spin_complete` и `_on_draw_spin_complete`.
+
+**Скорости.** `SPEED_CONFIGS[0..3]` — четыре уровня. При MAX (level 3)
+`base_spin_ms=0` → анимация пропускается полностью.
+
 **Card rendering.** Обычные карты — `TextureRect` с PNG-спрайтами из
 Figma. Путь: `res://assets/cards/card_vp_{rank}{suit}.png`. Joker:
 `card_vp_joker_red.png`. Рубашка: `card_back.png`. Для Spin Poker — квадратные

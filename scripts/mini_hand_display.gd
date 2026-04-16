@@ -146,9 +146,11 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_result_overlay.add_child(label)
 
-	# Add to game scene (not tree root!) so it's cleaned up on scene exit
+	# Add offscreen, position, then move into place (visible=false won't work with blink tween)
 	var parent: Control = _overlay_parent if _overlay_parent else self
 	parent.add_child(_result_overlay)
+	# Place far offscreen so it's never seen at (0,0)
+	_result_overlay.global_position = Vector2(-9999, -9999)
 	_position_result_overlay.call_deferred()
 
 

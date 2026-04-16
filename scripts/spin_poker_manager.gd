@@ -65,7 +65,7 @@ const LINE_COLORS := [
 
 var state: State = State.IDLE
 var variant: BaseVariant
-var bet: int = 5  # coins per line (1-5)
+var bet: int = 1  # coins per line (1-5)
 
 # Grid: grid[row][col] — row 0=top, 1=mid, 2=bot
 var grid: Array = [[], [], []]
@@ -136,6 +136,13 @@ func deal() -> void:
 
 
 func on_deal_spin_complete() -> void:
+	# Auto-hold winning combinations and wild cards
+	var hand_rank = variant.evaluate(middle_row)
+	if hand_rank != HandEvaluator.HandRank.NOTHING:
+		held = variant.get_hold_mask(middle_row, hand_rank)
+	for i in 5:
+		if variant.is_wild_card(middle_row[i]):
+			held[i] = true
 	state = State.HOLDING
 	state_changed.emit(state)
 

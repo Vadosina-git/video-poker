@@ -33,7 +33,7 @@ var _num_hands: int = 3
 var _blink_tween: Tween = null
 var _bet_flash_tween: Tween
 var _idle_blink_tween: Tween = null
-var _idle_timer: SceneTreeTimer = null
+var _idle_timer: Timer = null
 var _balance_cd: Dictionary
 var _balance_show_depth: bool = false
 var _depth_tooltip: Control = null
@@ -259,6 +259,11 @@ func _apply_theme() -> void:
 
 	_game_title.add_theme_font_size_override("font_size", 20)
 	_game_title.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+
+	# Right spacer to balance exit button — keeps title centered on screen
+	var title_spacer := Control.new()
+	title_spacer.custom_minimum_size.x = _back_btn.custom_minimum_size.x
+	_back_btn.get_parent().add_child(title_spacer)
 
 	# Hands area
 	_hands_area.add_theme_constant_override("separation", 4)
@@ -781,7 +786,10 @@ func _switch_hand_count(new_count: int) -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
-		if _manager.state == MultiHandManager.State.DRAWING or _manager.state == MultiHandManager.State.DEALING:
+		# Reset idle blink on any tap
+		if _manager.state == MultiHandManager.State.IDLE or _manager.state == MultiHandManager.State.HOLDING or _manager.state == MultiHandManager.State.WIN_DISPLAY:
+			_start_idle_blink_timer()
+		if _manager.state == MultiHandManager.State.DRAWING:
 			_rush_round = true
 
 
@@ -1052,22 +1060,29 @@ func _hide_hold_hint() -> void:
 
 func _start_idle_blink_timer() -> void:
 	_stop_idle_blink()
-	_idle_timer = get_tree().create_timer(5.0)
-	_idle_timer.timeout.connect(_begin_deal_blink)
+	if not _idle_timer:
+		_idle_timer = Timer.new()
+		_idle_timer.one_shot = true
+		_idle_timer.timeout.connect(_begin_deal_blink)
+		add_child(_idle_timer)
+	_idle_timer.start(5.0)
 
 func _begin_deal_blink() -> void:
-	_idle_timer = null
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
 	_idle_blink_tween = create_tween().set_loops()
-	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
-	_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
+	for _i in 3:
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
+	_idle_blink_tween.tween_interval(5.0)
 
 func _stop_idle_blink() -> void:
-	_idle_timer = null
+	if _idle_timer:
+		_idle_timer.stop()
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
 		_idle_blink_tween = null
+	_deal_draw_btn.modulate.a = 1.0
 	_deal_draw_btn.modulate.a = 1.0
 
 
