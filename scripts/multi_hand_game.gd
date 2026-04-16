@@ -1859,9 +1859,11 @@ func _build_info_card() -> void:
 	style.content_margin_top = 12
 	style.content_margin_bottom = 12
 	_info_card.add_theme_stylebox_override("panel", style)
-	_info_card.custom_minimum_size = _get_primary_card_size()
-	_info_card.custom_minimum_size.y = 120
+	var card_sz := _get_primary_card_size()
+	_info_card.custom_minimum_size = Vector2(card_sz.x, card_sz.y)
+	_info_card.size = Vector2(card_sz.x, card_sz.y)
 	_info_card.clip_contents = true
+	_info_card.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_info_card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_info_card.gui_input.connect(_on_info_card_clicked)
 
@@ -1896,8 +1898,10 @@ func _build_info_card() -> void:
 
 	_info_card_active_label = Label.new()
 	_info_card_active_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_info_card_active_label.add_theme_font_size_override("font_size", 16)
+	_info_card_active_label.add_theme_font_size_override("font_size", 14)
 	_info_card_active_label.add_theme_font_override("font", bold)
+	_info_card_active_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_info_card_active_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	vbox.add_child(_info_card_active_label)
 	_update_info_card_status()
 
