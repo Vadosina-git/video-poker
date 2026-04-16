@@ -186,6 +186,10 @@ func _ready() -> void:
 	_update_bet_display(_manager.bet)
 	_bet_btn.text = Translations.tr_key("game.bet_one_fmt", [_manager.bet])
 	_win_label.text = Translations.tr_key("game.win_label")
+	# Load persisted multiplier state
+	if _ultra_vp:
+		_load_ux_state()
+		_update_multiplier_labels()
 
 
 func _setup_background() -> void:
