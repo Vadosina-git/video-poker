@@ -1867,7 +1867,7 @@ func _build_info_card() -> void:
 	_info_card.gui_input.connect(_on_info_card_clicked)
 
 	var vbox := VBoxContainer.new()
-	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
 	vbox.add_theme_constant_override("separation", 3)
 	_info_card.add_child(vbox)
 
@@ -1875,7 +1875,7 @@ func _build_info_card() -> void:
 	bold.font_weight = 700
 
 	var title := Label.new()
-	title.text = Translations.tr_key("info_card.ultra_vp_title")
+	title.text = "ULTRA VP"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 16)
 	title.add_theme_color_override("font_color", Color("FFEC00"))
