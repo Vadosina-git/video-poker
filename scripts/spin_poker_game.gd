@@ -1646,27 +1646,29 @@ func _show_paytable() -> void:
 	right_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	right_vbox.custom_minimum_size.x = 40
 	grid_hbox.add_child(right_vbox)
-	# Left: ribbons stacked, grouped by row (T, M, B) with small spacers
+	# Left: 3 groups aligned to each reel row
 	for row_idx in 3:
-		if row_idx > 0:
-			var spacer_l := Control.new()
-			spacer_l.custom_minimum_size.y = 6
-			left_vbox.add_child(spacer_l)
+		var group := VBoxContainer.new()
+		group.add_theme_constant_override("separation", 1)
+		group.alignment = BoxContainer.ALIGNMENT_CENTER
+		group.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		left_vbox.add_child(group)
 		for li in left_rows[row_idx]:
 			var r := _make_line_ribbon(li, false)
 			r.custom_minimum_size = Vector2(36, 16)
-			left_vbox.add_child(r)
+			group.add_child(r)
 			_paytable_left_ribbons.append({"idx": li, "node": r})
-	# Right: same layout
+	# Right: 3 groups aligned to each reel row
 	for row_idx in 3:
-		if row_idx > 0:
-			var spacer_r := Control.new()
-			spacer_r.custom_minimum_size.y = 6
-			right_vbox.add_child(spacer_r)
+		var group := VBoxContainer.new()
+		group.add_theme_constant_override("separation", 1)
+		group.alignment = BoxContainer.ALIGNMENT_CENTER
+		group.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		right_vbox.add_child(group)
 		for li in right_rows[row_idx]:
 			var r := _make_line_ribbon(li, true)
 			r.custom_minimum_size = Vector2(36, 16)
-			right_vbox.add_child(r)
+			group.add_child(r)
 			_paytable_right_ribbons.append({"idx": li, "node": r})
 
 	# 20 line buttons horizontal at bottom
