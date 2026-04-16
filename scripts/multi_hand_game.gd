@@ -67,7 +67,7 @@ var _active_displays: Array[Control] = []
 # a previous animation was interrupted.
 var _anim_detached_rows: Array[Control] = []
 # State persistence: key = "{hand_count}_{bet}" → {hand_multipliers, next_multipliers}
-var _ux_states: Dictionary = {}
+# _ux_states now stored in SaveManager.ultra_multipliers (persists across sessions)
 
 # Extra hands (above primary, non-interactive mini displays)
 var _extra_displays: Array = []  # Array of MiniHandDisplay
@@ -1293,33 +1293,33 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 
 
 func _ux_state_key() -> String:
-	return "%d_%d_%d" % [_num_hands, _manager.bet, SaveManager.denomination]
+	return "%s_%d_%d_%d" % [_variant.variant_id, _num_hands, _manager.bet, SaveManager.denomination]
 
 
 func _save_ux_state() -> void:
 	if not _ultra_vp:
 		return
-	_ux_states[_ux_state_key()] = {
+	SaveManager.ultra_multipliers[_ux_state_key()] = {
 		"hand_multipliers": _manager.hand_multipliers.duplicate(),
 		"next_multipliers": _manager.next_multipliers.duplicate(),
 	}
+	SaveManager.save_game()
 
 
 func _load_ux_state() -> void:
 	if not _ultra_vp:
 		return
 	var key := _ux_state_key()
-	if key in _ux_states:
-		var st: Dictionary = _ux_states[key]
-		var saved_hand: Array = st["hand_multipliers"]
-		var saved_next: Array = st["next_multipliers"]
+	if key in SaveManager.ultra_multipliers:
+		var st: Dictionary = SaveManager.ultra_multipliers[key]
+		var saved_hand: Array = st.get("hand_multipliers", [])
+		var saved_next: Array = st.get("next_multipliers", [])
 		_manager.hand_multipliers.clear()
 		_manager.next_multipliers.clear()
 		for i in _num_hands:
 			_manager.hand_multipliers.append(saved_hand[i] if i < saved_hand.size() else 1)
 			_manager.next_multipliers.append(saved_next[i] if i < saved_next.size() else 1)
 	else:
-		# No saved state — reset
 		_manager.hand_multipliers.clear()
 		_manager.next_multipliers.clear()
 		for i in _num_hands:
@@ -2087,9 +2087,9 @@ func _on_bet_max_pressed() -> void:
 	if _ultra_vp:
 		_save_ux_state()
 		# Restore state for MAX bet key (where NEXT mults are stored)
-		var max_key := "%d_%d_%d" % [_num_hands, MultiHandManager.ULTRA_BET, SaveManager.denomination]
-		if max_key in _ux_states:
-			var st: Dictionary = _ux_states[max_key]
+		var max_key := "%s_%d_%d_%d" % [_variant.variant_id, _num_hands, MultiHandManager.ULTRA_BET, SaveManager.denomination]
+		if max_key in SaveManager.ultra_multipliers:
+			var st: Dictionary = SaveManager.ultra_multipliers[max_key]
 			var saved_hand: Array = st["hand_multipliers"]
 			var saved_next: Array = st["next_multipliers"]
 			_manager.hand_multipliers.clear()
