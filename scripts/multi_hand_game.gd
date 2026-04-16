@@ -1338,17 +1338,20 @@ func _load_ux_state() -> void:
 var _info_pulse_tween: Tween = null
 
 func _update_info_card_status() -> void:
-	if not _info_card_active_label:
+	if not _info_card_active_label or not _info_card:
 		return
 	var ux_active := _manager.bet == MultiHandManager.ULTRA_BET
+	var style := _info_card.get_theme_stylebox("panel") as StyleBoxFlat
 	if ux_active:
 		_info_card_active_label.text = Translations.tr_key("info_card.active")
 		_info_card_active_label.add_theme_color_override("font_color", Color("07E02F"))
-		_start_info_pulse()
+		if style:
+			style.bg_color = Color("1A30AA")  # light blue when active
 	else:
 		_info_card_active_label.text = Translations.tr_key("info_card.press_to_activate")
 		_info_card_active_label.add_theme_color_override("font_color", Color("FF4444"))
-		_stop_info_pulse()
+		if style:
+			style.bg_color = Color("07107A")  # dark blue when inactive
 
 
 func _start_info_pulse() -> void:
@@ -1864,6 +1867,17 @@ func _build_info_card() -> void:
 	_info_card.custom_minimum_size = Vector2(card_sz.x, card_sz.y)
 	_info_card.clip_contents = true
 	_info_card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	# Press effect
+	_info_card.pivot_offset = Vector2(card_sz.x / 2, card_sz.y / 2)
+	_info_card.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton:
+			if e.pressed:
+				var tw := _info_card.create_tween()
+				tw.tween_property(_info_card, "scale", Vector2(0.93, 0.93), 0.05)
+			else:
+				var tw := _info_card.create_tween()
+				tw.tween_property(_info_card, "scale", Vector2.ONE, 0.1).set_ease(Tween.EASE_OUT)
+	)
 	_info_card.gui_input.connect(_on_info_card_clicked)
 
 	var vbox := VBoxContainer.new()
