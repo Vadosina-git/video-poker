@@ -154,35 +154,20 @@ func _build_ui() -> void:
 	grid_area.alignment = BoxContainer.ALIGNMENT_CENTER
 	root_vbox.add_child(grid_area)
 
-	# Left line ribbons (pointing right → toward grid), distributed by start row
+	# Left line ribbons — stacked vertically, grouped by start row (T/M/B)
 	var left_col := VBoxContainer.new()
 	left_col.add_theme_constant_override("separation", 0)
 	left_col.custom_minimum_size.x = 40
 	grid_area.add_child(left_col)
-	# Top row (row 0): lines 2,4,6,10 → indices 1,3,5,9
-	var left_top := HBoxContainer.new()
-	left_top.add_theme_constant_override("separation", 1)
-	left_top.alignment = BoxContainer.ALIGNMENT_CENTER
-	left_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_col.add_child(left_top)
-	for i in [1, 3, 5, 9]:
-		left_top.add_child(_make_line_ribbon(i, false))
-	# Mid row (row 1): lines 1,8,9 → indices 0,7,8
-	var left_mid := HBoxContainer.new()
-	left_mid.add_theme_constant_override("separation", 1)
-	left_mid.alignment = BoxContainer.ALIGNMENT_CENTER
-	left_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_col.add_child(left_mid)
-	for i in [0, 7, 8]:
-		left_mid.add_child(_make_line_ribbon(i, false))
-	# Bot row (row 2): lines 3,5,7 → indices 2,4,6
-	var left_bot := HBoxContainer.new()
-	left_bot.add_theme_constant_override("separation", 1)
-	left_bot.alignment = BoxContainer.ALIGNMENT_CENTER
-	left_bot.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_col.add_child(left_bot)
-	for i in [2, 4, 6]:
-		left_bot.add_child(_make_line_ribbon(i, false))
+	var left_groups := [[1, 3, 5, 9], [0, 7, 8], [2, 4, 6]]  # T, M, B
+	for g_idx in 3:
+		var group := VBoxContainer.new()
+		group.add_theme_constant_override("separation", 1)
+		group.alignment = BoxContainer.ALIGNMENT_CENTER
+		group.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		left_col.add_child(group)
+		for i in left_groups[g_idx]:
+			group.add_child(_make_line_ribbon(i, false))
 
 	# Grid panel — silver border frame, no expand, centered
 	_grid_panel = PanelContainer.new()
@@ -236,35 +221,20 @@ func _build_ui() -> void:
 	_line_draw_node.draw.connect(_draw_lines)
 	_grid_panel.add_child(_line_draw_node)
 
-	# Right line ribbons (pointing left → toward grid, flipped), distributed by start row
+	# Right line ribbons — stacked vertically, grouped by start row (T/M/B)
 	var right_col := VBoxContainer.new()
 	right_col.add_theme_constant_override("separation", 0)
 	right_col.custom_minimum_size.x = 40
 	grid_area.add_child(right_col)
-	# Top row (row 0): lines 14,16,20 → indices 13,15,19
-	var right_top := HBoxContainer.new()
-	right_top.add_theme_constant_override("separation", 1)
-	right_top.alignment = BoxContainer.ALIGNMENT_CENTER
-	right_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_col.add_child(right_top)
-	for i in [13, 15, 19]:
-		right_top.add_child(_make_line_ribbon(i, true))
-	# Mid row (row 1): lines 12,13,18,19 → indices 11,12,17,18
-	var right_mid := HBoxContainer.new()
-	right_mid.add_theme_constant_override("separation", 1)
-	right_mid.alignment = BoxContainer.ALIGNMENT_CENTER
-	right_mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_col.add_child(right_mid)
-	for i in [11, 12, 17, 18]:
-		right_mid.add_child(_make_line_ribbon(i, true))
-	# Bot row (row 2): lines 11,15,17 → indices 10,14,16
-	var right_bot := HBoxContainer.new()
-	right_bot.add_theme_constant_override("separation", 1)
-	right_bot.alignment = BoxContainer.ALIGNMENT_CENTER
-	right_bot.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_col.add_child(right_bot)
-	for i in [10, 14, 16]:
-		right_bot.add_child(_make_line_ribbon(i, true))
+	var right_groups := [[13, 15, 19], [11, 12, 17, 18], [10, 14, 16]]  # T, M, B
+	for g_idx in 3:
+		var group := VBoxContainer.new()
+		group.add_theme_constant_override("separation", 1)
+		group.alignment = BoxContainer.ALIGNMENT_CENTER
+		group.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		right_col.add_child(group)
+		for i in right_groups[g_idx]:
+			group.add_child(_make_line_ribbon(i, true))
 
 	# ── Status + game pays: inline labels (no separate bar, prevents layout jumps)
 	_status_label = Label.new()
