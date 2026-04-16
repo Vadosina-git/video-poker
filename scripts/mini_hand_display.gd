@@ -131,10 +131,8 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	_result_overlay.add_theme_stylebox_override("panel", style)
 	_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var badge_w: float = size.x * badge_width_ratio
-	badge_w = minf(badge_w, 200.0)  # absolute max width
+	var badge_w: float = minf(size.x * badge_width_ratio, 200.0)
 	_result_overlay.custom_minimum_size.x = badge_w
-	_result_overlay.custom_maximum_size.x = minf(size.x, 200.0)
 
 	var label := Label.new()
 	if active_mult > 1:
