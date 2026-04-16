@@ -1877,7 +1877,7 @@ func _build_info_card() -> void:
 	var title := Label.new()
 	title.text = "ULTRA VP"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_font_size_override("font_size", 20)
 	title.add_theme_color_override("font_color", Color("FFEC00"))
 	title.add_theme_font_override("font", bold)
 	vbox.add_child(title)
@@ -1897,7 +1897,7 @@ func _build_info_card() -> void:
 
 	_info_card_active_label = Label.new()
 	_info_card_active_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_info_card_active_label.add_theme_font_size_override("font_size", 12)
+	_info_card_active_label.add_theme_font_size_override("font_size", 15)
 	_info_card_active_label.add_theme_font_override("font", bold)
 	_info_card_active_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	vbox.add_child(_info_card_active_label)
