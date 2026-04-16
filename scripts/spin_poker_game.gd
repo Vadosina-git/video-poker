@@ -196,7 +196,7 @@ func _build_ui() -> void:
 	panel_style.content_margin_bottom = 3
 	_grid_panel.add_theme_stylebox_override("panel", panel_style)
 	_grid_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_grid_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_grid_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid_area.add_child(_grid_panel)
 
 	_grid_container = GridContainer.new()
