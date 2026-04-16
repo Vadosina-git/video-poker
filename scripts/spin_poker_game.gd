@@ -1520,6 +1520,9 @@ func _show_bet_picker() -> void:
 var _paytable_overlay: Control = null
 var _paytable_grid_rects: Array = [[], [], []]
 var _paytable_line_draw: Control = null
+var _paytable_line_btns: Array[Button] = []
+var _paytable_badge: PanelContainer = null
+var _paytable_prev_btn_idx: int = -1
 var _paytable_cycle_timer: Timer = null
 var _paytable_cycle_idx: int = 0
 
@@ -1617,6 +1620,7 @@ func _show_paytable() -> void:
 	btn_container.offset_top = -48
 	btn_container.offset_left = 8
 	btn_container.offset_right = -8
+	_paytable_line_btns.clear()
 	_paytable_overlay.add_child(btn_container)
 
 	for li in 20:
@@ -1642,11 +1646,13 @@ func _show_paytable() -> void:
 		line_btn.add_theme_stylebox_override("pressed", lp)
 		line_btn.add_theme_font_size_override("font_size", 12)
 		line_btn.add_theme_color_override("font_color", Color.WHITE)
+		line_btn.pivot_offset = Vector2(22, 16)
 		var idx := li
 		line_btn.pressed.connect(func() -> void:
 			_paytable_cycle_idx = idx
 			_highlight_line_in_overlay(idx)
 		)
+		_paytable_line_btns.append(line_btn)
 		btn_container.add_child(line_btn)
 
 	# X close button (top-right)
@@ -1678,6 +1684,9 @@ func _close_paytable_overlay() -> void:
 		_paytable_overlay = null
 	_paytable_grid_rects = [[], [], []]
 	_paytable_line_draw = null
+	_paytable_line_btns.clear()
+	_paytable_badge = null
+	_paytable_prev_btn_idx = -1
 	_clear_line_display()
 
 
@@ -1703,9 +1712,67 @@ func _stop_paytable_cycle() -> void:
 
 
 func _highlight_line_in_overlay(line_idx: int) -> void:
+	# Unhighlight previous button
+	if _paytable_prev_btn_idx >= 0 and _paytable_prev_btn_idx < _paytable_line_btns.size():
+		var prev_btn := _paytable_line_btns[_paytable_prev_btn_idx]
+		var prev_style := prev_btn.get_theme_stylebox("normal") as StyleBoxFlat
+		if prev_style:
+			prev_style.bg_color = SpinPokerManager.LINE_COLORS[_paytable_prev_btn_idx].darkened(0.3)
+		prev_btn.scale = Vector2.ONE
+	# Highlight current button
+	if line_idx >= 0 and line_idx < _paytable_line_btns.size():
+		var btn := _paytable_line_btns[line_idx]
+		var btn_style := btn.get_theme_stylebox("normal") as StyleBoxFlat
+		if btn_style:
+			btn_style.bg_color = SpinPokerManager.LINE_COLORS[line_idx].lightened(0.3)
+		btn.scale = Vector2(1.25, 1.25)
+	_paytable_prev_btn_idx = line_idx
 	_paytable_cycle_idx = line_idx
+	# Remove old badge
+	if _paytable_badge and is_instance_valid(_paytable_badge):
+		_paytable_badge.queue_free()
+		_paytable_badge = null
+	# Add badge on center cell (col 2) of the line
+	if _paytable_line_draw and _paytable_grid_rects[0].size() >= 5:
+		var center_row: int = SpinPokerManager.LINES[line_idx][2]
+		var cell: TextureRect = _paytable_grid_rects[center_row][2]
+		var min_hand: String = _variant.paytable.get_hand_order().back()
+		var display_name: String = _variant.paytable.get_hand_display_name(min_hand)
+		_paytable_badge = PanelContainer.new()
+		var bs := StyleBoxFlat.new()
+		bs.bg_color = Color(0.02, 0.02, 0.12, 0.9)
+		bs.set_border_width_all(2)
+		bs.border_color = SpinPokerManager.LINE_COLORS[line_idx]
+		bs.set_corner_radius_all(4)
+		bs.content_margin_left = 6
+		bs.content_margin_right = 6
+		bs.content_margin_top = 2
+		bs.content_margin_bottom = 2
+		_paytable_badge.add_theme_stylebox_override("panel", bs)
+		_paytable_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var lbl := Label.new()
+		lbl.text = display_name
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", Color.WHITE)
+		_paytable_badge.add_child(lbl)
+		_paytable_overlay.add_child(_paytable_badge)
+		# Position on center of cell
+		_position_paytable_badge.call_deferred(cell)
 	if _paytable_line_draw:
 		_paytable_line_draw.queue_redraw()
+
+
+func _position_paytable_badge(cell: TextureRect) -> void:
+	await get_tree().process_frame
+	if not _paytable_badge or not is_instance_valid(_paytable_badge):
+		return
+	var rect := cell.get_global_rect()
+	var badge_sz := _paytable_badge.get_combined_minimum_size()
+	_paytable_badge.global_position = Vector2(
+		rect.get_center().x - badge_sz.x / 2,
+		rect.get_center().y - badge_sz.y / 2
+	)
 
 
 func _draw_paytable_line() -> void:
