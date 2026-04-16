@@ -190,6 +190,7 @@ func _ready() -> void:
 	if _ultra_vp:
 		_load_ux_state()
 		_update_multiplier_labels()
+		_update_info_card_status()
 
 
 func _setup_background() -> void:
@@ -1355,8 +1356,8 @@ func _start_info_pulse() -> void:
 	if not _info_card:
 		return
 	_info_pulse_tween = create_tween().set_loops()
-	_info_pulse_tween.tween_property(_info_card, "modulate:a", 0.85, 1.0).set_ease(Tween.EASE_IN_OUT)
-	_info_pulse_tween.tween_property(_info_card, "modulate:a", 1.0, 1.0).set_ease(Tween.EASE_IN_OUT)
+	_info_pulse_tween.tween_property(_info_card, "modulate:a", 0.6, 0.8).set_ease(Tween.EASE_IN_OUT)
+	_info_pulse_tween.tween_property(_info_card, "modulate:a", 1.0, 0.8).set_ease(Tween.EASE_IN_OUT)
 
 
 func _stop_info_pulse() -> void:
