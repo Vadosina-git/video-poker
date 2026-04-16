@@ -162,7 +162,7 @@ func _build_ui() -> void:
 	var left_groups := [[1, 3, 5, 9], [0, 7, 8], [2, 4, 6]]  # T, M, B
 	for g_idx in 3:
 		var group := VBoxContainer.new()
-		group.add_theme_constant_override("separation", 1)
+		group.add_theme_constant_override("separation", 3)
 		group.alignment = BoxContainer.ALIGNMENT_CENTER
 		group.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		left_col.add_child(group)
@@ -229,7 +229,7 @@ func _build_ui() -> void:
 	var right_groups := [[13, 15, 19], [11, 12, 17, 18], [10, 14, 16]]  # T, M, B
 	for g_idx in 3:
 		var group := VBoxContainer.new()
-		group.add_theme_constant_override("separation", 1)
+		group.add_theme_constant_override("separation", 3)
 		group.alignment = BoxContainer.ALIGNMENT_CENTER
 		group.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		right_col.add_child(group)
