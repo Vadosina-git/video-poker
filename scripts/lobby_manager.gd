@@ -86,6 +86,21 @@ func _ready() -> void:
 	_build_carousel()
 	_build_settings_button()
 	_build_gift_widget()
+	_add_top_bar_padding()
+
+
+func _add_top_bar_padding() -> void:
+	# HBoxContainer doesn't honour stylebox content_margin for child layout,
+	# so we insert empty spacer Controls at the extreme left & right to inset
+	# every top-bar element (cash pill, title, gift, shop +, settings) by SAFE_AREA_H.
+	var top_bar := $VBoxContainer/TopBar as HBoxContainer
+	var left_pad := Control.new()
+	left_pad.custom_minimum_size.x = SAFE_AREA_H
+	top_bar.add_child(left_pad)
+	top_bar.move_child(left_pad, 0)
+	var right_pad := Control.new()
+	right_pad.custom_minimum_size.x = SAFE_AREA_H
+	top_bar.add_child(right_pad)
 
 
 const SAFE_AREA_H := 40
