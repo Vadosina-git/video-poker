@@ -58,11 +58,6 @@ func _apply_setup(p_locked: bool) -> void:
 	gui_input.connect(_on_gui_input)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if not p_locked else Control.CURSOR_ARROW
 
-	# Idle "breathing": very subtle scale pulse, phase-shifted per card
-	pivot_offset = size / 2.0
-	resized.connect(func() -> void: pivot_offset = size / 2.0)
-	call_deferred("_start_breathing")
-
 
 func _start_icon_float() -> void:
 	if not is_instance_valid(_icon_tex):
@@ -75,17 +70,6 @@ func _start_icon_float() -> void:
 	tw.tween_interval(phase)
 	tw.tween_property(_icon_tex, "position:y", base_y - 3.5, 1.2).from(base_y)
 	tw.tween_property(_icon_tex, "position:y", base_y, 1.2)
-
-
-func _start_breathing() -> void:
-	var tw := create_tween()
-	tw.set_loops()
-	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	# Stagger phase by the card's position in parent so they breathe out-of-sync
-	var phase: float = float(get_index()) * 0.25
-	tw.tween_interval(phase)
-	tw.tween_property(self, "scale", Vector2(1.015, 1.015), 1.4).from(Vector2.ONE)
-	tw.tween_property(self, "scale", Vector2.ONE, 1.4)
 
 
 func _draw_inner_border() -> void:

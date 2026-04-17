@@ -707,15 +707,15 @@ func _build_carousel() -> void:
 				config["locked"],
 			)
 			card_node.play_pressed.connect(_on_play_pressed)
-			# Decorative shimmer sweep once every 6 seconds (anim 1.2).
-			# Hosted on a clipped overlay Control so the sweep polygon is
-			# confined to the card rect (avoids leaking across neighbours
-			# and keeps the card's drop shadow intact).
+			# Decorative shimmer sweep (anim 1.2): sweep is fast but rare.
+			# 3s sweep + 13.8s pause = 16.8s total cycle; alpha 0.5.
+			# Hosted on a clipped overlay Control so the polygon is confined
+			# to the card rect (avoids leaking and keeps the drop shadow).
 			var shim_host := Control.new()
 			shim_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			shim_host.clip_contents = true
 			card_node.add_child(shim_host)
-			_attach_shimmer_sweep(shim_host, 6.0, Color(1, 1, 1, 0.25))
+			_attach_shimmer_sweep(shim_host, 3.0, Color(1, 1, 1, 0.5), 13.8)
 			_machine_cards.append(card_node)
 
 	# Stagger fade-in: cards appear sequentially with a slight upward slide.
@@ -2018,10 +2018,11 @@ func _build_top_ribbon(text: String) -> PanelContainer:
 ## Overlays a diagonal white shimmer stripe that sweeps across the control
 ## from left to right once every `period` seconds. Works on any Control via
 ## `draw.connect`. Only shows inside clip_contents.
-func _attach_shimmer_sweep(ctrl: Control, period: float = 3.0, color: Color = Color(1, 1, 1, 0.4)) -> void:
+func _attach_shimmer_sweep(ctrl: Control, period: float = 3.0, color: Color = Color(1, 1, 1, 0.4), pause: float = -1.0) -> void:
 	# We animate a float "shimmer_t" 0..1, then use it in _draw to paint a
 	# slanted polygon moving across the control's rect.
 	var state := {"t": -0.2}
+	var pause_time: float = pause if pause >= 0.0 else period * 0.4
 	var tick := func() -> void:
 		var tw := ctrl.create_tween()
 		tw.set_loops()
@@ -2029,7 +2030,7 @@ func _attach_shimmer_sweep(ctrl: Control, period: float = 3.0, color: Color = Co
 			state["t"] = val
 			ctrl.queue_redraw()
 		, -0.3, 1.3, period).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
-		tw.tween_interval(period * 0.4)
+		tw.tween_interval(pause_time)
 	tick.call()
 	ctrl.draw.connect(func() -> void:
 		var t: float = state["t"]
