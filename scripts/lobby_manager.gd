@@ -487,23 +487,26 @@ func _release_drag(velocity: float) -> void:
 
 	if target < 0:
 		# Inertia carries past the left edge → overshoot then spring back.
+		# Phase 1 decelerates to peak (v→0). Phase 2 returns to 0 via SINE
+		# EASE_IN_OUT so it also starts at v=0, avoiding the velocity
+		# discontinuity at the peak that looked like an extra bounce.
 		var excess: float = float(-target)
 		var peak: float = -minf(excess * 0.35, MAX_OVERSCROLL)
 		_scroll_ref.scroll_horizontal = 0
 		_inertia_tween = create_tween()
 		_inertia_tween.tween_method(_set_overscroll, 0.0, peak, 0.28) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
 		_inertia_tween.tween_method(_set_overscroll, peak, 0.0, SPRING_DURATION) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+			.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
 	elif target > m:
 		var excess2: float = float(target - m)
 		var peak2: float = minf(excess2 * 0.35, MAX_OVERSCROLL)
 		_scroll_ref.scroll_horizontal = m
 		_inertia_tween = create_tween()
 		_inertia_tween.tween_method(_set_overscroll, 0.0, -peak2, 0.28) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
 		_inertia_tween.tween_method(_set_overscroll, -peak2, 0.0, SPRING_DURATION) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+			.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
 	else:
 		_inertia_tween = create_tween()
 		_inertia_tween.tween_property(_scroll_ref, "scroll_horizontal", target, INERTIA_DURATION) \
