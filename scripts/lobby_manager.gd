@@ -409,6 +409,61 @@ func _attach_ripple(btn: Control) -> void:
 	)
 
 
+## One-shot golden gleam diagonal sweep across a Control — used when a
+## button transitions from disabled → enabled (anim 2.4).
+func _gleam_once(ctrl: Control, color: Color = Color(1, 0.95, 0.3, 0.85)) -> void:
+	if not is_instance_valid(ctrl):
+		return
+	ctrl.clip_contents = true
+	var state := {"t": -0.3}
+	var tw := ctrl.create_tween()
+	tw.tween_method(func(val: float) -> void:
+		state["t"] = val
+		ctrl.queue_redraw()
+	, -0.3, 1.3, 0.8).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
+	var draw_cb := func() -> void:
+		var t: float = state["t"]
+		if t < 0.0 or t > 1.0:
+			return
+		var w: float = ctrl.size.x
+		var h: float = ctrl.size.y
+		var cx: float = lerp(-w * 0.4, w * 1.1, t)
+		var half: float = w * 0.1
+		var skew: float = h * 0.6
+		var poly: PackedVector2Array = PackedVector2Array([
+			Vector2(cx - half, -2),
+			Vector2(cx + half, -2),
+			Vector2(cx + half - skew, h + 2),
+			Vector2(cx - half - skew, h + 2),
+		])
+		ctrl.draw_colored_polygon(poly, color)
+	ctrl.draw.connect(draw_cb)
+	# Disconnect once the animation finishes so the gleam doesn't linger.
+	tw.finished.connect(func() -> void:
+		if ctrl.draw.is_connected(draw_cb):
+			ctrl.draw.disconnect(draw_cb)
+		ctrl.queue_redraw()
+	)
+
+
+## Crossfade + rotate swap between two textures on a TextureRect (anim 2.5).
+## Fades current texture out with a 90° spin, swaps to `new_tex`, spins in.
+func _morph_texture(tex_rect: TextureRect, new_tex: Texture2D, duration: float = 0.25) -> void:
+	if not is_instance_valid(tex_rect):
+		return
+	tex_rect.pivot_offset = tex_rect.size * 0.5
+	var half: float = duration * 0.5
+	var tw := tex_rect.create_tween().set_parallel(true)
+	tw.tween_property(tex_rect, "rotation", deg_to_rad(90), half).set_ease(Tween.EASE_IN)
+	tw.tween_property(tex_rect, "modulate:a", 0.0, half).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(func() -> void:
+		tex_rect.texture = new_tex
+		tex_rect.rotation = deg_to_rad(-90)
+	)
+	tw.chain().tween_property(tex_rect, "rotation", 0.0, half).set_ease(Tween.EASE_OUT)
+	tw.tween_property(tex_rect, "modulate:a", 1.0, half).set_ease(Tween.EASE_OUT)
+
+
 ## Short "success" pop on any Control — over-scale pulse + modulate flash.
 func _success_pop(ctrl: Control) -> void:
 	if not is_instance_valid(ctrl):
