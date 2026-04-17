@@ -1914,8 +1914,9 @@ func _build_info_card() -> void:
 	var title_image := TextureRect.new()
 	title_image.texture = load("res://assets/ultra/ultra_logo.png")
 	title_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	title_image.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	title_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	title_image.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_image.custom_minimum_size = Vector2(0, 44)
 	vbox.add_child(title_image)
 
 	var sep := ColorRect.new()
@@ -1935,8 +1936,9 @@ func _build_info_card() -> void:
 	_info_card_active_image = TextureRect.new()
 	_info_card_active_image.texture = load("res://assets/ultra/ultra_active.png")
 	_info_card_active_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_info_card_active_image.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	_info_card_active_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_info_card_active_image.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_info_card_active_image.custom_minimum_size = Vector2(0, 32)
 	_info_card_active_image.visible = false
 	vbox.add_child(_info_card_active_image)
 
