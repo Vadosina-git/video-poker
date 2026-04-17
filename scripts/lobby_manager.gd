@@ -383,29 +383,37 @@ func _attach_press_effect(btn: BaseButton, target_scale: float = 0.93) -> void:
 
 
 ## Material-style ripple: on press, a translucent circle expands from the
-## click point and fades out. Uses gui_input + draw.connect on the button.
+## click point and fades out. Uses a child overlay Control so the ripple
+## draws on top of the button's texture/label regardless of draw order.
 func _attach_ripple(btn: Control) -> void:
-	var state := {"center": Vector2.ZERO, "radius": 0.0, "alpha": 0.0, "max_r": 0.0}
+	var overlay := Control.new()
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.clip_contents = true
+	overlay.z_index = 10
+	btn.add_child(overlay)
+	var state := {"center": Vector2.ZERO, "radius": 0.0, "alpha": 0.0}
+	overlay.draw.connect(func() -> void:
+		if state["alpha"] > 0.001 and state["radius"] > 0.0:
+			overlay.draw_circle(state["center"], state["radius"], Color(1, 1, 1, state["alpha"]))
+	)
 	btn.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			state["center"] = event.position
-			state["max_r"] = Vector2(maxf(event.position.x, btn.size.x - event.position.x), \
+			var max_r: float = Vector2(maxf(event.position.x, btn.size.x - event.position.x), \
 				maxf(event.position.y, btn.size.y - event.position.y)).length()
 			state["radius"] = 0.0
-			state["alpha"] = 0.35
-			var tw := btn.create_tween().set_parallel(true)
+			state["alpha"] = 0.55
+			overlay.queue_redraw()
+			var tw := overlay.create_tween().set_parallel(true)
 			tw.tween_method(func(r: float) -> void:
 				state["radius"] = r
-				btn.queue_redraw()
-			, 0.0, state["max_r"], 0.45).set_ease(Tween.EASE_OUT)
+				overlay.queue_redraw()
+			, 0.0, max_r, 0.45).set_ease(Tween.EASE_OUT)
 			tw.tween_method(func(a: float) -> void:
 				state["alpha"] = a
-				btn.queue_redraw()
-			, 0.35, 0.0, 0.45).set_ease(Tween.EASE_OUT)
-	)
-	btn.draw.connect(func() -> void:
-		if state["alpha"] > 0.001 and state["radius"] > 0.0:
-			btn.draw_circle(state["center"], state["radius"], Color(1, 1, 1, state["alpha"]))
+				overlay.queue_redraw()
+			, 0.55, 0.0, 0.45).set_ease(Tween.EASE_OUT)
 	)
 
 
