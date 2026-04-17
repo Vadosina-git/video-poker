@@ -282,6 +282,15 @@ func _on_mode_selected(index: int) -> void:
 	for i in _sidebar_buttons.size():
 		_style_sidebar_btn(_sidebar_buttons[i], i == _active_mode)
 	_build_carousel()
+	# Tab wiggle — small rotate bounce on the newly selected tab
+	if index < _sidebar_buttons.size():
+		var btn: Control = _sidebar_buttons[index]
+		btn.pivot_offset = btn.size * 0.5
+		var tw := btn.create_tween()
+		tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.tween_property(btn, "rotation", deg_to_rad(-2.5), 0.08).from(0.0)
+		tw.tween_property(btn, "rotation", deg_to_rad(2.0), 0.09)
+		tw.tween_property(btn, "rotation", 0.0, 0.1)
 
 
 func _style_sidebar_btn(btn: Button, active: bool) -> void:
