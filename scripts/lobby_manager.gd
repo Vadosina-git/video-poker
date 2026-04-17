@@ -169,12 +169,10 @@ func _style_top_bar() -> void:
 	_cash_label.reparent(cash_inner)
 
 	# Shop button next to cash pill — opens shop popup.
-	# Fixed size with aspect 60:46 preserved (roughly matches cash pill height).
-	var shop_btn := TextureButton.new()
-	var shop_tex: Texture2D = load("res://assets/textures/shop_button_lobby.svg")
-	shop_btn.texture_normal = shop_tex
-	shop_btn.ignore_texture_size = true
-	shop_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	# Flat Button for click + invisible styling; TextureRect child fills with
+	# the SVG pill (reliable aspect preservation); "+" drawn on top via _draw.
+	var shop_btn := Button.new()
+	shop_btn.flat = true
 	shop_btn.custom_minimum_size = Vector2(88, 68)
 	shop_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	shop_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -183,13 +181,25 @@ func _style_top_bar() -> void:
 	top_bar.add_child(shop_btn)
 	top_bar.move_child(shop_btn, cash_pill.get_index() + 1)
 
-	# Thick white "+" drawn geometrically — centered exactly on button rect
-	shop_btn.draw.connect(func() -> void:
-		var c: Vector2 = shop_btn.size / 2.0
-		var arm: float = minf(shop_btn.size.x, shop_btn.size.y) * 0.22
-		var th: float = arm * 0.6  # thickness
-		shop_btn.draw_rect(Rect2(c.x - arm, c.y - th * 0.5, arm * 2.0, th), Color.WHITE)
-		shop_btn.draw_rect(Rect2(c.x - th * 0.5, c.y - arm, th, arm * 2.0), Color.WHITE)
+	var shop_bg := TextureRect.new()
+	shop_bg.texture = load("res://assets/textures/shop_button_lobby.svg")
+	shop_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shop_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shop_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	shop_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shop_btn.add_child(shop_bg)
+
+	# Thick white "+" overlay — sibling added AFTER shop_bg so it draws on top
+	var plus_overlay := Control.new()
+	plus_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	plus_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shop_btn.add_child(plus_overlay)
+	plus_overlay.draw.connect(func() -> void:
+		var c: Vector2 = plus_overlay.size / 2.0
+		var arm: float = minf(plus_overlay.size.x, plus_overlay.size.y) * 0.22
+		var th: float = arm * 0.6
+		plus_overlay.draw_rect(Rect2(c.x - arm, c.y - th * 0.5, arm * 2.0, th), Color.WHITE)
+		plus_overlay.draw_rect(Rect2(c.x - th * 0.5, c.y - arm, th, arm * 2.0), Color.WHITE)
 	)
 
 	# Title "VIDEO POKER": yellow with red outline, in oval pill
