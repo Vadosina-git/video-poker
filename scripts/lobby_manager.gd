@@ -718,16 +718,35 @@ func _build_carousel() -> void:
 			_attach_shimmer_sweep(shim_host, 1.0, Color(1, 1, 1, 0.35), 10.2)
 			_machine_cards.append(card_node)
 
-	# Stagger fade-in: cards appear sequentially with a slight upward slide.
-	for i in _machine_cards.size():
+	# Stagger fade-in: cards appear sequentially with a tiny scale pop.
+	# NOTE: cards live inside a GridContainer, which overrides child position
+	# every layout pass — so we animate modulate + scale only (pivot-based),
+	# never position.
+	call_deferred("_play_stagger_fade_in")
+
+
+func _play_stagger_fade_in() -> void:
+	# Visual order: column-major (top→bottom within each column, columns L→R).
+	# Cards are added row-major, so remap add-index → visual order.
+	var cols: int = maxi(int(_grid.columns), 1)
+	var total: int = _machine_cards.size()
+	var rows: int = int(ceil(float(total) / float(cols)))
+	for i in total:
 		var card: Control = _machine_cards[i]
+		if not is_instance_valid(card):
+			continue
+		var row: int = i / cols
+		var col: int = i % cols
+		var visual_idx: int = col * rows + row
 		card.modulate.a = 0.0
-		card.position.y += 20
-		var delay: float = float(i) * 0.04
-		var tw := card.create_tween()
+		card.pivot_offset = card.size * 0.5
+		card.scale = Vector2(0.94, 0.94)
+		var delay: float = 0.1 + float(visual_idx) * 0.067
+		var tw := card.create_tween().set_parallel(true)
 		tw.tween_interval(delay)
-		tw.tween_property(card, "modulate:a", 1.0, 0.25)
-		tw.parallel().tween_property(card, "position:y", card.position.y - 20, 0.32).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		tw.chain().tween_property(card, "modulate:a", 1.0, 0.25)
+		tw.parallel().tween_property(card, "scale", Vector2.ONE, 0.32) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 
 
 func _mode_card_color() -> Color:
