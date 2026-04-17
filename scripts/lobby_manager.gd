@@ -717,13 +717,21 @@ func _build_carousel() -> void:
 			card_node.play_pressed.connect(_on_play_pressed)
 			# Decorative shimmer sweep (anim 1.2): fast highlight pass.
 			# 1s sweep + 10.2s pause = 11.2s total cycle; alpha 0.35.
-			# Hosted on a clipped overlay Control so the polygon is confined
-			# to the card rect (avoids leaking and keeps the drop shadow).
+			# PanelContainer's content_margin (22/26px) would inset this child
+			# to the logo area only — so we override position/size to span the
+			# card's full rect after each container sort.
 			var shim_host := Control.new()
 			shim_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			shim_host.clip_contents = true
 			card_node.add_child(shim_host)
-			_attach_shimmer_sweep(shim_host, 1.0, Color(1, 1, 1, 0.35), 10.2)
+			var fix_shim_rect := func() -> void:
+				if is_instance_valid(shim_host) and is_instance_valid(card_node):
+					shim_host.position = Vector2.ZERO
+					shim_host.size = card_node.size
+			card_node.sort_children.connect(fix_shim_rect)
+			card_node.resized.connect(fix_shim_rect)
+			fix_shim_rect.call_deferred()
+			_attach_shimmer_sweep(shim_host, 1.0, Color(1, 1, 1, 0.09), 10.2)
 			_machine_cards.append(card_node)
 
 	# Stagger fade-in: cards appear sequentially with a tiny scale pop.
