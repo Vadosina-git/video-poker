@@ -350,6 +350,10 @@ const INERTIA_DURATION := 0.85
 const SPRING_DURATION := 0.38
 const MIN_INERTIA_VELOCITY := 120.0
 
+# On web the mouse/touch-drag direction feels reversed vs. native; flip the
+# drag delta + velocity sign so swipe gestures behave naturally in-browser.
+var _drag_sign: float = -1.0 if OS.has_feature("web") else 1.0
+
 # Content node whose position.x gets offset for the rubber-band effect
 # (defaults to the lobby grid; swapped to the shop row when the shop opens).
 var _drag_content: Control = null
@@ -388,7 +392,7 @@ func _calc_velocity() -> float:
 	var dt: float = last.y - start.y
 	if dt < 0.001:
 		return 0.0
-	return (start.x - last.x) / dt  # px/sec; positive = fling forward
+	return (start.x - last.x) / dt * _drag_sign  # px/sec; positive = fling forward
 
 
 func _input(event: InputEvent) -> void:
@@ -414,7 +418,7 @@ func _input(event: InputEvent) -> void:
 		_velocity_samples.append(Vector2(event.global_position.x, now))
 		while _velocity_samples.size() > 8:
 			_velocity_samples.pop_front()
-		var delta: float = _drag_start_x - event.global_position.x
+		var delta: float = (_drag_start_x - event.global_position.x) * _drag_sign
 		var target: int = _drag_scroll_start + int(delta)
 		var m: int = _max_scroll()
 		if target < 0:
@@ -564,27 +568,21 @@ func refresh_credits() -> void:
 
 # --- Settings popup ----------------------------------------------------------
 
-var _settings_btn: Button
+var _settings_btn: BaseButton
 var _settings_overlay: Control = null
 
 func _build_settings_button() -> void:
-	_settings_btn = Button.new()
-	_settings_btn.text = "≡"
-	_settings_btn.add_theme_font_size_override("font_size", 52)
-	_settings_btn.add_theme_color_override("font_color", Color.WHITE)
-	_settings_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_settings_btn.add_theme_constant_override("outline_size", 3)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0)
-	_settings_btn.add_theme_stylebox_override("normal", style)
-	_settings_btn.add_theme_stylebox_override("hover", style)
-	_settings_btn.add_theme_stylebox_override("pressed", style)
-	_settings_btn.custom_minimum_size = Vector2(56, 56)
-	_settings_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
-	_settings_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_settings_btn.pressed.connect(_show_settings)
-	_attach_press_effect(_settings_btn)
-	# Add to top bar (after the cash currency display)
+	var tex_btn := TextureButton.new()
+	tex_btn.texture_normal = load("res://assets/textures/menu_icon.svg")
+	tex_btn.ignore_texture_size = true
+	tex_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	tex_btn.custom_minimum_size = Vector2(56, 56)
+	tex_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
+	tex_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	tex_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	tex_btn.pressed.connect(_show_settings)
+	_attach_press_effect(tex_btn)
+	_settings_btn = tex_btn
 	var top_bar := $VBoxContainer/TopBar as HBoxContainer
 	top_bar.add_child(_settings_btn)
 
