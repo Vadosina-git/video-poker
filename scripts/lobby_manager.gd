@@ -73,6 +73,7 @@ var _sidebar_buttons: Array[Button] = []
 
 
 func _ready() -> void:
+	add_to_group("lobby_manager")
 	MachineCardScene = load("res://scenes/lobby/machine_card.tscn")
 	_build_play_modes()
 	_paytables = Paytable.load_all()
@@ -86,11 +87,32 @@ func _ready() -> void:
 	_build_carousel()
 	_build_settings_button()
 	_build_gift_widget()
+	_add_top_bar_padding()
 
+
+func _add_top_bar_padding() -> void:
+	# HBoxContainer doesn't honour stylebox content_margin for child layout,
+	# so we insert empty spacer Controls at the extreme left & right to inset
+	# every top-bar element (cash pill, title, gift, shop +, settings) by SAFE_AREA_H.
+	var top_bar := $VBoxContainer/TopBar as HBoxContainer
+	var left_pad := Control.new()
+	left_pad.custom_minimum_size.x = SAFE_AREA_H
+	top_bar.add_child(left_pad)
+	top_bar.move_child(left_pad, 0)
+	var right_pad := Control.new()
+	right_pad.custom_minimum_size.x = SAFE_AREA_H
+	top_bar.add_child(right_pad)
+
+
+const SAFE_AREA_H := 40
 
 func _apply_theme() -> void:
 	$VBoxContainer.add_theme_constant_override("separation", 0)
-	$VBoxContainer/ContentHBox.add_theme_constant_override("separation", 0)
+	$VBoxContainer/SafeArea/ContentHBox.add_theme_constant_override("separation", 0)
+	# Safe horizontal inset for sidebar + central panel (keeps them off-edge)
+	var safe := $VBoxContainer/SafeArea as MarginContainer
+	safe.add_theme_constant_override("margin_left", SAFE_AREA_H)
+	safe.add_theme_constant_override("margin_right", SAFE_AREA_H)
 	_style_top_bar()
 	_style_grid_frame()
 	_build_sidebar()
@@ -106,8 +128,8 @@ func _style_top_bar() -> void:
 	top_bar.custom_minimum_size = Vector2(0, 110)
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.72, 0.06, 0.06)
-	bg.content_margin_left = 24
-	bg.content_margin_right = 24
+	bg.content_margin_left = SAFE_AREA_H
+	bg.content_margin_right = SAFE_AREA_H
 	bg.content_margin_top = 10
 	bg.content_margin_bottom = 10
 	bg.border_color = Color(0.22, 0.0, 0.0)
@@ -127,6 +149,7 @@ func _style_top_bar() -> void:
 	# Wrap CashLabel in a yellow-bordered pill (currency box added later in _ready)
 	var cash_idx := _cash_label.get_index()
 	var cash_pill := PanelContainer.new()
+	_cash_pill = cash_pill
 	cash_pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var cash_style := StyleBoxFlat.new()
 	cash_style.bg_color = Color(0.05, 0.03, 0.03)
@@ -146,30 +169,26 @@ func _style_top_bar() -> void:
 	top_bar.move_child(cash_pill, cash_idx)
 	_cash_label.reparent(cash_inner)
 
-	# Shop button next to cash pill — opens shop popup
+	# Shop button — PNG-baked pill (SVG had rasterisation/layout issues inside
+	# containers). TextureButton handles click + focus natively.
 	var shop_btn := TextureButton.new()
-	var shop_tex: Texture2D = load("res://assets/textures/shop_button_lobby.svg")
-	shop_btn.texture_normal = shop_tex
+	shop_btn.texture_normal = load("res://assets/textures/shop_button_lobby.png")
 	shop_btn.ignore_texture_size = true
 	shop_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	shop_btn.custom_minimum_size = Vector2(88, 68)
 	shop_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	shop_btn.size_flags_horizontal = 0
 	shop_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	shop_btn.pressed.connect(_show_shop)
 	_attach_press_effect(shop_btn)
 	top_bar.add_child(shop_btn)
 	top_bar.move_child(shop_btn, cash_pill.get_index() + 1)
 
-	# Match shop button height to cash pill after layout (SVG aspect 60:46 kept)
-	cash_pill.resized.connect(func() -> void:
-		var h: float = cash_pill.size.y
-		shop_btn.custom_minimum_size = Vector2(h * 60.0 / 46.0, h)
-	)
-
-	# Thick white "+" drawn geometrically — centered exactly on button rect
+	# White "+" overlay centered on the button
 	shop_btn.draw.connect(func() -> void:
-		var c: Vector2 = shop_btn.size / 2.0
+		var c: Vector2 = shop_btn.size * 0.5
 		var arm: float = minf(shop_btn.size.x, shop_btn.size.y) * 0.22
-		var th: float = arm * 0.6  # thickness
+		var th: float = arm * 0.6
 		shop_btn.draw_rect(Rect2(c.x - arm, c.y - th * 0.5, arm * 2.0, th), Color.WHITE)
 		shop_btn.draw_rect(Rect2(c.x - th * 0.5, c.y - arm, th, arm * 2.0), Color.WHITE)
 	)
@@ -204,7 +223,7 @@ func _style_top_bar() -> void:
 
 
 func _style_grid_frame() -> void:
-	var grid_margin := $VBoxContainer/ContentHBox/GridMargin as MarginContainer
+	var grid_margin := $VBoxContainer/SafeArea/ContentHBox/GridMargin as MarginContainer
 	grid_margin.add_theme_constant_override("margin_left", 30)
 	grid_margin.add_theme_constant_override("margin_right", 40)
 	grid_margin.add_theme_constant_override("margin_top", 30)
@@ -342,6 +361,9 @@ var _scroll_ref: ScrollContainer = null
 var _inertia_tween: Tween = null
 var _velocity_samples: Array = []  # [Vector2(x, time_sec)]
 var _overscroll: float = 0.0        # rubber-band offset applied to grid
+var _drag_moved: bool = false        # set true once drag crosses tap-cancel threshold
+
+const DRAG_TAP_CANCEL_PX := 10.0    # movement beyond this in any drag cancels a tap
 
 const OVERSCROLL_RESIST := 0.38
 const MAX_OVERSCROLL := 100.0
@@ -350,12 +372,23 @@ const INERTIA_DURATION := 0.85
 const SPRING_DURATION := 0.38
 const MIN_INERTIA_VELOCITY := 120.0
 
+# On web the mouse/touch-drag direction feels reversed vs. native; flip the
+# drag delta + velocity sign so swipe gestures behave naturally in-browser.
+var _drag_sign: float = -1.0 if OS.has_feature("web") else 1.0
+
 # Content node whose position.x gets offset for the rubber-band effect
 # (defaults to the lobby grid; swapped to the shop row when the shop opens).
 var _drag_content: Control = null
 # Callable returning the global rect where drag input is accepted.
 # Lobby → the grid scroll; shop → the full shop overlay.
 var _drag_hit_rect_fn: Callable = Callable()
+
+
+## Public: machine cards call this in their release handler to decide
+## whether a short press should count as a tap (false) or was absorbed by a
+## carousel swipe (true).
+func carousel_drag_moved() -> bool:
+	return _drag_moved
 
 
 func _setup_drag_scroll(scroll: ScrollContainer) -> void:
@@ -388,7 +421,7 @@ func _calc_velocity() -> float:
 	var dt: float = last.y - start.y
 	if dt < 0.001:
 		return 0.0
-	return (start.x - last.x) / dt  # px/sec; positive = fling forward
+	return (start.x - last.x) / dt * _drag_sign  # px/sec; positive = fling forward
 
 
 func _input(event: InputEvent) -> void:
@@ -399,6 +432,7 @@ func _input(event: InputEvent) -> void:
 			var scroll_rect: Rect2 = _drag_hit_rect_fn.call() if _drag_hit_rect_fn.is_valid() else _scroll_ref.get_global_rect()
 			if scroll_rect.has_point(event.global_position):
 				_drag_active = true
+				_drag_moved = false
 				_drag_start_x = event.global_position.x
 				_drag_scroll_start = _scroll_ref.scroll_horizontal
 				_velocity_samples.clear()
@@ -414,7 +448,9 @@ func _input(event: InputEvent) -> void:
 		_velocity_samples.append(Vector2(event.global_position.x, now))
 		while _velocity_samples.size() > 8:
 			_velocity_samples.pop_front()
-		var delta: float = _drag_start_x - event.global_position.x
+		var delta: float = (_drag_start_x - event.global_position.x) * _drag_sign
+		if not _drag_moved and absf(_drag_start_x - event.global_position.x) > DRAG_TAP_CANCEL_PX:
+			_drag_moved = true
 		var target: int = _drag_scroll_start + int(delta)
 		var m: int = _max_scroll()
 		if target < 0:
@@ -448,23 +484,26 @@ func _release_drag(velocity: float) -> void:
 
 	if target < 0:
 		# Inertia carries past the left edge → overshoot then spring back.
+		# Phase 1 decelerates to peak (v→0). Phase 2 returns to 0 via SINE
+		# EASE_IN_OUT so it also starts at v=0, avoiding the velocity
+		# discontinuity at the peak that looked like an extra bounce.
 		var excess: float = float(-target)
 		var peak: float = -minf(excess * 0.35, MAX_OVERSCROLL)
 		_scroll_ref.scroll_horizontal = 0
 		_inertia_tween = create_tween()
 		_inertia_tween.tween_method(_set_overscroll, 0.0, peak, 0.28) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
 		_inertia_tween.tween_method(_set_overscroll, peak, 0.0, SPRING_DURATION) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+			.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
 	elif target > m:
 		var excess2: float = float(target - m)
 		var peak2: float = minf(excess2 * 0.35, MAX_OVERSCROLL)
 		_scroll_ref.scroll_horizontal = m
 		_inertia_tween = create_tween()
 		_inertia_tween.tween_method(_set_overscroll, 0.0, -peak2, 0.28) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
 		_inertia_tween.tween_method(_set_overscroll, -peak2, 0.0, SPRING_DURATION) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+			.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
 	else:
 		_inertia_tween = create_tween()
 		_inertia_tween.tween_property(_scroll_ref, "scroll_horizontal", target, INERTIA_DURATION) \
@@ -480,35 +519,58 @@ func _build_carousel() -> void:
 	var mode_machines: Array = []
 	if _active_mode < PLAY_MODES.size():
 		mode_machines = PLAY_MODES[_active_mode].get("machines", [])
-	# Filter MACHINE_CONFIG by mode machines (or show all if empty)
-	for config in MACHINE_CONFIG:
-		var machine_id: String = config["id"]
-		if mode_machines.size() > 0:
-			var found := false
-			for mm in mode_machines:
-				if mm.get("id", "") == machine_id and mm.get("enabled", true):
-					found = true
-					break
-			if not found:
+
+	# Build a quick lookup: machine_id → MACHINE_CONFIG entry.
+	var config_by_id: Dictionary = {}
+	for c in MACHINE_CONFIG:
+		config_by_id[c["id"]] = c
+
+	# Collect configs in the order defined by the mode's `machines` list
+	# (from lobby_order.json). If the mode has no list, fall back to
+	# MACHINE_CONFIG source order.
+	var configs: Array = []
+	if mode_machines.size() > 0:
+		for mm in mode_machines:
+			if not mm.get("enabled", true):
 				continue
-		var card_node: PanelContainer = MachineCardScene.instantiate()
-		_grid.add_child(card_node)
-		var rtp: float = 0.0
-		if machine_id in _paytables:
-			rtp = _paytables[machine_id].rtp
-		var mini_text := Translations.tr_key("machine.%s.mini" % machine_id)
-		var icon_path := _icon_path_for(machine_id)
-		card_node.setup(
-			machine_id,
-			icon_path,
-			_mode_card_color(),
-			config["accent"],
-			rtp,
-			mini_text,
-			config["locked"],
-		)
-		card_node.play_pressed.connect(_on_play_pressed)
-		_machine_cards.append(card_node)
+			var mid: String = mm.get("id", "")
+			if mid in config_by_id:
+				configs.append(config_by_id[mid])
+	else:
+		for c in MACHINE_CONFIG:
+			configs.append(c)
+
+	# GridContainer fills row-major (left→right, top→bottom). We want the
+	# visual order to be COLUMN-MAJOR (top→bottom within each column, columns
+	# left→right), so remap the add order: visual (row, col) gets
+	# configs[col * rows + row].
+	var cols: int = maxi(int(_grid.columns), 1)
+	var rows: int = int(ceil(float(configs.size()) / float(cols)))
+	for row in range(rows):
+		for col in range(cols):
+			var src_idx: int = col * rows + row
+			if src_idx >= configs.size():
+				continue
+			var config: Dictionary = configs[src_idx]
+			var machine_id: String = config["id"]
+			var card_node: PanelContainer = MachineCardScene.instantiate()
+			_grid.add_child(card_node)
+			var rtp: float = 0.0
+			if machine_id in _paytables:
+				rtp = _paytables[machine_id].rtp
+			var mini_text := Translations.tr_key("machine.%s.mini" % machine_id)
+			var icon_path := _icon_path_for(machine_id)
+			card_node.setup(
+				machine_id,
+				icon_path,
+				_mode_card_color(),
+				config["accent"],
+				rtp,
+				mini_text,
+				config["locked"],
+			)
+			card_node.play_pressed.connect(_on_play_pressed)
+			_machine_cards.append(card_node)
 
 
 func _mode_card_color() -> Color:
@@ -564,27 +626,21 @@ func refresh_credits() -> void:
 
 # --- Settings popup ----------------------------------------------------------
 
-var _settings_btn: Button
+var _settings_btn: BaseButton
 var _settings_overlay: Control = null
 
 func _build_settings_button() -> void:
-	_settings_btn = Button.new()
-	_settings_btn.text = "≡"
-	_settings_btn.add_theme_font_size_override("font_size", 52)
-	_settings_btn.add_theme_color_override("font_color", Color.WHITE)
-	_settings_btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_settings_btn.add_theme_constant_override("outline_size", 3)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0)
-	_settings_btn.add_theme_stylebox_override("normal", style)
-	_settings_btn.add_theme_stylebox_override("hover", style)
-	_settings_btn.add_theme_stylebox_override("pressed", style)
-	_settings_btn.custom_minimum_size = Vector2(56, 56)
-	_settings_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
-	_settings_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	_settings_btn.pressed.connect(_show_settings)
-	_attach_press_effect(_settings_btn)
-	# Add to top bar (after the cash currency display)
+	var tex_btn := TextureButton.new()
+	tex_btn.texture_normal = load("res://assets/textures/menu_icon.svg")
+	tex_btn.ignore_texture_size = true
+	tex_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	tex_btn.custom_minimum_size = Vector2(56, 56)
+	tex_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
+	tex_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	tex_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	tex_btn.pressed.connect(_show_settings)
+	_attach_press_effect(tex_btn)
+	_settings_btn = tex_btn
 	var top_bar := $VBoxContainer/TopBar as HBoxContainer
 	top_bar.add_child(_settings_btn)
 
@@ -937,60 +993,215 @@ func _on_language_chosen(code: String) -> void:
 
 # --- Gift widget ---
 
-var _gift_btn: Button = null
-var _gift_timer_label: Label = null
+const GIFT_ICON_SIZE := 56  # matches pill height so the icon never exceeds button bounds
+const GIFT_BTN_W := 180
+const GIFT_BTN_H := 56
+const GIFT_ICON_OVERLAP := 22  # icon overlaps pill button by this much on left
+
+var _gift_btn: Control = null
+var _gift_icon_rect: TextureRect = null
+var _gift_label_area: VBoxContainer = null
 var _gift_ready: bool = false
+
 
 func _build_gift_widget() -> void:
 	var top_bar := $VBoxContainer/TopBar as HBoxContainer
-	_gift_btn = Button.new()
-	_gift_btn.custom_minimum_size = Vector2(180, 52)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.5, 0.1)
-	style.set_border_width_all(2)
-	style.border_color = Color(0.3, 0.8, 0.3)
-	style.set_corner_radius_all(8)
-	_gift_btn.add_theme_stylebox_override("normal", style)
-	var hover := style.duplicate()
-	hover.bg_color = Color(0.15, 0.6, 0.15)
-	_gift_btn.add_theme_stylebox_override("hover", hover)
-	_gift_btn.add_theme_font_size_override("font_size", 18)
-	_gift_btn.add_theme_color_override("font_color", Color.WHITE)
-	_gift_btn.pressed.connect(_on_gift_pressed)
-	_attach_press_effect(_gift_btn)
+
+	var widget_w: int = GIFT_ICON_SIZE + GIFT_BTN_W - GIFT_ICON_OVERLAP
+	var widget_h: int = GIFT_ICON_SIZE
+
+	var root := Control.new()
+	root.custom_minimum_size = Vector2(widget_w, widget_h)
+	root.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	root.pivot_offset = Vector2(widget_w, widget_h) * 0.5
+
+	# Green pill button background
+	var pill := TextureRect.new()
+	pill.texture = load("res://assets/shop/gift_box_button.png")
+	pill.position = Vector2(GIFT_ICON_SIZE - GIFT_ICON_OVERLAP, (widget_h - GIFT_BTN_H) * 0.5)
+	pill.size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
+	pill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pill.stretch_mode = TextureRect.STRETCH_SCALE
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(pill)
+
+	# Label area centered on the pill (text is rebuilt by _update_gift_state)
+	_gift_label_area = VBoxContainer.new()
+	_gift_label_area.position = Vector2(GIFT_ICON_SIZE - GIFT_ICON_OVERLAP, (widget_h - GIFT_BTN_H) * 0.5)
+	_gift_label_area.size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
+	_gift_label_area.alignment = BoxContainer.ALIGNMENT_CENTER
+	_gift_label_area.add_theme_constant_override("separation", 0)
+	_gift_label_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_gift_label_area)
+
+	# Icon (overlaps pill on the left)
+	_gift_icon_rect = TextureRect.new()
+	_gift_icon_rect.position = Vector2(0, 0)
+	_gift_icon_rect.size = Vector2(GIFT_ICON_SIZE, GIFT_ICON_SIZE)
+	_gift_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_gift_icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_gift_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_gift_icon_rect)
+
+	root.gui_input.connect(_on_gift_gui_input)
+	_gift_btn = root
+
 	top_bar.add_child(_gift_btn)
 	if is_instance_valid(_settings_btn):
 		top_bar.move_child(_gift_btn, _settings_btn.get_index())
+	# Force initial rebuild of labels + icon
+	_gift_ready = not _is_gift_ready()
 	_update_gift_state()
 
 
 func _process(_delta: float) -> void:
 	if _gift_btn and not _gift_ready:
 		_update_gift_state()
+	# Keep shop-side timer in sync while gift is recharging
+	if _shop_gift_label_area and is_instance_valid(_shop_gift_label_area) and not _gift_ready:
+		var shop_timer := _shop_gift_label_area.get_node_or_null("Timer") as Label
+		if shop_timer:
+			var interval_sec: int = ConfigManager.get_gift_interval_hours() * 3600
+			var remaining: int = interval_sec - (int(Time.get_unix_time_from_system()) - SaveManager.last_gift_time)
+			var h: int = remaining / 3600
+			var m: int = (remaining % 3600) / 60
+			var s: int = remaining % 60
+			shop_timer.text = "%dH %dM %dS" % [h, m, s]
 	# Re-apply rubber-band offset after ScrollContainer's sort resets content.position
 	if _overscroll != 0.0 and _drag_content and _scroll_ref:
 		_drag_content.position.x = float(-_scroll_ref.scroll_horizontal) + _overscroll
 
 
-func _update_gift_state() -> void:
+func _is_gift_ready() -> bool:
 	var interval_sec: int = ConfigManager.get_gift_interval_hours() * 3600
 	var now: int = int(Time.get_unix_time_from_system())
 	var elapsed: int = now - SaveManager.last_gift_time
-	if elapsed >= interval_sec or SaveManager.last_gift_time == 0:
-		_gift_ready = true
-		_gift_btn.text = Translations.tr_key("gift.claim")
-		_gift_btn.modulate = Color.WHITE
-	else:
-		_gift_ready = false
-		var remaining: int = interval_sec - elapsed
+	return elapsed >= interval_sec or SaveManager.last_gift_time == 0
+
+
+func _update_gift_state() -> void:
+	if not _gift_icon_rect or not _gift_label_area:
+		return
+	var ready: bool = _is_gift_ready()
+	if ready != _gift_ready:
+		_gift_ready = ready
+		_rebuild_gift_content(ready)
+	if not ready:
+		var interval_sec: int = ConfigManager.get_gift_interval_hours() * 3600
+		var remaining: int = interval_sec - (int(Time.get_unix_time_from_system()) - SaveManager.last_gift_time)
 		var h: int = remaining / 3600
 		var m: int = (remaining % 3600) / 60
 		var s: int = remaining % 60
-		_gift_btn.text = "%02d:%02d:%02d" % [h, m, s]
-		_gift_btn.modulate = Color(0.6, 0.6, 0.6)
+		var timer_label := _gift_label_area.get_node_or_null("Timer") as Label
+		if timer_label:
+			timer_label.text = "%dH %dM %dS" % [h, m, s]
+
+
+func _rebuild_gift_content(ready: bool) -> void:
+	for child in _gift_label_area.get_children():
+		_gift_label_area.remove_child(child)
+		child.queue_free()
+
+	if ready:
+		_gift_icon_rect.texture = load("res://assets/shop/gift_box_ready_icon.png")
+
+		var collect_label := Label.new()
+		collect_label.text = "COLLECT!"
+		collect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		collect_label.add_theme_font_size_override("font_size", 22)
+		collect_label.add_theme_color_override("font_color", Color.WHITE)
+		collect_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		collect_label.add_theme_constant_override("outline_size", 3)
+		_gift_label_area.add_child(collect_label)
+
+		var amount_hb := HBoxContainer.new()
+		amount_hb.alignment = BoxContainer.ALIGNMENT_CENTER
+		amount_hb.add_theme_constant_override("separation", 4)
+		amount_hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+		if chip_tex:
+			var chip := TextureRect.new()
+			chip.texture = chip_tex
+			chip.custom_minimum_size = Vector2(20, 20)
+			chip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			chip.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			chip.modulate = Color("FFEC00")
+			amount_hb.add_child(chip)
+
+		var amount_lab := Label.new()
+		amount_lab.add_theme_font_size_override("font_size", 18)
+		amount_lab.add_theme_color_override("font_color", Color("FFEC00"))
+		amount_lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		amount_lab.add_theme_constant_override("outline_size", 2)
+		_set_chip_amount_text(amount_lab, ConfigManager.get_gift_chips(), GIFT_BTN_W - 40)
+		amount_hb.add_child(amount_lab)
+		_gift_label_area.add_child(amount_hb)
+	else:
+		_gift_icon_rect.texture = load("res://assets/shop/gift_box_icon.png")
+
+		var timer_label := Label.new()
+		timer_label.name = "Timer"
+		timer_label.text = "--H --M --S"
+		timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		timer_label.add_theme_font_size_override("font_size", 22)
+		timer_label.add_theme_color_override("font_color", Color.WHITE)
+		timer_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		timer_label.add_theme_constant_override("outline_size", 3)
+		_gift_label_area.add_child(timer_label)
+
+
+## Pulses a "COLLECT!" label (or any label) with a gentle scale loop.
+## Tween is bound to the label, so it auto-dies when the label is freed.
+func _pulse_collect_label(label: Label) -> void:
+	label.pivot_offset = label.size * 0.5
+	label.resized.connect(func() -> void: label.pivot_offset = label.size * 0.5)
+	var tw := label.create_tween()
+	tw.set_loops()
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(label, "scale", Vector2(1.08, 1.08), 0.45).from(Vector2.ONE)
+	tw.tween_property(label, "scale", Vector2.ONE, 0.45)
+
+
+## Sets chip-count text on a label, switching to the short format ("1.2M")
+## if the full comma-separated form wouldn't fit within `max_w` pixels.
+func _set_chip_amount_text(label: Label, amount: int, max_w: float) -> void:
+	label.text = SaveManager.format_money(amount)
+	var min_size: Vector2 = label.get_minimum_size()
+	if min_size.x > max_w:
+		label.text = SaveManager.format_short(amount)
+
+
+func _on_gift_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_gift_press_tween(true)
+		else:
+			_gift_press_tween(false)
+			_on_gift_pressed()
+
+
+func _gift_press_tween(down: bool) -> void:
+	if not is_instance_valid(_gift_btn):
+		return
+	var target: Vector2 = Vector2(0.93, 0.93) if down else Vector2.ONE
+	var dur: float = 0.07 if down else 0.11
+	var tw := _gift_btn.create_tween()
+	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_gift_btn, "scale", target, dur)
 
 
 func _on_gift_pressed() -> void:
+	if not _gift_ready:
+		return
+	# When the gift is ready, the top-bar gift widget opens the shop; the
+	# shop itself shows a duplicate gift widget that actually claims the reward.
+	_show_shop()
+
+
+func _claim_gift_reward(from_pos: Vector2 = Vector2.ZERO) -> void:
 	if not _gift_ready:
 		return
 	var chips: int = ConfigManager.get_gift_chips()
@@ -998,18 +1209,109 @@ func _on_gift_pressed() -> void:
 	SaveManager.add_credits(chips)
 	SaveManager.last_gift_time = int(Time.get_unix_time_from_system())
 	SaveManager.save_game()
-	_gift_ready = false
 	_update_gift_state()
 	SoundManager.play("gift_claim")
-	# G.5: Animate balance increment over 5 seconds
-	_animate_balance_increment(old_credits, SaveManager.credits, 5.0)
+	# Shop-side widget stays visible; just swap to the timer state.
+	if _shop_gift_widget and is_instance_valid(_shop_gift_widget):
+		_rebuild_shop_gift_content(false)
+	if from_pos != Vector2.ZERO:
+		_spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
+	else:
+		_animate_balance_increment(old_credits, SaveManager.credits, 0.9)
+
+
+## Returns the currency_display dict of the currently visible balance pill.
+## Shop pill while shop is open, lobby pill otherwise.
+func _active_cash_cd() -> Dictionary:
+	if _shop_overlay and not _shop_cash_cd.is_empty():
+		return _shop_cash_cd
+	return _cash_cd
+
+
+## Returns the PanelContainer of the currently visible balance pill.
+func _active_cash_pill() -> Control:
+	if _shop_overlay and is_instance_valid(_shop_cash_pill):
+		return _shop_cash_pill
+	return _cash_pill
 
 
 func _animate_balance_increment(from: int, to: int, duration: float) -> void:
+	var target_cd: Dictionary = _active_cash_cd()
+	# Also keep the background (hidden) lobby pill in sync so the final value
+	# is up-to-date the instant the shop closes.
+	if target_cd != _cash_cd and not _cash_cd.is_empty():
+		SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(to))
 	var tw := create_tween()
 	tw.tween_method(func(val: int) -> void:
-		SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(val))
+		SaveManager.set_currency_value(target_cd, SaveManager.format_money(val))
 	, from, to, duration).set_ease(Tween.EASE_OUT)
+
+
+## Spawns a visual cascade of chip icons that fly from `from_pos` (global)
+## toward the currently-visible balance pill, while the balance counter +
+## pill flash run in parallel. Falls back to a plain number tween if
+## the pill isn't available.
+func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) -> void:
+	var target_cd: Dictionary = _active_cash_cd()
+	var pill_inner: Control = target_cd.get("box", null) as Control
+	if not is_instance_valid(pill_inner):
+		_animate_balance_increment(old_credits, new_credits, 0.9)
+		return
+	var target_pos: Vector2 = pill_inner.global_position + pill_inner.size * 0.5
+
+	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	if chip_tex == null:
+		_animate_balance_increment(old_credits, new_credits, 0.9)
+		return
+
+	var chip_count: int = 10
+	var stagger_step: float = 0.05
+	var travel_time: float = 0.55
+	var chip_size: Vector2 = Vector2(52, 52)  # bigger, per spec
+	var chip_color: Color = Color("FFEC00")    # yellow, per spec
+
+	for i in chip_count:
+		var chip := TextureRect.new()
+		chip.texture = chip_tex
+		chip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		chip.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		chip.custom_minimum_size = chip_size
+		chip.size = chip_size
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.pivot_offset = chip_size * 0.5
+		chip.z_index = 500
+		var jitter := Vector2(randf_range(-28.0, 28.0), randf_range(-28.0, 28.0))
+		chip.global_position = from_pos + jitter - chip_size * 0.5
+		chip.modulate = Color(chip_color.r, chip_color.g, chip_color.b, 0.0)
+		add_child(chip)
+
+		var stagger: float = float(i) * stagger_step
+		var tw := chip.create_tween()
+		tw.tween_interval(stagger)
+		tw.tween_property(chip, "modulate:a", 1.0, 0.08)
+		tw.parallel().tween_property(chip, "global_position",
+			target_pos - chip_size * 0.5, travel_time
+		).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		tw.parallel().tween_property(chip, "scale", Vector2(0.6, 0.6), travel_time) \
+			.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(chip, "modulate:a", 0.0, 0.1)
+		tw.tween_callback(chip.queue_free)
+
+	var total_duration: float = travel_time + stagger_step * float(chip_count - 1)
+	_animate_balance_increment(old_credits, new_credits, total_duration)
+	_flash_balance_pill(total_duration)
+
+
+func _flash_balance_pill(duration: float) -> void:
+	var pill: Control = _active_cash_pill()
+	if not is_instance_valid(pill):
+		return
+	var flashes: int = 3
+	var half: float = duration / float(flashes * 2)
+	var tw := pill.create_tween()
+	for i in flashes:
+		tw.tween_property(pill, "modulate", Color(1.55, 1.55, 0.85), half)
+		tw.tween_property(pill, "modulate", Color.WHITE, half)
 
 
 # --- Shop popup (IGT Game King style — horizontal scroll of pack cards) ---
@@ -1030,6 +1332,12 @@ const SHOP_COLOR_SCHEMES := {
 }
 
 var _shop_overlay: Control = null
+var _shop_cash_cd: Dictionary = {}
+var _shop_cash_pill: Control = null
+var _shop_gift_widget: Control = null
+var _shop_gift_icon: TextureRect = null
+var _shop_gift_label_area: VBoxContainer = null
+var _cash_pill: Control = null  # lobby top-bar cash pill, captured in _style_top_bar
 var _lobby_scroll_backup: ScrollContainer = null
 var _lobby_drag_content_backup: Control = null
 var _lobby_hit_rect_backup: Callable = Callable()
@@ -1075,6 +1383,13 @@ func _show_shop() -> void:
 	close_btn.offset_top = 24
 	close_btn.offset_bottom = 88
 
+	# Balance pill (top-left) — mirrors lobby's cash pill
+	var bal_pill := _build_shop_balance_pill()
+	_shop_overlay.add_child(bal_pill)
+	bal_pill.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	bal_pill.offset_left = 24
+	bal_pill.offset_top = 24
+
 	# Horizontal scroll of pack cards
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1083,7 +1398,7 @@ func _show_shop() -> void:
 	scroll.offset_left = 40
 	scroll.offset_right = -40
 	scroll.offset_top = 110
-	scroll.offset_bottom = -90
+	scroll.offset_bottom = -140  # reserve room for exchange-rate label + gift widget
 	_shop_overlay.add_child(scroll)
 
 	var row := HBoxContainer.new()
@@ -1121,6 +1436,168 @@ func _show_shop() -> void:
 		rate_hb.grow_horizontal = Control.GROW_DIRECTION_BOTH
 		rate_hb.offset_top = -56
 		rate_hb.offset_bottom = -20
+
+	# Duplicate gift widget in the bottom-right — shows COLLECT! when ready,
+	# then switches to the timer (mirror of the top-bar widget) after claim.
+	var shop_gift := _build_shop_gift_widget()
+	_shop_gift_widget = shop_gift
+	_shop_overlay.add_child(shop_gift)
+	shop_gift.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	var gw: float = shop_gift.custom_minimum_size.x
+	var gh: float = shop_gift.custom_minimum_size.y
+	shop_gift.offset_left = -gw - 24
+	shop_gift.offset_top = -gh - 24
+	shop_gift.offset_right = -24
+	shop_gift.offset_bottom = -24
+
+
+func _build_shop_balance_pill() -> PanelContainer:
+	# Yellow-bordered pill with "CASH" label + current chip count (mirrors the
+	# top-bar cash pill in the lobby).
+	var pill := PanelContainer.new()
+	_shop_cash_pill = pill
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.03, 0.03)
+	style.set_border_width_all(4)
+	style.border_color = Color("FFEC00")
+	style.set_corner_radius_all(28)
+	style.content_margin_left = 22
+	style.content_margin_right = 22
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	pill.add_theme_stylebox_override("panel", style)
+
+	var inner := HBoxContainer.new()
+	inner.add_theme_constant_override("separation", 14)
+	inner.alignment = BoxContainer.ALIGNMENT_CENTER
+	pill.add_child(inner)
+
+	var cash_label := Label.new()
+	cash_label.text = Translations.tr_key("lobby.cash")
+	cash_label.add_theme_font_size_override("font_size", 30)
+	cash_label.add_theme_color_override("font_color", Color.WHITE)
+	cash_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	cash_label.add_theme_constant_override("outline_size", 3)
+	inner.add_child(cash_label)
+
+	var cd := SaveManager.create_currency_display(32, Color.WHITE)
+	inner.add_child(cd["box"])
+	SaveManager.set_currency_value(cd, SaveManager.format_money(SaveManager.credits))
+	_shop_cash_cd = cd
+	return pill
+
+
+func _build_shop_gift_widget() -> Control:
+	var widget_w: int = GIFT_ICON_SIZE + GIFT_BTN_W - GIFT_ICON_OVERLAP
+	var widget_h: int = GIFT_ICON_SIZE
+
+	var root := Control.new()
+	root.custom_minimum_size = Vector2(widget_w, widget_h)
+	root.size = Vector2(widget_w, widget_h)
+	root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	root.pivot_offset = Vector2(widget_w, widget_h) * 0.5
+
+	# Pill bg
+	var pill := TextureRect.new()
+	pill.texture = load("res://assets/shop/gift_box_button.png")
+	pill.position = Vector2(GIFT_ICON_SIZE - GIFT_ICON_OVERLAP, (widget_h - GIFT_BTN_H) * 0.5)
+	pill.size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
+	pill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pill.stretch_mode = TextureRect.STRETCH_SCALE
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(pill)
+
+	# Label area (COLLECT!+amount for ready state, timer for waiting state)
+	var la := VBoxContainer.new()
+	la.position = Vector2(GIFT_ICON_SIZE - GIFT_ICON_OVERLAP, (widget_h - GIFT_BTN_H) * 0.5)
+	la.size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
+	la.alignment = BoxContainer.ALIGNMENT_CENTER
+	la.add_theme_constant_override("separation", 0)
+	la.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(la)
+	_shop_gift_label_area = la
+
+	# Icon (overlaps pill on the left)
+	var icon := TextureRect.new()
+	icon.position = Vector2(0, 0)
+	icon.size = Vector2(GIFT_ICON_SIZE, GIFT_ICON_SIZE)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(icon)
+	_shop_gift_icon = icon
+
+	_rebuild_shop_gift_content(_is_gift_ready())
+
+	root.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+			var target: Vector2 = Vector2(0.93, 0.93) if event.pressed else Vector2.ONE
+			var dur: float = 0.07 if event.pressed else 0.11
+			var tw := root.create_tween()
+			tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+			tw.tween_property(root, "scale", target, dur)
+			if not event.pressed and _gift_ready:
+				var spawn_pos: Vector2 = root.global_position + root.size * 0.5
+				_claim_gift_reward(spawn_pos)
+	)
+	return root
+
+
+func _rebuild_shop_gift_content(ready: bool) -> void:
+	if not _shop_gift_label_area or not _shop_gift_icon:
+		return
+	for child in _shop_gift_label_area.get_children():
+		_shop_gift_label_area.remove_child(child)
+		child.queue_free()
+
+	if ready:
+		_shop_gift_icon.texture = load("res://assets/shop/gift_box_ready_icon.png")
+
+		var collect := Label.new()
+		collect.text = "COLLECT!"
+		collect.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		collect.add_theme_font_size_override("font_size", 22)
+		collect.add_theme_color_override("font_color", Color.WHITE)
+		collect.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		collect.add_theme_constant_override("outline_size", 3)
+		_shop_gift_label_area.add_child(collect)
+
+		var amount_hb := HBoxContainer.new()
+		amount_hb.alignment = BoxContainer.ALIGNMENT_CENTER
+		amount_hb.add_theme_constant_override("separation", 4)
+		amount_hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_shop_gift_label_area.add_child(amount_hb)
+
+		var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+		if chip_tex:
+			var chip := TextureRect.new()
+			chip.texture = chip_tex
+			chip.custom_minimum_size = Vector2(20, 20)
+			chip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			chip.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			chip.modulate = Color("FFEC00")
+			amount_hb.add_child(chip)
+
+		var amt := Label.new()
+		amt.add_theme_font_size_override("font_size", 18)
+		amt.add_theme_color_override("font_color", Color("FFEC00"))
+		amt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		amt.add_theme_constant_override("outline_size", 2)
+		_set_chip_amount_text(amt, ConfigManager.get_gift_chips(), GIFT_BTN_W - 40)
+		amount_hb.add_child(amt)
+	else:
+		_shop_gift_icon.texture = load("res://assets/shop/gift_box_icon.png")
+
+		var timer_label := Label.new()
+		timer_label.name = "Timer"
+		timer_label.text = "--H --M --S"
+		timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		timer_label.add_theme_font_size_override("font_size", 22)
+		timer_label.add_theme_color_override("font_color", Color.WHITE)
+		timer_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		timer_label.add_theme_constant_override("outline_size", 3)
+		_shop_gift_label_area.add_child(timer_label)
 
 
 func _build_pack_card(item: Dictionary) -> PanelContainer:
@@ -1200,7 +1677,10 @@ func _build_pack_card(item: Dictionary) -> PanelContainer:
 
 	# FREE buy button
 	var buy_btn := _build_buy_button()
-	buy_btn.pressed.connect(_on_shop_buy.bind(total))
+	buy_btn.pressed.connect(func() -> void:
+		var spawn_pos: Vector2 = buy_btn.global_position + buy_btn.size * 0.5
+		_on_shop_buy(total, spawn_pos)
+	)
 	vb.add_child(buy_btn)
 
 	return card
@@ -1358,12 +1838,15 @@ func _build_exchange_rate_row(coins_per_dollar: int) -> HBoxContainer:
 	return hb
 
 
-func _on_shop_buy(amount: int) -> void:
+func _on_shop_buy(amount: int, from_pos: Vector2 = Vector2.ZERO) -> void:
 	var old_credits: int = SaveManager.credits
 	SaveManager.add_credits(amount)
 	SaveManager.save_game()
-	_hide_shop()
-	_animate_balance_increment(old_credits, SaveManager.credits, 1.0)
+	# Shop stays open — cascade flies to the shop-side cash pill.
+	if from_pos != Vector2.ZERO:
+		_spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
+	else:
+		_animate_balance_increment(old_credits, SaveManager.credits, 0.9)
 
 
 func _hide_shop() -> void:
@@ -1375,6 +1858,11 @@ func _hide_shop() -> void:
 		_overscroll = 0.0
 		_shop_overlay.queue_free()
 		_shop_overlay = null
+	_shop_cash_cd = {}
+	_shop_cash_pill = null
+	_shop_gift_widget = null
+	_shop_gift_icon = null
+	_shop_gift_label_area = null
 	# Restore lobby drag-scroll target
 	if _lobby_scroll_backup:
 		_scroll_ref = _lobby_scroll_backup

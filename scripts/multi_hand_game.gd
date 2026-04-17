@@ -56,6 +56,7 @@ var _double_cards: Array = []
 var _double_dealer_card: CardData = null
 var _info_card: PanelContainer
 var _info_card_active_label: Label
+var _info_card_active_image: TextureRect
 var _info_btn: Button
 var _info_overlay: Control
 # Per-hand multiplier safe zones (index 0 = primary, 1+ = extras)
@@ -1358,15 +1359,21 @@ func _update_info_card_status() -> void:
 	var ux_active := _manager.bet == MultiHandManager.ULTRA_BET
 	var style := _info_card.get_theme_stylebox("panel") as StyleBoxFlat
 	if ux_active:
-		_info_card_active_label.text = Translations.tr_key("info_card.active")
-		_info_card_active_label.add_theme_color_override("font_color", Color("07E02F"))
+		# Active: swap text label for the ultra_active image
+		_info_card_active_label.visible = false
+		if _info_card_active_image:
+			_info_card_active_image.visible = true
 		if style:
-			style.bg_color = Color("1A30AA")  # light blue when active
+			style.bg_color = Color("1C8A2E")  # bright green when active
 	else:
+		# Inactive: show text prompt, hide the active image
+		_info_card_active_label.visible = true
 		_info_card_active_label.text = Translations.tr_key("info_card.press_to_activate")
 		_info_card_active_label.add_theme_color_override("font_color", Color("FF4444"))
+		if _info_card_active_image:
+			_info_card_active_image.visible = false
 		if style:
-			style.bg_color = Color("07107A")  # dark blue when inactive
+			style.bg_color = Color("0A3318")  # dark forest green when inactive
 
 
 func _start_info_pulse() -> void:
@@ -1898,33 +1905,63 @@ func _build_info_card() -> void:
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
 	vbox.add_theme_constant_override("separation", 3)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info_card.add_child(vbox)
 
 	var bold := SystemFont.new()
 	bold.font_weight = 700
 
-	var title := Label.new()
-	title.text = "ULTRA VP"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 20)
-	title.add_theme_color_override("font_color", Color("FFEC00"))
-	title.add_theme_font_override("font", bold)
-	vbox.add_child(title)
+	# Title: ultra_logo image (replaces "ULTRA VP" text)
+	var title_image := TextureRect.new()
+	title_image.texture = load("res://assets/ultra/ultra_logo.png")
+	title_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	title_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	title_image.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_image.custom_minimum_size = Vector2(0, 44)
+	title_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(title_image)
 
 	var sep := ColorRect.new()
 	sep.color = Color("FFEC00")
 	sep.custom_minimum_size = Vector2(0, 1)
+	sep.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(sep)
+
+	# Flex spacer BEFORE desc — pushes the description lower in the card
+	var top_spacer := Control.new()
+	top_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	top_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(top_spacer)
 
 	var desc := Label.new()
 	desc.text = Translations.tr_key("info_card.description")
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
-	desc.add_theme_font_size_override("font_size", 10)
+	desc.add_theme_font_size_override("font_size", 15)
 	desc.add_theme_color_override("font_color", Color.WHITE)
+	desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(desc)
 
+	# Flex spacer AFTER desc — keeps ACTIVE/PRESS prompt pinned to the bottom
+	var bottom_spacer := Control.new()
+	bottom_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	bottom_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(bottom_spacer)
+
+	# ACTIVE-state image (shown when Ultra VP is on)
+	_info_card_active_image = TextureRect.new()
+	_info_card_active_image.texture = load("res://assets/ultra/ultra_active.png")
+	_info_card_active_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_info_card_active_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_info_card_active_image.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_info_card_active_image.custom_minimum_size = Vector2(0, 32)
+	_info_card_active_image.visible = false
+	_info_card_active_image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(_info_card_active_image)
+
+	# INACTIVE-state prompt label ("PRESS TO ACTIVATE") — kept as text
 	_info_card_active_label = Label.new()
+	_info_card_active_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info_card_active_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_info_card_active_label.add_theme_font_size_override("font_size", 15)
 	_info_card_active_label.add_theme_font_override("font", bold)

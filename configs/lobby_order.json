@@ -102,7 +102,7 @@
       "machines": [
         {
           "id": "jacks_or_better",
-          "enabled": true
+          "enabled": false
         },
         {
           "id": "bonus_poker",

@@ -1,0 +1,66 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [web-export]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.6.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup export templates
+        run: |
+          TEMPLATES_DIR="$HOME/.local/share/godot/export_templates/4.6.1.stable"
+          mkdir -p "$TEMPLATES_DIR"
+          cp /root/.local/share/godot/export_templates/4.6.1.stable/* "$TEMPLATES_DIR/" 2>/dev/null || true
+          mkdir -p builds/web
+
+      - name: Verify export preset
+        run: head -5 export_presets.cfg
+
+      - name: Import project
+        run: godot --headless --import --quit 2>&1 || true
+
+      - name: Export to Web
+        run: godot --headless -v --export-release "Web" builds/web/index.html 2>&1; ls -la builds/web/
+
+      - name: Verify export
+        run: test -f builds/web/index.html || exit 1
+
+      - name: Add coi-serviceworker
+        run: |
+          cd builds/web
+          wget -q https://raw.githubusercontent.com/niccokunzmann/coi-serviceworker/main/coi-serviceworker.min.js -O coi-serviceworker.min.js || curl -sL https://raw.githubusercontent.com/niccokunzmann/coi-serviceworker/main/coi-serviceworker.min.js -o coi-serviceworker.min.js || true
+          if [ -s coi-serviceworker.min.js ]; then
+            sed -i 's|<head>|<head><script src="coi-serviceworker.min.js"></script>|' index.html
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: builds/web
+
+  deploy:
+    needs: export
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
