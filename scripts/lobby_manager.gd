@@ -1349,6 +1349,9 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 	var total_duration: float = travel_time + stagger_step * float(chip_count - 1)
 	_animate_balance_increment(old_credits, new_credits, total_duration)
 	_flash_balance_pill(total_duration)
+	# Big-win screen-wide golden tint (anim 3.3)
+	if new_credits - old_credits >= 10000:
+		_screen_gold_flash()
 
 
 func _flash_balance_pill(duration: float) -> void:
@@ -1361,6 +1364,41 @@ func _flash_balance_pill(duration: float) -> void:
 	for i in flashes:
 		tw.tween_property(pill, "modulate", Color(1.55, 1.55, 0.85), half)
 		tw.tween_property(pill, "modulate", Color.WHITE, half)
+	# Coin flip on the chip glyph inside the pill (anim 3.2)
+	_coin_flip_chip()
+
+
+## Finds the first chip glyph in the active pill's currency box and flips
+## it around its Y axis (fake 3D via scale.x) once.
+func _coin_flip_chip() -> void:
+	var cd: Dictionary = _active_cash_cd()
+	var box: Node = cd.get("box", null)
+	if not is_instance_valid(box):
+		return
+	for child in box.get_children():
+		if child is TextureRect:
+			var tex_rect: TextureRect = child
+			tex_rect.pivot_offset = tex_rect.size * 0.5
+			var tw := tex_rect.create_tween()
+			tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+			tw.tween_property(tex_rect, "scale:x", 0.0, 0.18)
+			tw.tween_property(tex_rect, "scale:x", 1.0, 0.18)
+			break  # only the chip glyph (first TextureRect in the HBox)
+
+
+## Full-screen golden tint flash for large incoming chip gains (anim 3.3).
+## Only triggers when delta exceeds a threshold (10,000+).
+func _screen_gold_flash() -> void:
+	var flash := ColorRect.new()
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flash.color = Color(1.0, 0.85, 0.1, 0.0)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.z_index = 999
+	add_child(flash)
+	var tw := flash.create_tween()
+	tw.tween_property(flash, "color:a", 0.22, 0.12).set_ease(Tween.EASE_OUT)
+	tw.tween_property(flash, "color:a", 0.0, 0.45).set_ease(Tween.EASE_IN)
+	tw.tween_callback(flash.queue_free)
 
 
 # --- Shop popup (IGT Game King style — horizontal scroll of pack cards) ---
