@@ -159,21 +159,24 @@ func set_flip_duration(duration: float) -> void:
 func _play_flip_in() -> void:
 	if _flip_duration < 0.03:
 		scale.x = 1.0
+		rotation = 0.0
 		return
 	# Save the face texture, show back first, then animate flip
 	var face_tex: Texture2D = texture
 	texture = _card_back_texture
-	var tween := create_tween()
+	var tween := create_tween().set_parallel(true)
 	pivot_offset = size / 2
 	scale.x = 1.0
-	# Phase 1: shrink back side
+	# Phase 1: shrink back side + tilt up (anim 5.3 extra 3D flavour)
 	tween.tween_property(self, "scale:x", 0.0, _flip_duration).set_ease(Tween.EASE_IN)
+	tween.tween_property(self, "rotation", deg_to_rad(-4), _flip_duration).from(0.0).set_ease(Tween.EASE_IN)
 	# Phase 2: swap to face texture at scale 0
-	tween.tween_callback(func() -> void:
+	tween.chain().tween_callback(func() -> void:
 		texture = face_tex
 	)
-	# Phase 3: expand face side
+	# Phase 3: expand face side + tilt back to neutral
 	tween.tween_property(self, "scale:x", 1.0, _flip_duration).set_ease(Tween.EASE_OUT)
+	tween.tween_property(self, "rotation", 0.0, _flip_duration).set_ease(Tween.EASE_OUT)
 
 
 func flip_to_back() -> void:
