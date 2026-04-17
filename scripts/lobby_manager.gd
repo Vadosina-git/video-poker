@@ -361,6 +361,8 @@ func _attach_press_effect(btn: BaseButton, target_scale: float = 0.93) -> void:
 		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(btn, "scale", Vector2.ONE, 0.11)
 	)
+	# Ripple effect on press (anim 2.1)
+	_attach_ripple(btn)
 	# Hover overscale (skipped on touch-only platforms)
 	btn.mouse_entered.connect(func() -> void:
 		if not is_instance_valid(btn):
@@ -377,6 +379,33 @@ func _attach_press_effect(btn: BaseButton, target_scale: float = 0.93) -> void:
 		var tw := btn.create_tween()
 		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(btn, "scale", Vector2.ONE, 0.14)
+	)
+
+
+## Material-style ripple: on press, a translucent circle expands from the
+## click point and fades out. Uses gui_input + draw.connect on the button.
+func _attach_ripple(btn: Control) -> void:
+	var state := {"center": Vector2.ZERO, "radius": 0.0, "alpha": 0.0, "max_r": 0.0}
+	btn.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			state["center"] = event.position
+			state["max_r"] = Vector2(maxf(event.position.x, btn.size.x - event.position.x), \
+				maxf(event.position.y, btn.size.y - event.position.y)).length()
+			state["radius"] = 0.0
+			state["alpha"] = 0.35
+			var tw := btn.create_tween().set_parallel(true)
+			tw.tween_method(func(r: float) -> void:
+				state["radius"] = r
+				btn.queue_redraw()
+			, 0.0, state["max_r"], 0.45).set_ease(Tween.EASE_OUT)
+			tw.tween_method(func(a: float) -> void:
+				state["alpha"] = a
+				btn.queue_redraw()
+			, 0.35, 0.0, 0.45).set_ease(Tween.EASE_OUT)
+	)
+	btn.draw.connect(func() -> void:
+		if state["alpha"] > 0.001 and state["radius"] > 0.0:
+			btn.draw_circle(state["center"], state["radius"], Color(1, 1, 1, state["alpha"]))
 	)
 
 
