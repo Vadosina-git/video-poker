@@ -73,6 +73,7 @@ var _sidebar_buttons: Array[Button] = []
 
 
 func _ready() -> void:
+	add_to_group("lobby_manager")
 	MachineCardScene = load("res://scenes/lobby/machine_card.tscn")
 	_build_play_modes()
 	_paytables = Paytable.load_all()
@@ -363,6 +364,9 @@ var _scroll_ref: ScrollContainer = null
 var _inertia_tween: Tween = null
 var _velocity_samples: Array = []  # [Vector2(x, time_sec)]
 var _overscroll: float = 0.0        # rubber-band offset applied to grid
+var _drag_moved: bool = false        # set true once drag crosses tap-cancel threshold
+
+const DRAG_TAP_CANCEL_PX := 10.0    # movement beyond this in any drag cancels a tap
 
 const OVERSCROLL_RESIST := 0.38
 const MAX_OVERSCROLL := 100.0
@@ -381,6 +385,13 @@ var _drag_content: Control = null
 # Callable returning the global rect where drag input is accepted.
 # Lobby → the grid scroll; shop → the full shop overlay.
 var _drag_hit_rect_fn: Callable = Callable()
+
+
+## Public: machine cards call this in their release handler to decide
+## whether a short press should count as a tap (false) or was absorbed by a
+## carousel swipe (true).
+func carousel_drag_moved() -> bool:
+	return _drag_moved
 
 
 func _setup_drag_scroll(scroll: ScrollContainer) -> void:
@@ -424,6 +435,7 @@ func _input(event: InputEvent) -> void:
 			var scroll_rect: Rect2 = _drag_hit_rect_fn.call() if _drag_hit_rect_fn.is_valid() else _scroll_ref.get_global_rect()
 			if scroll_rect.has_point(event.global_position):
 				_drag_active = true
+				_drag_moved = false
 				_drag_start_x = event.global_position.x
 				_drag_scroll_start = _scroll_ref.scroll_horizontal
 				_velocity_samples.clear()
@@ -440,6 +452,8 @@ func _input(event: InputEvent) -> void:
 		while _velocity_samples.size() > 8:
 			_velocity_samples.pop_front()
 		var delta: float = (_drag_start_x - event.global_position.x) * _drag_sign
+		if not _drag_moved and absf(_drag_start_x - event.global_position.x) > DRAG_TAP_CANCEL_PX:
+			_drag_moved = true
 		var target: int = _drag_scroll_start + int(delta)
 		var m: int = _max_scroll()
 		if target < 0:

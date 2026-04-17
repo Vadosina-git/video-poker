@@ -64,17 +64,31 @@ func _draw_inner_border() -> void:
 var _press_pos := Vector2.ZERO
 var _is_pressed := false
 
+const TAP_MAX_DISTANCE := 12.0  # screen-space px; beyond this release is a drag, not a tap
+
 func _on_gui_input(event: InputEvent) -> void:
 	if locked:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			_press_pos = event.position
+			_press_pos = event.global_position
 			_animate_press(true)
 		else:
 			_animate_press(false)
-			if event.position.distance_to(_press_pos) < 10:
+			# Cancel the tap if the lobby carousel absorbed a swipe gesture —
+			# otherwise short-distance drags (pressed on a card, scrolled a bit,
+			# released) would accidentally load the table.
+			if _carousel_absorbed_swipe():
+				return
+			if event.global_position.distance_to(_press_pos) < TAP_MAX_DISTANCE:
 				play_pressed.emit(variant_id)
+
+
+func _carousel_absorbed_swipe() -> bool:
+	for node in get_tree().get_nodes_in_group("lobby_manager"):
+		if node.has_method("carousel_drag_moved") and node.carousel_drag_moved():
+			return true
+	return false
 
 
 func _animate_press(down: bool) -> void:
