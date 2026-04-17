@@ -956,30 +956,65 @@ func _on_language_chosen(code: String) -> void:
 
 # --- Gift widget ---
 
-var _gift_btn: Button = null
-var _gift_timer_label: Label = null
+const GIFT_ICON_SIZE := 88
+const GIFT_BTN_W := 180
+const GIFT_BTN_H := 56
+const GIFT_ICON_OVERLAP := 34  # icon overlaps pill button by this much on left
+
+var _gift_btn: Control = null
+var _gift_icon_rect: TextureRect = null
+var _gift_label_area: VBoxContainer = null
 var _gift_ready: bool = false
+
 
 func _build_gift_widget() -> void:
 	var top_bar := $VBoxContainer/TopBar as HBoxContainer
-	_gift_btn = Button.new()
-	_gift_btn.custom_minimum_size = Vector2(180, 52)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.5, 0.1)
-	style.set_border_width_all(2)
-	style.border_color = Color(0.3, 0.8, 0.3)
-	style.set_corner_radius_all(8)
-	_gift_btn.add_theme_stylebox_override("normal", style)
-	var hover := style.duplicate()
-	hover.bg_color = Color(0.15, 0.6, 0.15)
-	_gift_btn.add_theme_stylebox_override("hover", hover)
-	_gift_btn.add_theme_font_size_override("font_size", 18)
-	_gift_btn.add_theme_color_override("font_color", Color.WHITE)
-	_gift_btn.pressed.connect(_on_gift_pressed)
-	_attach_press_effect(_gift_btn)
+
+	var widget_w: int = GIFT_ICON_SIZE + GIFT_BTN_W - GIFT_ICON_OVERLAP
+	var widget_h: int = GIFT_ICON_SIZE
+
+	var root := Control.new()
+	root.custom_minimum_size = Vector2(widget_w, widget_h)
+	root.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	root.pivot_offset = Vector2(widget_w, widget_h) * 0.5
+
+	# Green pill button background
+	var pill := TextureRect.new()
+	pill.texture = load("res://assets/shop/gift_box_button.png")
+	pill.position = Vector2(GIFT_ICON_SIZE - GIFT_ICON_OVERLAP, (widget_h - GIFT_BTN_H) * 0.5)
+	pill.size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
+	pill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pill.stretch_mode = TextureRect.STRETCH_SCALE
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(pill)
+
+	# Label area centered on the pill (text is rebuilt by _update_gift_state)
+	_gift_label_area = VBoxContainer.new()
+	_gift_label_area.position = Vector2(GIFT_ICON_SIZE - GIFT_ICON_OVERLAP, (widget_h - GIFT_BTN_H) * 0.5)
+	_gift_label_area.size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
+	_gift_label_area.alignment = BoxContainer.ALIGNMENT_CENTER
+	_gift_label_area.add_theme_constant_override("separation", 0)
+	_gift_label_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_gift_label_area)
+
+	# Icon (overlaps pill on the left)
+	_gift_icon_rect = TextureRect.new()
+	_gift_icon_rect.position = Vector2(0, 0)
+	_gift_icon_rect.size = Vector2(GIFT_ICON_SIZE, GIFT_ICON_SIZE)
+	_gift_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_gift_icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_gift_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_gift_icon_rect)
+
+	root.gui_input.connect(_on_gift_gui_input)
+	_gift_btn = root
+
 	top_bar.add_child(_gift_btn)
 	if is_instance_valid(_settings_btn):
 		top_bar.move_child(_gift_btn, _settings_btn.get_index())
+	# Force initial rebuild of labels + icon
+	_gift_ready = not _is_gift_ready()
 	_update_gift_state()
 
 
@@ -991,22 +1026,102 @@ func _process(_delta: float) -> void:
 		_drag_content.position.x = float(-_scroll_ref.scroll_horizontal) + _overscroll
 
 
-func _update_gift_state() -> void:
+func _is_gift_ready() -> bool:
 	var interval_sec: int = ConfigManager.get_gift_interval_hours() * 3600
 	var now: int = int(Time.get_unix_time_from_system())
 	var elapsed: int = now - SaveManager.last_gift_time
-	if elapsed >= interval_sec or SaveManager.last_gift_time == 0:
-		_gift_ready = true
-		_gift_btn.text = Translations.tr_key("gift.claim")
-		_gift_btn.modulate = Color.WHITE
-	else:
-		_gift_ready = false
-		var remaining: int = interval_sec - elapsed
+	return elapsed >= interval_sec or SaveManager.last_gift_time == 0
+
+
+func _update_gift_state() -> void:
+	if not _gift_icon_rect or not _gift_label_area:
+		return
+	var ready: bool = _is_gift_ready()
+	if ready != _gift_ready:
+		_gift_ready = ready
+		_rebuild_gift_content(ready)
+	if not ready:
+		var interval_sec: int = ConfigManager.get_gift_interval_hours() * 3600
+		var remaining: int = interval_sec - (int(Time.get_unix_time_from_system()) - SaveManager.last_gift_time)
 		var h: int = remaining / 3600
 		var m: int = (remaining % 3600) / 60
 		var s: int = remaining % 60
-		_gift_btn.text = "%02d:%02d:%02d" % [h, m, s]
-		_gift_btn.modulate = Color(0.6, 0.6, 0.6)
+		var timer_label := _gift_label_area.get_node_or_null("Timer") as Label
+		if timer_label:
+			timer_label.text = "%dH %dM %dS" % [h, m, s]
+
+
+func _rebuild_gift_content(ready: bool) -> void:
+	for child in _gift_label_area.get_children():
+		_gift_label_area.remove_child(child)
+		child.queue_free()
+
+	if ready:
+		_gift_icon_rect.texture = load("res://assets/shop/gift_box_ready_icon.png")
+
+		var collect_label := Label.new()
+		collect_label.text = "COLLECT!"
+		collect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		collect_label.add_theme_font_size_override("font_size", 22)
+		collect_label.add_theme_color_override("font_color", Color.WHITE)
+		collect_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		collect_label.add_theme_constant_override("outline_size", 3)
+		_gift_label_area.add_child(collect_label)
+
+		var amount_hb := HBoxContainer.new()
+		amount_hb.alignment = BoxContainer.ALIGNMENT_CENTER
+		amount_hb.add_theme_constant_override("separation", 4)
+		amount_hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+		if chip_tex:
+			var chip := TextureRect.new()
+			chip.texture = chip_tex
+			chip.custom_minimum_size = Vector2(16, 16)
+			chip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			chip.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			amount_hb.add_child(chip)
+
+		var amount_lab := Label.new()
+		amount_lab.text = SaveManager.format_money(ConfigManager.get_gift_chips())
+		amount_lab.add_theme_font_size_override("font_size", 14)
+		amount_lab.add_theme_color_override("font_color", Color.WHITE)
+		amount_lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		amount_lab.add_theme_constant_override("outline_size", 2)
+		amount_hb.add_child(amount_lab)
+		_gift_label_area.add_child(amount_hb)
+	else:
+		_gift_icon_rect.texture = load("res://assets/shop/gift_box_icon.png")
+
+		var timer_label := Label.new()
+		timer_label.name = "Timer"
+		timer_label.text = "--H --M --S"
+		timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		timer_label.add_theme_font_size_override("font_size", 22)
+		timer_label.add_theme_color_override("font_color", Color.WHITE)
+		timer_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+		timer_label.add_theme_constant_override("outline_size", 3)
+		_gift_label_area.add_child(timer_label)
+
+
+func _on_gift_gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_gift_press_tween(true)
+		else:
+			_gift_press_tween(false)
+			_on_gift_pressed()
+
+
+func _gift_press_tween(down: bool) -> void:
+	if not is_instance_valid(_gift_btn):
+		return
+	var target: Vector2 = Vector2(0.93, 0.93) if down else Vector2.ONE
+	var dur: float = 0.07 if down else 0.11
+	var tw := _gift_btn.create_tween()
+	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_gift_btn, "scale", target, dur)
 
 
 func _on_gift_pressed() -> void:
@@ -1017,10 +1132,8 @@ func _on_gift_pressed() -> void:
 	SaveManager.add_credits(chips)
 	SaveManager.last_gift_time = int(Time.get_unix_time_from_system())
 	SaveManager.save_game()
-	_gift_ready = false
 	_update_gift_state()
 	SoundManager.play("gift_claim")
-	# G.5: Animate balance increment over 5 seconds
 	_animate_balance_increment(old_credits, SaveManager.credits, 5.0)
 
 
