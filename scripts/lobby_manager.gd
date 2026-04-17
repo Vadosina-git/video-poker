@@ -513,6 +513,19 @@ func carousel_drag_moved() -> bool:
 	return _drag_moved
 
 
+## Fade the horizontal scrollbar of the active scroll container in/out
+## (anim 4.5) — visible while dragging, invisible at rest.
+func _fade_scrollbar(visible: bool) -> void:
+	if _scroll_ref == null:
+		return
+	var sb := _scroll_ref.get_h_scroll_bar()
+	if sb == null:
+		return
+	var target_a: float = 0.6 if visible else 0.0
+	var tw := sb.create_tween()
+	tw.tween_property(sb, "modulate:a", target_a, 0.25)
+
+
 func _setup_drag_scroll(scroll: ScrollContainer) -> void:
 	_scroll_ref = scroll
 	_drag_content = _grid
@@ -561,10 +574,12 @@ func _input(event: InputEvent) -> void:
 				_velocity_samples.append(Vector2(event.global_position.x, Time.get_ticks_msec() / 1000.0))
 				if _inertia_tween and _inertia_tween.is_running():
 					_inertia_tween.kill()
+				_fade_scrollbar(true)
 		else:
 			if _drag_active:
 				_drag_active = false
 				_release_drag(_calc_velocity())
+				_fade_scrollbar(false)
 	elif event is InputEventMouseMotion and _drag_active:
 		var now: float = Time.get_ticks_msec() / 1000.0
 		_velocity_samples.append(Vector2(event.global_position.x, now))
