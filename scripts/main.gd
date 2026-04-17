@@ -25,6 +25,14 @@ func _show_lobby() -> void:
 	_make_full_rect(lobby)
 	_current_scene = lobby
 	lobby.machine_selected.connect(_on_machine_selected)
+	_fade_in_scene(lobby)
+
+
+## Fade a freshly-shown scene in from transparent → opaque.
+func _fade_in_scene(scene: Control) -> void:
+	scene.modulate.a = 0.0
+	var tw := scene.create_tween()
+	tw.tween_property(scene, "modulate:a", 1.0, 0.22).set_ease(Tween.EASE_OUT)
 
 
 func _on_machine_selected(variant_id: String) -> void:
@@ -33,11 +41,17 @@ func _on_machine_selected(variant_id: String) -> void:
 	_loader_active = true
 	var loader := _create_loader()
 	add_child(loader)
+	# Fade loader in
+	loader.modulate.a = 0.0
+	loader.create_tween().tween_property(loader, "modulate:a", 1.0, 0.18)
 	await get_tree().create_timer(LOADER_DURATION).timeout
 	_loader_active = false
-	if is_instance_valid(loader):
-		loader.queue_free()
+	# Load the target scene BEFORE fading out the loader so we don't flash
 	_load_game_scene(variant_id)
+	if is_instance_valid(loader):
+		var fade := loader.create_tween()
+		fade.tween_property(loader, "modulate:a", 0.0, 0.28).set_ease(Tween.EASE_IN)
+		fade.tween_callback(loader.queue_free)
 
 
 func _load_game_scene(variant_id: String) -> void:
@@ -57,6 +71,7 @@ func _load_game_scene(variant_id: String) -> void:
 			_make_full_rect(spin_game)
 			_current_scene = spin_game
 			spin_game.back_to_lobby.connect(_show_lobby)
+			_fade_in_scene(spin_game)
 			return
 
 	if hand_count > 1 or ultra_vp:
@@ -69,6 +84,7 @@ func _load_game_scene(variant_id: String) -> void:
 			_make_full_rect(multi_game)
 			_current_scene = multi_game
 			multi_game.back_to_lobby.connect(_show_lobby)
+			_fade_in_scene(multi_game)
 			return
 
 	# Single hand mode (default)
@@ -78,6 +94,7 @@ func _load_game_scene(variant_id: String) -> void:
 	_make_full_rect(game)
 	_current_scene = game
 	game.back_to_lobby.connect(_show_lobby)
+	_fade_in_scene(game)
 
 
 func _create_variant(variant_id: String, pt: Paytable) -> BaseVariant:
