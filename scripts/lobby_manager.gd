@@ -1401,11 +1401,22 @@ func _show_shop() -> void:
 	_shop_overlay.z_index = 100
 	add_child(_shop_overlay)
 
-	# Full-screen dark-navy backdrop
+	# Full-screen dark-navy backdrop (fades in from transparent)
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.05, 0.04, 0.22, 1.0)
+	bg.color = Color(0.05, 0.04, 0.22, 0.0)
 	_shop_overlay.add_child(bg)
+	bg.create_tween().tween_property(bg, "color:a", 1.0, 0.2)
+
+	# Shop open animation: slide-up + bounce scale on the whole overlay contents
+	_shop_overlay.pivot_offset = Vector2(get_viewport_rect().size.x * 0.5, get_viewport_rect().size.y)
+	_shop_overlay.scale = Vector2(0.95, 0.95)
+	_shop_overlay.position.y = 40
+	_shop_overlay.modulate.a = 0.0
+	var intro := _shop_overlay.create_tween().set_parallel(true)
+	intro.tween_property(_shop_overlay, "modulate:a", 1.0, 0.22)
+	intro.tween_property(_shop_overlay, "scale", Vector2.ONE, 0.35).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	intro.tween_property(_shop_overlay, "position:y", 0.0, 0.28).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 	# Close X button (top-right, yellow circle)
 	var close_btn := Button.new()
