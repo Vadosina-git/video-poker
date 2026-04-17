@@ -44,6 +44,9 @@ func _apply_setup(p_locked: bool) -> void:
 	else:
 		_icon_tex.texture = null
 
+	# Gentle vertical float on the icon (decorative idle)
+	call_deferred("_start_icon_float")
+
 	_lock_overlay.visible = p_locked
 
 	draw.connect(_draw_inner_border)
@@ -59,6 +62,19 @@ func _apply_setup(p_locked: bool) -> void:
 	pivot_offset = size / 2.0
 	resized.connect(func() -> void: pivot_offset = size / 2.0)
 	call_deferred("_start_breathing")
+
+
+func _start_icon_float() -> void:
+	if not is_instance_valid(_icon_tex):
+		return
+	var base_y: float = _icon_tex.position.y
+	var tw := create_tween()
+	tw.set_loops()
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var phase: float = float(get_index()) * 0.35
+	tw.tween_interval(phase)
+	tw.tween_property(_icon_tex, "position:y", base_y - 3.5, 1.2).from(base_y)
+	tw.tween_property(_icon_tex, "position:y", base_y, 1.2)
 
 
 func _start_breathing() -> void:
