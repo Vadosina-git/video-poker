@@ -572,6 +572,17 @@ func _build_carousel() -> void:
 			card_node.play_pressed.connect(_on_play_pressed)
 			_machine_cards.append(card_node)
 
+	# Stagger fade-in: cards appear sequentially with a slight upward slide.
+	for i in _machine_cards.size():
+		var card: Control = _machine_cards[i]
+		card.modulate.a = 0.0
+		card.position.y += 20
+		var delay: float = float(i) * 0.04
+		var tw := card.create_tween()
+		tw.tween_interval(delay)
+		tw.tween_property(card, "modulate:a", 1.0, 0.25)
+		tw.parallel().tween_property(card, "position:y", card.position.y - 20, 0.32).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+
 
 func _mode_card_color() -> Color:
 	if _active_mode >= 0 and _active_mode < PLAY_MODES.size():
