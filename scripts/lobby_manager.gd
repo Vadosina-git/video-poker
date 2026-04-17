@@ -1799,6 +1799,7 @@ func _build_bonus_banner(percent: int) -> PanelContainer:
 func _build_top_ribbon(text: String) -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	pc.clip_contents = true
 	var st := StyleBoxFlat.new()
 	st.bg_color = Color("FFEC00")
 	st.set_corner_radius_all(6)
@@ -1813,7 +1814,44 @@ func _build_top_ribbon(text: String) -> PanelContainer:
 	lab.add_theme_font_size_override("font_size", 18)
 	lab.add_theme_color_override("font_color", Color.BLACK)
 	pc.add_child(lab)
+	# Diagonal shine sweep every ~3 sec
+	_attach_shimmer_sweep(pc, 3.0, Color(1, 1, 1, 0.7))
 	return pc
+
+
+## Overlays a diagonal white shimmer stripe that sweeps across the control
+## from left to right once every `period` seconds. Works on any Control via
+## `draw.connect`. Only shows inside clip_contents.
+func _attach_shimmer_sweep(ctrl: Control, period: float = 3.0, color: Color = Color(1, 1, 1, 0.4)) -> void:
+	# We animate a float "shimmer_t" 0..1, then use it in _draw to paint a
+	# slanted polygon moving across the control's rect.
+	var state := {"t": -0.2}
+	var tick := func() -> void:
+		var tw := ctrl.create_tween()
+		tw.set_loops()
+		tw.tween_method(func(val: float) -> void:
+			state["t"] = val
+			ctrl.queue_redraw()
+		, -0.3, 1.3, period).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+		tw.tween_interval(period * 0.4)
+	tick.call()
+	ctrl.draw.connect(func() -> void:
+		var t: float = state["t"]
+		if t < 0.0 or t > 1.0:
+			return
+		var w: float = ctrl.size.x
+		var h: float = ctrl.size.y
+		var cx: float = lerp(-w * 0.4, w * 1.1, t)
+		var half: float = w * 0.08
+		var skew: float = h * 0.6
+		var poly: PackedVector2Array = PackedVector2Array([
+			Vector2(cx - half, -2),
+			Vector2(cx + half, -2),
+			Vector2(cx + half - skew, h + 2),
+			Vector2(cx - half - skew, h + 2),
+		])
+		ctrl.draw_colored_polygon(poly, color)
+	)
 
 
 func _build_extra_ribbon(bonus_chips: int, bg: Color) -> PanelContainer:
