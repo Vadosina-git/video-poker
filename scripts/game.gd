@@ -797,11 +797,81 @@ func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
 		_show_win_overlay(hand_name)
 		_highlight_paytable_row(hand_rank)
 		_paytable_display.flash_winning_row()
+		# anim 5.1: win celebration — screen-edge gold glow + confetti burst
+		_celebrate_win(payout)
 	else:
 		_paytable_display.clear_winning_row()
 		_set_status(Translations.tr_key("game.no_win"))
 		_show_lose_overlay()
 		_delay_unlock_buttons()
+
+
+func _celebrate_win(payout: int) -> void:
+	# Golden vignette fading in + out around the screen edges.
+	var glow := ColorRect.new()
+	glow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	glow.color = Color(1.0, 0.85, 0.1, 0.0)
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glow.z_index = 900
+	# Simple radial vignette via a shader material
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+uniform float intensity : hint_range(0.0, 1.0) = 0.0;
+uniform vec4 tint : source_color = vec4(1.0, 0.85, 0.1, 1.0);
+void fragment() {
+	vec2 uv = UV - vec2(0.5);
+	float d = length(uv) * 1.414;
+	float v = smoothstep(0.55, 1.0, d);
+	COLOR = vec4(tint.rgb, v * intensity);
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("intensity", 0.0)
+	glow.material = mat
+	add_child(glow)
+	var tw := create_tween()
+	tw.tween_method(func(v: float) -> void:
+		mat.set_shader_parameter("intensity", v)
+	, 0.0, 0.8, 0.35).set_ease(Tween.EASE_OUT)
+	tw.tween_method(func(v: float) -> void:
+		mat.set_shader_parameter("intensity", v)
+	, 0.8, 0.0, 0.6).set_ease(Tween.EASE_IN)
+	tw.tween_callback(glow.queue_free)
+
+	# Confetti: larger payouts get more pieces.
+	var pieces: int = clampi(12 + payout / 50, 14, 40)
+	var center: Vector2 = get_viewport_rect().size * 0.5
+	_spawn_win_confetti(center, pieces)
+
+
+func _spawn_win_confetti(center: Vector2, count: int) -> void:
+	var colors: Array = [
+		Color("FFEC00"), Color("FF5577"), Color("49C8FF"),
+		Color("7FE7A0"), Color("FF9A2E"), Color("D67AFF"),
+	]
+	for i in count:
+		var p := ColorRect.new()
+		var sz: float = randf_range(7.0, 12.0)
+		p.custom_minimum_size = Vector2(sz, sz)
+		p.size = Vector2(sz, sz)
+		p.color = colors[i % colors.size()]
+		p.pivot_offset = p.size * 0.5
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.z_index = 950
+		p.global_position = center + Vector2(randf_range(-30, 30), randf_range(-30, 30))
+		add_child(p)
+		var angle: float = randf_range(-PI, PI)
+		var dist: float = randf_range(250.0, 500.0)
+		var target: Vector2 = p.global_position + Vector2(cos(angle), sin(angle)) * dist
+		var dur: float = randf_range(0.9, 1.4)
+		var tw := p.create_tween().set_parallel(true)
+		tw.tween_property(p, "global_position", target, dur) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(p, "rotation", randf_range(-TAU * 2, TAU * 2), dur)
+		tw.tween_property(p, "modulate:a", 0.0, dur).set_ease(Tween.EASE_IN)
+		tw.chain().tween_callback(p.queue_free)
 
 
 var _credit_tween: Tween = null
