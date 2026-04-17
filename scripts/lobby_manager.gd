@@ -340,6 +340,33 @@ func _style_sidebar_btn(btn: Button, active: bool) -> void:
 	_attach_press_effect(btn)
 
 
+## Hover overscale for any Control — slight zoom on mouse_entered, revert
+## on mouse_exited. Scales around center via pivot_offset (kept in sync
+## with the control's size so the bounce stays centered even if layout
+## changes). Used for BaseButtons via _attach_press_effect, and directly
+## for non-button controls like machine cards and the gift widget.
+func _attach_hover_bounce(ctrl: Control, target_scale: float = 1.04) -> void:
+	var update_pivot := func() -> void:
+		if is_instance_valid(ctrl):
+			ctrl.pivot_offset = ctrl.size / 2.0
+	update_pivot.call()
+	ctrl.resized.connect(update_pivot)
+	ctrl.mouse_entered.connect(func() -> void:
+		if not is_instance_valid(ctrl):
+			return
+		var tw := ctrl.create_tween()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ctrl, "scale", Vector2(target_scale, target_scale), 0.12)
+	)
+	ctrl.mouse_exited.connect(func() -> void:
+		if not is_instance_valid(ctrl):
+			return
+		var tw := ctrl.create_tween()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ctrl, "scale", Vector2.ONE, 0.14)
+	)
+
+
 ## Attaches a quick scale-down/scale-up animation on press to a BaseButton,
 ## plus a tiny hover overscale. Scales around center via pivot_offset.
 func _attach_press_effect(btn: BaseButton, target_scale: float = 0.93) -> void:
@@ -715,6 +742,8 @@ func _build_carousel() -> void:
 				config["locked"],
 			)
 			card_node.play_pressed.connect(_on_play_pressed)
+			# Hover bounce (anim 2.2) — scale 1.04 on hover/exit
+			_attach_hover_bounce(card_node)
 			# Decorative shimmer sweep (anim 1.2): fast highlight pass.
 			# 1s sweep + 10.2s pause = 11.2s total cycle; alpha 0.35.
 			# PanelContainer's content_margin (22/26px) would inset this child
@@ -1243,6 +1272,8 @@ func _build_gift_widget() -> void:
 	root.add_child(_gift_icon_rect)
 
 	root.gui_input.connect(_on_gift_gui_input)
+	# Hover bounce (anim 2.2) — applies in both ready + countdown states
+	_attach_hover_bounce(root)
 	_gift_btn = root
 
 	top_bar.add_child(_gift_btn)
@@ -1809,6 +1840,9 @@ func _build_shop_gift_widget() -> Control:
 	_shop_gift_icon = icon
 
 	_rebuild_shop_gift_content(_is_gift_ready())
+
+	# Hover bounce (anim 2.2) — applies in both ready + countdown states
+	_attach_hover_bounce(root)
 
 	root.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
