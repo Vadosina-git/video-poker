@@ -5,6 +5,9 @@ var GameScene: PackedScene
 
 var _current_scene: Control = null
 var _paytables: Dictionary = {}
+var _loader_active: bool = false
+
+const LOADER_DURATION := 3.0
 
 
 func _ready() -> void:
@@ -25,6 +28,19 @@ func _show_lobby() -> void:
 
 
 func _on_machine_selected(variant_id: String) -> void:
+	if _loader_active:
+		return
+	_loader_active = true
+	var loader := _create_loader()
+	add_child(loader)
+	await get_tree().create_timer(LOADER_DURATION).timeout
+	_loader_active = false
+	if is_instance_valid(loader):
+		loader.queue_free()
+	_load_game_scene(variant_id)
+
+
+func _load_game_scene(variant_id: String) -> void:
 	_clear_current()
 	var paytable: Paytable = _paytables[variant_id]
 	var variant := _create_variant(variant_id, paytable)
@@ -99,3 +115,49 @@ func _clear_current() -> void:
 	if _current_scene:
 		_current_scene.queue_free()
 		_current_scene = null
+
+
+# --- Table-loading overlay (dim + spinner) ---
+
+func _create_loader() -> Control:
+	var overlay := Control.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 1000
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.75)
+	overlay.add_child(dim)
+
+	var center_ct := CenterContainer.new()
+	center_ct.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center_ct)
+
+	var spinner := _create_spinner()
+	center_ct.add_child(spinner)
+
+	return overlay
+
+
+func _create_spinner() -> Control:
+	var size_px: float = 128.0
+	var spinner := TextureRect.new()
+	spinner.texture = load("res://assets/textures/loading_chip.png")
+	spinner.custom_minimum_size = Vector2(size_px, size_px)
+	spinner.size = Vector2(size_px, size_px)
+	spinner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	spinner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	spinner.pivot_offset = Vector2(size_px * 0.5, size_px * 0.5)
+
+	# Continuous rotation: one full turn per 2 seconds with wavelike pacing
+	# (sine ease-in-out → accelerates from rest, peaks, decelerates back).
+	# .from(0) resets each loop iteration so subsequent turns aren't a no-op.
+	var tw := spinner.create_tween()
+	tw.set_loops()
+	tw.tween_property(spinner, "rotation", TAU, 2.0) \
+		.from(0.0) \
+		.set_trans(Tween.TRANS_SINE) \
+		.set_ease(Tween.EASE_IN_OUT)
+
+	return spinner

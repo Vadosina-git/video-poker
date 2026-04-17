@@ -153,7 +153,12 @@
       "common.on": "ON",
       "common.off": "OFF",
       "double.you_won": "You won",
-      "double.double_to": ". Double to"
+      "double.double_to": ". Double to",
+      "shop.badge.special_pack": "SPECIAL PACK",
+      "shop.badge.most_popular": "MOST POPULAR",
+      "shop.bonus_percent_fmt": "+%d%% BONUS",
+      "shop.exchange_rate_fmt": " = $%.2f Game Dollar",
+      "shop.bonus_extra_fmt": "+%s"
     },
     "ru": {
       "common.got_it": "ПОНЯТНО",
@@ -307,7 +312,12 @@
       "common.on": "ВКЛ",
       "common.off": "ВЫКЛ",
       "double.you_won": "Вы выиграли",
-      "double.double_to": ". Удвоить до"
+      "double.double_to": ". Удвоить до",
+      "shop.badge.special_pack": "СПЕЦ. ПРЕДЛОЖЕНИЕ",
+      "shop.badge.most_popular": "САМЫЙ ПОПУЛЯРНЫЙ",
+      "shop.bonus_percent_fmt": "+%d%% БОНУС",
+      "shop.exchange_rate_fmt": " = $%.2f игровых",
+      "shop.bonus_extra_fmt": "+%s"
     },
     "es": {
       "common.got_it": "ENTENDIDO",
@@ -461,7 +471,12 @@
       "common.on": "SÍ",
       "common.off": "NO",
       "double.you_won": "Ganaste",
-      "double.double_to": ". Doblar a"
+      "double.double_to": ". Doblar a",
+      "shop.badge.special_pack": "PACK ESPECIAL",
+      "shop.badge.most_popular": "MÁS POPULAR",
+      "shop.bonus_percent_fmt": "+%d%% BONO",
+      "shop.exchange_rate_fmt": " = $%.2f dólar del juego",
+      "shop.bonus_extra_fmt": "+%s"
     }
   }
 }

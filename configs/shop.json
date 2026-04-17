@@ -1,14 +1,68 @@
 {
-  "version": 1,
+  "version": 2,
   "currency_icon": "chip",
-  "iap_items": [
-    {"id": "pack_01", "sort_order": 1, "price_usd": 0.99, "chips": 5000, "bonus_chips": 0, "badge": null, "image": "shop_pack_01.svg"},
-    {"id": "pack_02", "sort_order": 2, "price_usd": 2.99, "chips": 18000, "bonus_chips": 2000, "badge": "SPECIAL_VALUE", "image": "shop_pack_02.svg"},
-    {"id": "pack_03", "sort_order": 3, "price_usd": 4.99, "chips": 40000, "bonus_chips": 10000, "badge": "BEST_VALUE", "image": "shop_pack_03.svg"},
-    {"id": "pack_04", "sort_order": 4, "price_usd": 9.99, "chips": 100000, "bonus_chips": 30000, "badge": "BEST_SELLER", "image": "shop_pack_04.svg"},
-    {"id": "pack_05", "sort_order": 5, "price_usd": 19.99, "chips": 250000, "bonus_chips": 100000, "badge": "BEST_VALUE", "image": "shop_pack_05.svg"}
-  ],
-  "badge_labels": {"SPECIAL_VALUE": "shop.badge.special_value", "BEST_VALUE": "shop.badge.best_value", "BEST_SELLER": "shop.badge.best_seller"},
   "images_path": "res://assets/shop/",
-  "bonus_display": {"show_strikethrough_base": true, "show_total_highlighted": true, "show_bonus_percent": true}
+  "exchange_rate": {"coins_per_dollar": 100, "show_label": true},
+  "iap_items": [
+    {
+      "id": "pack_01",
+      "sort_order": 1,
+      "price_usd": 0.99,
+      "chips": 5000,
+      "bonus_chips": 15000,
+      "color_scheme": "purple",
+      "top_badge_key": "shop.badge.special_pack",
+      "image": "shop_pack_07.png"
+    },
+    {
+      "id": "pack_02",
+      "sort_order": 2,
+      "price_usd": 1.99,
+      "chips": 10000,
+      "bonus_chips": 2500,
+      "color_scheme": "blue",
+      "top_badge_key": null,
+      "image": "shop_pack_02.png"
+    },
+    {
+      "id": "pack_03",
+      "sort_order": 3,
+      "price_usd": 5.99,
+      "chips": 25000,
+      "bonus_chips": 25000,
+      "color_scheme": "blue",
+      "top_badge_key": null,
+      "image": "shop_pack_03.png"
+    },
+    {
+      "id": "pack_04",
+      "sort_order": 4,
+      "price_usd": 11.99,
+      "chips": 50000,
+      "bonus_chips": 75000,
+      "color_scheme": "blue",
+      "top_badge_key": null,
+      "image": "shop_pack_04.png"
+    },
+    {
+      "id": "pack_05",
+      "sort_order": 5,
+      "price_usd": 22.99,
+      "chips": 100000,
+      "bonus_chips": 200000,
+      "color_scheme": "blue",
+      "top_badge_key": "shop.badge.most_popular",
+      "image": "shop_pack_05.png"
+    },
+    {
+      "id": "pack_06",
+      "sort_order": 6,
+      "price_usd": 49.99,
+      "chips": 250000,
+      "bonus_chips": 750000,
+      "color_scheme": "blue",
+      "top_badge_key": null,
+      "image": "shop_pack_06.png"
+    }
+  ]
 }
