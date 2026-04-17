@@ -340,8 +340,8 @@ func _style_sidebar_btn(btn: Button, active: bool) -> void:
 	_attach_press_effect(btn)
 
 
-## Attaches a quick scale-down/scale-up animation on press to a BaseButton.
-## Works for Button, TextureButton, etc. Scales around center via pivot_offset.
+## Attaches a quick scale-down/scale-up animation on press to a BaseButton,
+## plus a tiny hover overscale. Scales around center via pivot_offset.
 func _attach_press_effect(btn: BaseButton, target_scale: float = 0.93) -> void:
 	var update_pivot := func() -> void:
 		btn.pivot_offset = btn.size / 2.0
@@ -361,6 +361,35 @@ func _attach_press_effect(btn: BaseButton, target_scale: float = 0.93) -> void:
 		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(btn, "scale", Vector2.ONE, 0.11)
 	)
+	# Hover overscale (skipped on touch-only platforms)
+	btn.mouse_entered.connect(func() -> void:
+		if not is_instance_valid(btn):
+			return
+		if btn.button_pressed:
+			return
+		var tw := btn.create_tween()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(btn, "scale", Vector2(1.04, 1.04), 0.12)
+	)
+	btn.mouse_exited.connect(func() -> void:
+		if not is_instance_valid(btn):
+			return
+		var tw := btn.create_tween()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(btn, "scale", Vector2.ONE, 0.14)
+	)
+
+
+## Short "success" pop on any Control — over-scale pulse + modulate flash.
+func _success_pop(ctrl: Control) -> void:
+	if not is_instance_valid(ctrl):
+		return
+	ctrl.pivot_offset = ctrl.size * 0.5
+	var tw := ctrl.create_tween().set_parallel(true)
+	tw.tween_property(ctrl, "scale", Vector2(1.18, 1.18), 0.1).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_property(ctrl, "scale", Vector2.ONE, 0.2).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ctrl, "modulate", Color(1.5, 1.5, 1.0), 0.1).from(Color.WHITE)
+	tw.chain().tween_property(ctrl, "modulate", Color.WHITE, 0.2)
 
 
 var _drag_active := false
