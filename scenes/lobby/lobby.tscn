@@ -52,20 +52,24 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "CREDITS: 1000"
 
-[node name="ContentHBox" type="HBoxContainer" parent="VBoxContainer"]
+[node name="SafeArea" type="MarginContainer" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Sidebar" type="VBoxContainer" parent="VBoxContainer/ContentHBox"]
+[node name="ContentHBox" type="HBoxContainer" parent="VBoxContainer/SafeArea"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Sidebar" type="VBoxContainer" parent="VBoxContainer/SafeArea/ContentHBox"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="GridMargin" type="MarginContainer" parent="VBoxContainer/ContentHBox"]
+[node name="GridMargin" type="MarginContainer" parent="VBoxContainer/SafeArea/ContentHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="GridScroll" type="ScrollContainer" parent="VBoxContainer/ContentHBox/GridMargin"]
+[node name="GridScroll" type="ScrollContainer" parent="VBoxContainer/SafeArea/ContentHBox/GridMargin"]
 unique_name_in_owner = true
 mouse_filter = 0
 layout_mode = 2
@@ -74,7 +78,7 @@ size_flags_vertical = 3
 horizontal_scroll_mode = 2
 vertical_scroll_mode = 0
 
-[node name="MachineGrid" type="GridContainer" parent="VBoxContainer/ContentHBox/GridMargin/GridScroll"]
+[node name="MachineGrid" type="GridContainer" parent="VBoxContainer/SafeArea/ContentHBox/GridMargin/GridScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 columns = 5

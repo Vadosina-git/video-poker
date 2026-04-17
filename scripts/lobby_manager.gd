@@ -88,9 +88,15 @@ func _ready() -> void:
 	_build_gift_widget()
 
 
+const SAFE_AREA_H := 40
+
 func _apply_theme() -> void:
 	$VBoxContainer.add_theme_constant_override("separation", 0)
-	$VBoxContainer/ContentHBox.add_theme_constant_override("separation", 0)
+	$VBoxContainer/SafeArea/ContentHBox.add_theme_constant_override("separation", 0)
+	# Safe horizontal inset for sidebar + central panel (keeps them off-edge)
+	var safe := $VBoxContainer/SafeArea as MarginContainer
+	safe.add_theme_constant_override("margin_left", SAFE_AREA_H)
+	safe.add_theme_constant_override("margin_right", SAFE_AREA_H)
 	_style_top_bar()
 	_style_grid_frame()
 	_build_sidebar()
@@ -106,8 +112,8 @@ func _style_top_bar() -> void:
 	top_bar.custom_minimum_size = Vector2(0, 110)
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = Color(0.72, 0.06, 0.06)
-	bg.content_margin_left = 24
-	bg.content_margin_right = 24
+	bg.content_margin_left = SAFE_AREA_H
+	bg.content_margin_right = SAFE_AREA_H
 	bg.content_margin_top = 10
 	bg.content_margin_bottom = 10
 	bg.border_color = Color(0.22, 0.0, 0.0)
@@ -204,7 +210,7 @@ func _style_top_bar() -> void:
 
 
 func _style_grid_frame() -> void:
-	var grid_margin := $VBoxContainer/ContentHBox/GridMargin as MarginContainer
+	var grid_margin := $VBoxContainer/SafeArea/ContentHBox/GridMargin as MarginContainer
 	grid_margin.add_theme_constant_override("margin_left", 30)
 	grid_margin.add_theme_constant_override("margin_right", 40)
 	grid_margin.add_theme_constant_override("margin_top", 30)
