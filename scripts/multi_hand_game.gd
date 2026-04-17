@@ -1364,7 +1364,7 @@ func _update_info_card_status() -> void:
 		if _info_card_active_image:
 			_info_card_active_image.visible = true
 		if style:
-			style.bg_color = Color("1A30AA")  # light blue when active
+			style.bg_color = Color("1C8A2E")  # bright green when active
 	else:
 		# Inactive: show text prompt, hide the active image
 		_info_card_active_label.visible = true
@@ -1373,7 +1373,7 @@ func _update_info_card_status() -> void:
 		if _info_card_active_image:
 			_info_card_active_image.visible = false
 		if style:
-			style.bg_color = Color("07107A")  # dark blue when inactive
+			style.bg_color = Color("0A3318")  # dark forest green when inactive
 
 
 func _start_info_pulse() -> void:
@@ -1931,6 +1931,11 @@ func _build_info_card() -> void:
 	desc.add_theme_font_size_override("font_size", 10)
 	desc.add_theme_color_override("font_color", Color.WHITE)
 	vbox.add_child(desc)
+
+	# Flex spacer — pushes the ACTIVE/PRESS prompt toward the bottom of the card
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(spacer)
 
 	# ACTIVE-state image (shown when Ultra VP is on)
 	_info_card_active_image = TextureRect.new()
