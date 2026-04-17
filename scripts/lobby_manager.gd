@@ -707,15 +707,15 @@ func _build_carousel() -> void:
 				config["locked"],
 			)
 			card_node.play_pressed.connect(_on_play_pressed)
-			# Decorative shimmer sweep (anim 1.2): sweep is fast but rare.
-			# 3s sweep + 13.8s pause = 16.8s total cycle; alpha 0.5.
+			# Decorative shimmer sweep (anim 1.2): fast highlight pass.
+			# 1s sweep + 10.2s pause = 11.2s total cycle; alpha 0.35.
 			# Hosted on a clipped overlay Control so the polygon is confined
 			# to the card rect (avoids leaking and keeps the drop shadow).
 			var shim_host := Control.new()
 			shim_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			shim_host.clip_contents = true
 			card_node.add_child(shim_host)
-			_attach_shimmer_sweep(shim_host, 3.0, Color(1, 1, 1, 0.5), 13.8)
+			_attach_shimmer_sweep(shim_host, 1.0, Color(1, 1, 1, 0.35), 10.2)
 			_machine_cards.append(card_node)
 
 	# Stagger fade-in: cards appear sequentially with a slight upward slide.
