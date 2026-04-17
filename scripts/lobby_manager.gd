@@ -168,24 +168,20 @@ func _style_top_bar() -> void:
 	top_bar.move_child(cash_pill, cash_idx)
 	_cash_label.reparent(cash_inner)
 
-	# Shop button next to cash pill — opens shop popup
+	# Shop button next to cash pill — opens shop popup.
+	# Fixed size with aspect 60:46 preserved (roughly matches cash pill height).
 	var shop_btn := TextureButton.new()
 	var shop_tex: Texture2D = load("res://assets/textures/shop_button_lobby.svg")
 	shop_btn.texture_normal = shop_tex
 	shop_btn.ignore_texture_size = true
 	shop_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	shop_btn.custom_minimum_size = Vector2(88, 68)
 	shop_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	shop_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	shop_btn.pressed.connect(_show_shop)
 	_attach_press_effect(shop_btn)
 	top_bar.add_child(shop_btn)
 	top_bar.move_child(shop_btn, cash_pill.get_index() + 1)
-
-	# Match shop button height to cash pill after layout (SVG aspect 60:46 kept)
-	cash_pill.resized.connect(func() -> void:
-		var h: float = cash_pill.size.y
-		shop_btn.custom_minimum_size = Vector2(h * 60.0 / 46.0, h)
-	)
 
 	# Thick white "+" drawn geometrically — centered exactly on button rect
 	shop_btn.draw.connect(func() -> void:
