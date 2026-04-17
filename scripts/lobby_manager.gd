@@ -1264,6 +1264,7 @@ func _claim_gift_reward(from_pos: Vector2 = Vector2.ZERO) -> void:
 	if _shop_gift_widget and is_instance_valid(_shop_gift_widget):
 		_rebuild_shop_gift_content(false)
 	if from_pos != Vector2.ZERO:
+		_spawn_confetti_burst(from_pos)
 		_spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
 	else:
 		_animate_balance_increment(old_credits, SaveManager.credits, 0.9)
@@ -1718,6 +1719,16 @@ func _build_pack_card(item: Dictionary) -> PanelContainer:
 	card_style.content_margin_top = 12
 	card_style.content_margin_bottom = 12
 	card.add_theme_stylebox_override("panel", card_style)
+	# Idle tilt: tiny back-and-forth rotation with randomised phase per card
+	card.pivot_offset = card.custom_minimum_size * 0.5
+	card.resized.connect(func() -> void: card.pivot_offset = card.size * 0.5)
+	var tilt_phase: float = randf_range(0.0, 1.5)
+	var tilt := card.create_tween()
+	tilt.set_loops()
+	tilt.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tilt.tween_interval(tilt_phase)
+	tilt.tween_property(card, "rotation", deg_to_rad(1.2), 1.8).from(deg_to_rad(-1.2))
+	tilt.tween_property(card, "rotation", deg_to_rad(-1.2), 1.8)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
@@ -1980,9 +1991,42 @@ func _on_shop_buy(amount: int, from_pos: Vector2 = Vector2.ZERO) -> void:
 	SaveManager.save_game()
 	# Shop stays open — cascade flies to the shop-side cash pill.
 	if from_pos != Vector2.ZERO:
+		_spawn_confetti_burst(from_pos)
 		_spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
 	else:
 		_animate_balance_increment(old_credits, SaveManager.credits, 0.9)
+
+
+## Local confetti burst — 14 coloured squares that fly out radially from
+## `from_pos`, rotate, fade, and free themselves. Pure Control-based (no
+## GPUParticles2D so it works fine on the web renderer).
+func _spawn_confetti_burst(from_pos: Vector2) -> void:
+	var colors: Array = [
+		Color("FFEC00"), Color("FF5577"), Color("49C8FF"),
+		Color("7FE7A0"), Color("FF9A2E"), Color("D67AFF"),
+	]
+	for i in 14:
+		var piece := ColorRect.new()
+		var sz := randf_range(6.0, 10.0)
+		piece.custom_minimum_size = Vector2(sz, sz)
+		piece.size = Vector2(sz, sz)
+		piece.color = colors[i % colors.size()]
+		piece.pivot_offset = piece.size * 0.5
+		piece.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		piece.z_index = 600
+		piece.global_position = from_pos - piece.size * 0.5
+		add_child(piece)
+
+		var angle: float = randf_range(-PI, PI)
+		var dist: float = randf_range(80.0, 180.0)
+		var target: Vector2 = piece.global_position + Vector2(cos(angle), sin(angle)) * dist
+		var duration: float = randf_range(0.45, 0.75)
+		var tw := piece.create_tween().set_parallel(true)
+		tw.tween_property(piece, "global_position", target, duration) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(piece, "rotation", randf_range(-TAU, TAU), duration)
+		tw.tween_property(piece, "modulate:a", 0.0, duration).set_ease(Tween.EASE_IN)
+		tw.chain().tween_callback(piece.queue_free)
 
 
 func _hide_shop() -> void:
