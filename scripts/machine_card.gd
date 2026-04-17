@@ -96,6 +96,21 @@ func _draw_inner_border() -> void:
 var _press_pos := Vector2.ZERO
 var _is_pressed := false
 
+
+## Called by lobby_manager before transitioning to a game — plays a quick
+## zoom-in on this card so the tap visually "becomes" the game screen.
+func play_zoom_in(duration: float = 0.35) -> void:
+	pivot_offset = size * 0.5
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(self, "scale", Vector2(1.35, 1.35), duration) \
+		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(self, "modulate:a", 0.0, duration * 0.9) \
+		.set_ease(Tween.EASE_IN)
+	# Highlight ring
+	var ring_tw := create_tween()
+	ring_tw.tween_property(self, "modulate", Color(1.6, 1.6, 1.2, 1.0), duration * 0.4)
+	ring_tw.tween_property(self, "modulate", Color(1.6, 1.6, 1.2, 0.0), duration * 0.5)
+
 const TAP_MAX_DISTANCE := 12.0  # screen-space px; beyond this release is a drag, not a tap
 
 func _on_gui_input(event: InputEvent) -> void:

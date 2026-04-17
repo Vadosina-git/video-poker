@@ -694,6 +694,12 @@ func _icon_path_for(variant_id: String) -> String:
 
 func _on_play_pressed(variant_id: String) -> void:
 	SaveManager.last_variant = variant_id
+	# Zoom-in on the tapped card (anim 6.2) before the transition
+	for card in _machine_cards:
+		if is_instance_valid(card) and card.variant_id == variant_id:
+			if card.has_method("play_zoom_in"):
+				card.play_zoom_in(0.3)
+			break
 	machine_selected.emit(variant_id)
 
 
