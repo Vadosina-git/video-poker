@@ -67,17 +67,11 @@ var _is_pressed := false
 
 ## Called by lobby_manager before transitioning to a game — plays a quick
 ## zoom-in on this card so the tap visually "becomes" the game screen.
-func play_zoom_in(duration: float = 0.35) -> void:
-	pivot_offset = size * 0.5
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(self, "scale", Vector2(1.35, 1.35), duration) \
-		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
-	tw.tween_property(self, "modulate:a", 0.0, duration * 0.9) \
-		.set_ease(Tween.EASE_IN)
-	# Highlight ring
-	var ring_tw := create_tween()
-	ring_tw.tween_property(self, "modulate", Color(1.6, 1.6, 1.2, 1.0), duration * 0.4)
-	ring_tw.tween_property(self, "modulate", Color(1.6, 1.6, 1.2, 0.0), duration * 0.5)
+func play_zoom_in(_duration: float = 0.35) -> void:
+	# No-op: the press/release tilt already provides tap feedback, and the
+	# previous scale pop fought the release tween on `scale`, producing a
+	# visible bounce on return.
+	pass
 
 const TAP_MAX_DISTANCE := 12.0  # screen-space px; beyond this release is a drag, not a tap
 
@@ -112,7 +106,7 @@ func _animate_press(down: bool) -> void:
 	_is_pressed = down
 	pivot_offset = size / 2.0
 	var target: Vector2 = Vector2(0.95, 0.95) if down else Vector2.ONE
-	var duration: float = 0.07 if down else 0.11
+	var duration: float = 0.047 if down else 0.073
 	var tilt: float = deg_to_rad(randf_range(-3.0, 3.0)) if down else 0.0
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(self, "scale", target, duration) \
