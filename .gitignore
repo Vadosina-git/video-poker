@@ -35,3 +35,6 @@ DerivedData/
 
 # OS
 Thumbs.db
+
+# Web export output
+builds/
