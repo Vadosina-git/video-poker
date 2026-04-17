@@ -130,9 +130,12 @@ func _animate_press(down: bool) -> void:
 	pivot_offset = size / 2.0
 	var target: Vector2 = Vector2(0.95, 0.95) if down else Vector2.ONE
 	var duration: float = 0.07 if down else 0.11
-	var tw := create_tween()
-	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(self, "scale", target, duration)
+	var tilt: float = deg_to_rad(randf_range(-3.0, 3.0)) if down else 0.0
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(self, "scale", target, duration) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "rotation", tilt, duration) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _notification(what: int) -> void:
