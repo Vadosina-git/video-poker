@@ -1461,12 +1461,45 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 		tw.tween_property(chip, "modulate:a", 0.0, 0.1)
 		tw.tween_callback(chip.queue_free)
 
+		# Particle trail (anim 3.4): spawn small fading ghost copies along the
+		# chip's path to create a motion smear.
+		_spawn_chip_trail(chip_tex, chip_size, chip_color, from_pos + jitter, target_pos, stagger, travel_time)
+
 	var total_duration: float = travel_time + stagger_step * float(chip_count - 1)
 	_animate_balance_increment(old_credits, new_credits, total_duration)
 	_flash_balance_pill(total_duration)
 	# Big-win screen-wide golden tint (anim 3.3)
 	if new_credits - old_credits >= 10000:
 		_screen_gold_flash()
+
+
+## Spawns ~5 shrinking ghost chips along the trajectory of a cascade chip.
+## They stagger in time along the path and quickly fade, producing a trail.
+func _spawn_chip_trail(tex: Texture2D, size: Vector2, color: Color, start: Vector2, end: Vector2, base_stagger: float, travel: float) -> void:
+	var trail_count: int = 5
+	for k in trail_count:
+		var ghost := TextureRect.new()
+		ghost.texture = tex
+		ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ghost.custom_minimum_size = size
+		ghost.size = size
+		ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ghost.pivot_offset = size * 0.5
+		ghost.z_index = 490
+		ghost.modulate = Color(color.r, color.g, color.b, 0.0)
+		ghost.global_position = start - size * 0.5
+		add_child(ghost)
+		var progress: float = float(k + 1) / float(trail_count + 1)
+		var ghost_pos: Vector2 = start.lerp(end, progress)
+		var ghost_delay: float = base_stagger + travel * progress * 0.7
+		var tw := ghost.create_tween()
+		tw.tween_interval(ghost_delay)
+		tw.tween_property(ghost, "global_position", ghost_pos - size * 0.5, 0.01)
+		tw.parallel().tween_property(ghost, "modulate:a", 0.45 * (1.0 - progress), 0.01)
+		tw.tween_property(ghost, "modulate:a", 0.0, 0.28).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(ghost, "scale", Vector2(0.4, 0.4), 0.28).set_ease(Tween.EASE_OUT)
+		tw.tween_callback(ghost.queue_free)
 
 
 func _flash_balance_pill(duration: float) -> void:
