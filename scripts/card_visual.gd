@@ -131,7 +131,15 @@ func _update_display() -> void:
 	if not is_node_ready():
 		return
 
+	var was_visible: bool = _held_label.visible
 	_held_label.visible = held
+	# Hold badge pop (anim 5.4) — quick bounce when transitioning to visible
+	if held and not was_visible:
+		_held_label.pivot_offset = _held_label.size * 0.5
+		var tw := _held_label.create_tween()
+		tw.tween_property(_held_label, "scale", Vector2(1.25, 1.25), 0.09) \
+			.from(Vector2(0.6, 0.6)).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+		tw.tween_property(_held_label, "scale", Vector2.ONE, 0.12).set_ease(Tween.EASE_OUT)
 
 	if card_data and face_up:
 		var path := _get_card_texture_path()
