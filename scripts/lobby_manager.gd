@@ -288,9 +288,9 @@ func _on_mode_selected(index: int) -> void:
 		btn.pivot_offset = btn.size * 0.5
 		var tw := btn.create_tween()
 		tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		tw.tween_property(btn, "rotation", deg_to_rad(-2.5), 0.08).from(0.0)
-		tw.tween_property(btn, "rotation", deg_to_rad(2.0), 0.09)
-		tw.tween_property(btn, "rotation", 0.0, 0.1)
+		tw.tween_property(btn, "rotation", deg_to_rad(-1.225), 0.053).from(0.0)
+		tw.tween_property(btn, "rotation", deg_to_rad(0.98), 0.06)
+		tw.tween_property(btn, "rotation", 0.0, 0.067)
 
 
 func _style_sidebar_btn(btn: Button, active: bool) -> void:
