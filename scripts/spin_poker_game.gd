@@ -397,13 +397,16 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	btn_row.custom_minimum_size.x = 800
 	root_vbox.add_child(btn_row)
 
+	# Match multi-hand's button texture set for visual consistency.
 	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_yellow.svg") else null
-	var tex_blue := load("res://assets/textures/btn_rect_blue.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_blue.svg") else null
+	var tex_blue := load("res://assets/textures/btn_blue.svg") if ResourceLoader.exists("res://assets/textures/btn_blue.svg") else null
 	var tex_green := load("res://assets/textures/btn_rect_green.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_green.svg") else null
+	var tex_panel := load("res://assets/textures/btn_panel11.svg") if ResourceLoader.exists("res://assets/textures/btn_panel11.svg") else null
+	var tex_panel_w := load("res://assets/textures/btn_panel11-1.svg") if ResourceLoader.exists("res://assets/textures/btn_panel11-1.svg") else null
 
 	_see_pays_btn = Button.new()
 	_see_pays_btn.text = Translations.tr_key("spin.see_pays")
-	_style_btn(_see_pays_btn, tex_blue, Color.WHITE, 13, 90, 36)
+	_style_btn(_see_pays_btn, tex_panel, Color.WHITE, 13, 90, 36)
 	_see_pays_btn.pressed.connect(_show_paytable)
 	btn_row.add_child(_see_pays_btn)
 
@@ -429,7 +432,7 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 
 	_speed_btn = Button.new()
 	_speed_btn.text = "SPEED 1x"
-	_style_btn(_speed_btn, tex_blue, Color.WHITE, 12, 80, 36)
+	_style_btn(_speed_btn, tex_panel_w, Color.WHITE, 12, 80, 36)
 	_speed_btn.pressed.connect(_on_speed_pressed)
 	btn_row.add_child(_speed_btn)
 
