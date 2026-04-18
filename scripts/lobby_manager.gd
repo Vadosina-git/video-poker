@@ -1941,16 +1941,6 @@ func _build_pack_card(item: Dictionary) -> PanelContainer:
 	card_style.content_margin_top = 12
 	card_style.content_margin_bottom = 12
 	card.add_theme_stylebox_override("panel", card_style)
-	# Idle tilt: tiny back-and-forth rotation with randomised phase per card
-	card.pivot_offset = card.custom_minimum_size * 0.5
-	card.resized.connect(func() -> void: card.pivot_offset = card.size * 0.5)
-	var tilt_phase: float = randf_range(0.0, 1.5)
-	var tilt := card.create_tween()
-	tilt.set_loops()
-	tilt.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tilt.tween_interval(tilt_phase)
-	tilt.tween_property(card, "rotation", deg_to_rad(1.2), 1.8).from(deg_to_rad(-1.2))
-	tilt.tween_property(card, "rotation", deg_to_rad(-1.2), 1.8)
 
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)

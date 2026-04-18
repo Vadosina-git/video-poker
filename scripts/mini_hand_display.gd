@@ -111,6 +111,10 @@ var _overlay_parent: Control = null  # Set externally by multi_hand_game.gd
 
 var _is_losing: bool = false
 
+
+func get_result_overlay() -> PanelContainer:
+	return _result_overlay
+
 func show_result(hand_name: String, multiplier: int, badge_color: Color = Color("FFEC00"), active_mult: int = 1) -> void:
 	hide_result()
 	if hand_name == "":
@@ -142,7 +146,10 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 		label.text = "%s\nX%d" % [hand_name, multiplier]
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 12)
-	label.add_theme_color_override("font_color", Color.WHITE)
+	# Orange tint when an Ultra VP multiplier is applied to this hand — grabs
+	# the player's attention to signal "this hand has a multiplier".
+	var base_color: Color = Color("FFA040") if active_mult > 1 else Color.WHITE
+	label.add_theme_color_override("font_color", base_color)
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_result_overlay.add_child(label)
 

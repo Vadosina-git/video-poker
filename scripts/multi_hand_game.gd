@@ -1310,6 +1310,10 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 		# (bet=10 at MAX under Ultra VP already represents the doubled cost).
 		var total_bet: int = _manager.bet * _num_hands * SaveManager.denomination
 		BigWinOverlay.show_if_qualifies(self, total_payout, total_bet)
+		# anim 5.2 analogue for multi-hand: pulse paytable side badges for
+		# winning hands (non-Ultra), or pulse per-hand result overlays
+		# (Ultra VP — badges don't exist there).
+		_pulse_winning_badges(results)
 	else:
 		_last_win_amount = 0
 		_win_label.text = Translations.tr_key("game.win_label")
@@ -2794,7 +2798,9 @@ func _show_primary_result(hand_name: String, multiplier: int, badge_color: Color
 		label.text = "%s\nX%d" % [hand_name, multiplier]
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", Color.WHITE)
+	# Orange tint when an Ultra VP multiplier is applied to this hand.
+	var base_color: Color = Color("FFA040") if active_mult > 1 else Color.WHITE
+	label.add_theme_color_override("font_color", base_color)
 	_primary_result_overlay.add_child(label)
 
 	# Start hidden so the overlay never shows at (0,0) before it's positioned.
@@ -3006,6 +3012,68 @@ func _update_paytable_badges() -> void:
 		else:
 			_badge_labels[i].add_theme_color_override("font_color", Color.WHITE)
 			_badge_labels[i].remove_theme_font_override("font")
+
+
+## Blink the Label text toward bright yellow for 3 cycles. Preserves and
+## restores the label's base font_color (white or orange for Ultra VP mult).
+func _blink_label_yellow(label: Label) -> void:
+	if not is_instance_valid(label):
+		return
+	var base_color: Color = label.get_theme_color("font_color")
+	var yellow := Color("FFEC00")
+	for cycle in 3:
+		var delay: float = float(cycle) * 0.39
+		var tw := label.create_tween()
+		tw.tween_interval(delay)
+		tw.tween_method(func(t: float) -> void:
+			if is_instance_valid(label):
+				label.add_theme_color_override("font_color", base_color.lerp(yellow, t))
+		, 0.0, 1.0, 0.19)
+		tw.tween_method(func(t: float) -> void:
+			if is_instance_valid(label):
+				label.add_theme_color_override("font_color", base_color.lerp(yellow, t))
+		, 1.0, 0.0, 0.21)
+
+
+## Extract the first Label child of a PanelContainer result overlay.
+func _panel_label(panel: Control) -> Label:
+	if not is_instance_valid(panel):
+		return null
+	for child in panel.get_children():
+		if child is Label:
+			return child
+	return null
+
+
+## Pulse winning indicators on a round — yellow-color blink on text only.
+## Always: primary + extra per-hand result overlays for winning hands.
+## Non-Ultra VP additionally: paytable-side badges matching winning hand keys.
+func _pulse_winning_badges(results: Array) -> void:
+	# Per-hand result overlays — same for multi-hand and Ultra VP.
+	if results.size() > 0 and int(results[0].get("payout", 0)) > 0:
+		_blink_label_yellow(_panel_label(_primary_result_overlay))
+	for i in _extra_displays.size():
+		var result_idx: int = i + 1  # results[0] is primary
+		if result_idx >= results.size():
+			break
+		if int(results[result_idx].get("payout", 0)) <= 0:
+			continue
+		var mini: MiniHandDisplay = _extra_displays[i]
+		if is_instance_valid(mini):
+			_blink_label_yellow(_panel_label(mini.get_result_overlay()))
+	# Paytable side badges — only in non-Ultra (Ultra VP has no side badges).
+	if _ultra_vp:
+		return
+	var winning_keys := {}
+	for r in results:
+		if int(r.get("payout", 0)) <= 0:
+			continue
+		var key: String = _variant.get_paytable_key(int(r.get("hand_rank", 0)))
+		if key != "":
+			winning_keys[key] = true
+	for i in _badge_hand_keys.size():
+		if _badge_hand_keys[i] in winning_keys:
+			_blink_label_yellow(_badge_labels[i])
 
 
 func _clear_paytable_badges() -> void:

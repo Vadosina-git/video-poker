@@ -312,7 +312,7 @@
       "shop.badge.special_pack": "СПЕЦ. ПРЕДЛОЖЕНИЕ",
       "shop.badge.most_popular": "САМЫЙ ПОПУЛЯРНЫЙ",
       "shop.bonus_percent_fmt": "+%d%% БОНУС",
-      "shop.exchange_rate_fmt": " = $%.2f игровых",
+      "shop.exchange_rate_fmt": " = $%.2f игровой валюты",
       "shop.bonus_extra_fmt": "+%s"
     },
     "es": {

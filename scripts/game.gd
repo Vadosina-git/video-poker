@@ -836,40 +836,8 @@ func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
 
 
 func _celebrate_win(payout: int) -> void:
-	# Golden vignette fading in + out around the screen edges.
-	var glow := ColorRect.new()
-	glow.set_anchors_preset(Control.PRESET_FULL_RECT)
-	glow.color = Color(1.0, 0.85, 0.1, 0.0)
-	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	glow.z_index = 900
-	# Simple radial vignette via a shader material
-	var shader := Shader.new()
-	shader.code = """
-shader_type canvas_item;
-uniform float intensity : hint_range(0.0, 1.0) = 0.0;
-uniform vec4 tint : source_color = vec4(1.0, 0.85, 0.1, 1.0);
-void fragment() {
-	vec2 uv = UV - vec2(0.5);
-	float d = length(uv) * 1.414;
-	float v = smoothstep(0.55, 1.0, d);
-	COLOR = vec4(tint.rgb, v * intensity);
-}
-"""
-	var mat := ShaderMaterial.new()
-	mat.shader = shader
-	mat.set_shader_parameter("intensity", 0.0)
-	glow.material = mat
-	add_child(glow)
-	var tw := create_tween()
-	tw.tween_method(func(v: float) -> void:
-		mat.set_shader_parameter("intensity", v)
-	, 0.0, 0.8, 0.35).set_ease(Tween.EASE_OUT)
-	tw.tween_method(func(v: float) -> void:
-		mat.set_shader_parameter("intensity", v)
-	, 0.8, 0.0, 0.6).set_ease(Tween.EASE_IN)
-	tw.tween_callback(glow.queue_free)
-
-	# Confetti: larger payouts get more pieces.
+	# Confetti burst only — vignette removed per user feedback.
+	# Pieces count scales mildly with the payout.
 	var pieces: int = clampi(12 + payout / 50, 14, 40)
 	var center: Vector2 = get_viewport_rect().size * 0.5
 	_spawn_win_confetti(center, pieces)

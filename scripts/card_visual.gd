@@ -49,6 +49,9 @@ func _ready() -> void:
 	_held_position = "top"
 	resized.connect(_reposition_held)
 
+	# Golden border drawn around the card while held (anim 5.4 companion).
+	draw.connect(_draw_held_border)
+
 	# Background: held_rect.svg
 	var held_tex_rect := TextureRect.new()
 	var held_tex_path := "res://assets/textures/held_rect.svg"
@@ -140,6 +143,9 @@ func _update_display() -> void:
 		tw.tween_property(_held_label, "scale", Vector2(1.25, 1.25), 0.09) \
 			.from(Vector2(0.6, 0.6)).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 		tw.tween_property(_held_label, "scale", Vector2.ONE, 0.12).set_ease(Tween.EASE_OUT)
+	# Lift held cards upward + redraw golden border (anim 5.4 companion).
+	_animate_held_lift()
+	queue_redraw()
 
 	if card_data and face_up:
 		var path := _get_card_texture_path()
@@ -151,6 +157,56 @@ func _update_display() -> void:
 		texture = _card_back_texture
 
 
+const HELD_LIFT_Y: float = -8.0
+
+
+## Animates a vertical offset of the card by HELD_LIFT_Y when held, back to 0
+## when released. Tracks offset via meta so we know whether a transition
+## happened and only animate the delta.
+func _animate_held_lift() -> void:
+	var target_offset: float = HELD_LIFT_Y if held else 0.0
+	var current_offset: float = get_meta("held_offset", 0.0)
+	if is_equal_approx(current_offset, target_offset):
+		return
+	var delta: float = target_offset - current_offset
+	set_meta("held_offset", target_offset)
+	var tw := create_tween()
+	tw.tween_property(self, "position:y", position.y + delta, 0.14) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+
+
+## Golden outline around the card while held. Called via the draw signal.
+## Computes the actual visible card rect (STRETCH_KEEP_ASPECT_CENTERED) so the
+## border hugs the card image, not the TextureRect's padded bounds, and uses
+## a StyleBoxFlat to get rounded corners matching the card sprite.
+func _draw_held_border() -> void:
+	if not held:
+		return
+	var tex := texture
+	if tex == null:
+		return
+	var tex_size: Vector2 = tex.get_size()
+	if tex_size.x <= 0.0 or tex_size.y <= 0.0:
+		return
+	var ratio: float = minf(size.x / tex_size.x, size.y / tex_size.y)
+	var vis_w: float = tex_size.x * ratio
+	var vis_h: float = tex_size.y * ratio
+	var vis_x: float = (size.x - vis_w) * 0.5
+	var vis_y: float = (size.y - vis_h) * 0.5
+	var gap: float = 4.0
+	var rect := Rect2(
+		Vector2(vis_x - gap, vis_y - gap),
+		Vector2(vis_w + gap * 2, vis_h + gap * 2),
+	)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)  # transparent fill — only the border shows
+	sb.border_color = Color("FFEC00")
+	sb.set_border_width_all(4)
+	# Absolute border corner radius in rendered px. Tune directly.
+	sb.set_corner_radius_all(16)
+	draw_style_box(sb, rect)
+
+
 var _flip_duration: float = 0.15
 
 func set_flip_duration(duration: float) -> void:
@@ -159,24 +215,18 @@ func set_flip_duration(duration: float) -> void:
 func _play_flip_in() -> void:
 	if _flip_duration < 0.03:
 		scale.x = 1.0
-		rotation = 0.0
 		return
 	# Save the face texture, show back first, then animate flip
 	var face_tex: Texture2D = texture
 	texture = _card_back_texture
-	var tween := create_tween().set_parallel(true)
+	var tween := create_tween()
 	pivot_offset = size / 2
 	scale.x = 1.0
-	# Phase 1: shrink back side + tilt up (anim 5.3 extra 3D flavour)
 	tween.tween_property(self, "scale:x", 0.0, _flip_duration).set_ease(Tween.EASE_IN)
-	tween.tween_property(self, "rotation", deg_to_rad(-4), _flip_duration).from(0.0).set_ease(Tween.EASE_IN)
-	# Phase 2: swap to face texture at scale 0
-	tween.chain().tween_callback(func() -> void:
+	tween.tween_callback(func() -> void:
 		texture = face_tex
 	)
-	# Phase 3: expand face side + tilt back to neutral
 	tween.tween_property(self, "scale:x", 1.0, _flip_duration).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "rotation", 0.0, _flip_duration).set_ease(Tween.EASE_OUT)
 
 
 func flip_to_back() -> void:
