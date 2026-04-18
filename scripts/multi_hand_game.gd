@@ -2397,6 +2397,17 @@ var SHOP_AMOUNTS: Array = []
 var _shop_overlay: Control = null
 
 func _show_shop() -> void:
+	ShopOverlay.show(self)
+	if not ShopOverlay.shop_closed.is_connected(_on_shop_closed_refresh):
+		ShopOverlay.shop_closed.connect(_on_shop_closed_refresh, CONNECT_ONE_SHOT)
+	return
+
+
+func _on_shop_closed_refresh() -> void:
+	_update_balance(SaveManager.credits)
+
+
+func _legacy_show_shop_unused() -> void:
 	if _shop_overlay:
 		_shop_overlay.queue_free()
 		_shop_overlay = null

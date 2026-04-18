@@ -1651,6 +1651,22 @@ var _lobby_hit_rect_backup: Callable = Callable()
 
 
 func _show_shop() -> void:
+	ShopOverlay.show(self)
+	if not ShopOverlay.shop_closed.is_connected(_on_shop_closed_refresh):
+		ShopOverlay.shop_closed.connect(_on_shop_closed_refresh, CONNECT_ONE_SHOT)
+	return
+
+
+func _on_shop_closed_refresh() -> void:
+	refresh_credits()
+	# Force gift widget redraw too — user may have claimed while shop was open.
+	if _gift_btn and is_instance_valid(_gift_btn):
+		_gift_ready = not _is_gift_ready()
+		_update_gift_state()
+
+
+func _legacy_show_shop_unused() -> void:
+	# --- LEGACY (unreachable) — kept for reference until refactor is fully verified.
 	if _shop_overlay:
 		return
 	_shop_overlay = Control.new()

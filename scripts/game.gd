@@ -1335,6 +1335,19 @@ func _build_shop_amounts() -> Array:
 
 
 func _show_shop() -> void:
+	ShopOverlay.show(self)
+	if not ShopOverlay.shop_closed.is_connected(_on_shop_closed_refresh):
+		ShopOverlay.shop_closed.connect(_on_shop_closed_refresh, CONNECT_ONE_SHOT)
+	return
+
+
+func _on_shop_closed_refresh() -> void:
+	# Shop may have added credits; refresh the balance display.
+	_update_balance(SaveManager.credits)
+
+
+func _legacy_show_shop_unused() -> void:
+	# --- LEGACY (unreachable) — kept for reference until refactor is verified.
 	if _shop_overlay:
 		_shop_overlay.queue_free()
 		_shop_overlay = null
