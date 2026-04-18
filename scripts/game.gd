@@ -127,8 +127,6 @@ func _ready() -> void:
 	_set_status(Translations.tr_key("game.place_your_bet"))
 	_start_idle_blink_timer()
 
-	# TEMP DEBUG: test button for screen gold flash (anim 3.3)
-	_add_debug_flash_button()
 
 	# Scene entrance animation: top sections slide in from above, bottom
 	# controls slide up from below.
@@ -174,29 +172,6 @@ func _tween_section_bounce(section: Control, target_y: float, overshoot: float, 
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	tw.tween_property(section, "position:y", target_y, dur * 0.18) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
-
-
-# TEMP DEBUG — remove after anim 3.3 review
-func _add_debug_flash_button() -> void:
-	var big_btn := Button.new()
-	big_btn.text = "BIG WIN"
-	big_btn.add_theme_font_size_override("font_size", 16)
-	big_btn.custom_minimum_size = Vector2(110, 44)
-	big_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	big_btn.position = Vector2(16, 120)
-	big_btn.z_index = 500
-	add_child(big_btn)
-	big_btn.pressed.connect(func() -> void: BigWinOverlay.show_win(self, 12_000_000_000, "big"))
-
-	var huge_btn := Button.new()
-	huge_btn.text = "HUGE WIN"
-	huge_btn.add_theme_font_size_override("font_size", 16)
-	huge_btn.custom_minimum_size = Vector2(110, 44)
-	huge_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	huge_btn.position = Vector2(16, 172)
-	huge_btn.z_index = 500
-	add_child(huge_btn)
-	huge_btn.pressed.connect(func() -> void: BigWinOverlay.show_win(self, 12_000_000_000, "huge"))
 
 
 
