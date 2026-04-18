@@ -38,15 +38,12 @@ static func show_exit_confirm(parent: Control, on_leave: Callable) -> Control:
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.z_index = 50
 	parent.add_child(overlay)
-
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.gui_input.connect(func(e: InputEvent) -> void:
-		if e is InputEventMouseButton and e.pressed:
-			overlay.queue_free()
-	)
+	dim.color = Color(0, 0, 0, 0.0)
 	overlay.add_child(dim)
+	# Dim fades only (no slide/scale).
+	dim.create_tween().tween_property(dim, "color:a", 0.6, 0.22)
 
 	var panel := PanelContainer.new()
 	var ps := StyleBoxFlat.new()
@@ -63,6 +60,34 @@ static func show_exit_confirm(parent: Control, on_leave: Callable) -> Control:
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	overlay.add_child(panel)
+	# Panel slide + fade — vertical only, no scale.
+	panel.position.y += 60
+	panel.modulate.a = 0.0
+	var intro := panel.create_tween().set_parallel(true)
+	intro.tween_property(panel, "modulate:a", 1.0, 0.22)
+	intro.tween_property(panel, "position:y", panel.position.y - 60, 0.30) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+
+	# Close helper — dim fades, panel slides down + fades. No scale.
+	var close_with_anim := func() -> void:
+		if not is_instance_valid(overlay):
+			return
+		overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if is_instance_valid(dim):
+			dim.create_tween().tween_property(dim, "color:a", 0.0, 0.14)
+		if is_instance_valid(panel):
+			var outro := panel.create_tween().set_parallel(true)
+			outro.tween_property(panel, "modulate:a", 0.0, 0.14)
+			outro.tween_property(panel, "position:y", panel.position.y + 60, 0.18) \
+				.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+			outro.chain().tween_callback(overlay.queue_free)
+		else:
+			overlay.queue_free()
+
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed:
+			close_with_anim.call()
+	)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 16)
@@ -86,14 +111,14 @@ static func show_exit_confirm(parent: Control, on_leave: Callable) -> Control:
 	var stay_btn := Button.new()
 	stay_btn.text = Translations.tr_key("game.exit_stay")
 	stay_btn.custom_minimum_size = Vector2(120, 44)
-	stay_btn.pressed.connect(func() -> void: overlay.queue_free())
+	stay_btn.pressed.connect(func() -> void: close_with_anim.call())
 	btns.add_child(stay_btn)
 
 	var leave_btn := Button.new()
 	leave_btn.text = Translations.tr_key("game.exit_leave")
 	leave_btn.custom_minimum_size = Vector2(120, 44)
 	leave_btn.pressed.connect(func() -> void:
-		overlay.queue_free()
+		close_with_anim.call()
 		on_leave.call()
 	)
 	btns.add_child(leave_btn)

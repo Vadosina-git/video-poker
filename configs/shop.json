@@ -2,7 +2,7 @@
   "version": 2,
   "currency_icon": "chip",
   "images_path": "res://assets/shop/",
-  "exchange_rate": {"coins_per_dollar": 100, "show_label": true},
+  "exchange_rate": {"coins_per_dollar": 100, "show_label": false},
   "iap_items": [
     {
       "id": "pack_01",

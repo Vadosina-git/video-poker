@@ -42,6 +42,7 @@ var _bet_display_cd: Dictionary
 # Grid: 3 rows × 5 cols of TextureRect
 var _card_rects: Array = [[], [], []]  # _card_rects[row][col]
 var _grid_container: Control
+var _ready_cover: ColorRect = null
 var _grid_panel: PanelContainer
 var _held_indicators: Array = []  # 5 Control nodes (held_rect.svg + HELD label)
 
@@ -131,6 +132,13 @@ func _init_shutters_closed() -> void:
 	_close_all_shutters_instant()
 	# Place card-back overlays on middle row (first-sit-down look)
 	_build_mid_back_overlays()
+	# Shutters closed + back overlays placed — fade out the ready-cover to
+	# reveal the fully-prepared grid.
+	await get_tree().process_frame
+	if is_instance_valid(_ready_cover):
+		var tw := _ready_cover.create_tween()
+		tw.tween_property(_ready_cover, "modulate:a", 0.0, 0.2)
+		tw.tween_callback(_ready_cover.queue_free)
 
 
 # ─── UI CONSTRUCTION ──────────────────────────────────────────────────
@@ -141,6 +149,26 @@ func _build_ui() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	bg.z_index = -1
+
+	# Ready-cover — solid bg-coloured overlay that hides everything until
+	# _init_shutters_closed has placed face cards + closed shutters.
+	# IMPORTANT: add to our PARENT (not self) so main.gd's scene fade-in
+	# tween on self.modulate doesn't make the cover transparent.
+	_ready_cover = ColorRect.new()
+	_ready_cover.color = BG_COLOR
+	_ready_cover.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ready_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Sit BELOW the loader (z=1000) so the loader's fade-out remains visible,
+	# but ABOVE the scene content so the grid stays hidden while it's being
+	# prepared.
+	_ready_cover.z_index = 500
+	var host: Node = get_parent() if get_parent() else self
+	host.add_child(_ready_cover)
+	# Ensure the cover dies with the scene even if fade-out hasn't fired.
+	tree_exiting.connect(func() -> void:
+		if is_instance_valid(_ready_cover):
+			_ready_cover.queue_free()
+	)
 
 	var root_vbox := VBoxContainer.new()
 	root_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1187,6 +1215,8 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 		_highlight_all_winning()
 		if _winning_lines.size() > 0:
 			_start_win_cycle()
+		# BIG WIN / HUGE WIN overlay — normalize against total bet (all lines).
+		BigWinOverlay.show_if_qualifies(self, total_payout, _manager.get_total_bet())
 	else:
 		_last_total_payout = 0
 		_set_win_dimmed()

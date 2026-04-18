@@ -1428,6 +1428,102 @@ Translations.tr_key("machine.%s.feature" % variant_id)
 
 ---
 
+## 21. BIG WIN / HUGE WIN celebration
+
+Полноэкранная победная анимация: вспышки-молнии ×4, затемнение, title-картинка
+с паттерном-подложкой, glyph-счётчик 0 → payout за 4с, дождь монет и конфетти,
+«tap to continue…». По тапу закрывается.
+
+### 21.1 Autoload `BigWinOverlay` (`scripts/big_win_overlay.gd`)
+
+Единая точка входа — autoload. Любой игровой экран вызывает:
+
+```gdscript
+BigWinOverlay.show_if_qualifies(self, payout, total_bet)
+```
+
+- `self` — host Control, куда парентится overlay (обычно сам игровой экран).
+- `payout` — полный выигрыш в «кредитах» (уже с учётом denomination).
+- `total_bet` — полная ставка раунда в тех же единицах.
+
+Функция внутри проверяет `ConfigManager.classify_big_win(payout, total_bet)`:
+- если `"none"` — выход, ничего не рисуется;
+- если `"big"` / `"huge"` — показывается соответствующая title-картинка.
+
+Есть ещё `BigWinOverlay.show_win(host, amount, level)` — force-show для
+debug-кнопок и тестов (игнорирует классификатор).
+
+### 21.2 Классификатор порогов
+
+Конфиг `configs/balance.json`:
+
+```json
+"big_win_thresholds": {
+  "big_win": {"min": 4, "max": 7},
+  "huge_win": {"min": 8}
+}
+```
+
+Считается `mult = payout / total_bet`:
+- `mult ∈ [4, 7]` → `"big"`
+- `mult ≥ 8`    → `"huge"`
+- иначе         → `"none"`
+
+Реализация — `ConfigManager.classify_big_win(payout, bet)`. Ставка должна
+передаваться уже свёрнутой в `total_bet` (общая сумма, потраченная в раунде),
+не «на руку». Это именно то, что спасает multi-hand от частых срабатываний.
+
+### 21.3 Подключение в игровых экранах
+
+**Single-hand** (`scripts/game.gd` → `_on_hand_evaluated`):
+```gdscript
+var total_bet: int = _game_manager.bet * SaveManager.denomination
+BigWinOverlay.show_if_qualifies(self, payout, total_bet)
+```
+
+**Multi-hand + Ultra VP** (`scripts/multi_hand_game.gd` → `_on_hands_evaluated`):
+```gdscript
+var total_bet: int = _manager.bet * _num_hands * SaveManager.denomination
+BigWinOverlay.show_if_qualifies(self, total_payout, total_bet)
+```
+Ultra VP НЕ требует дополнительного множителя — при активации `bet=10`
+(вместо 5) уже представляет удвоенную стоимость раунда. Per-hand множители
+уже зашиты внутрь `total_payout`.
+
+**Spin Poker** (`scripts/spin_poker_game.gd` → `_on_lines_evaluated`):
+```gdscript
+BigWinOverlay.show_if_qualifies(self, total_payout, _manager.get_total_bet())
+```
+`SpinPokerManager.get_total_bet()` возвращает `NUM_LINES * bet * denomination`.
+
+### 21.4 Почему total, а не per-hand
+
+При multi-hand (3/5/10 рук) или Spin Poker (20 линий) проверка мультипликатора
+по каждой отдельной руке/линии слишком часто «выстреливала» бы даже на мелких
+выигрышах с одной руки. Свёртка в `total_payout / total_bet`:
+- требует чтобы сумма всех payout'ов была большим множителем общей ставки;
+- натурально редка без реальной крупной комбинации (Flush+, Royal, 4oaK);
+- одинаково работает на всех режимах без spec-case'ов.
+
+### 21.5 Debug cheat
+
+В single-hand игровом экране (`scripts/game.gd` → `_add_debug_flash_button`)
+в верхнем левом углу две временные кнопки **BIG WIN** / **HUGE WIN** —
+обе вызывают `BigWinOverlay.show_win(self, 12_000_000_000, level)`. Удалить
+после тестов (весь блок помечен `# TEMP DEBUG`).
+
+### 21.6 Ассеты
+
+- `assets/big_win/big_win.png` — title картинка для `"big"`
+- `assets/big_win/huge_win.png` — title картинка для `"huge"`
+- `assets/big_win/big_win_pattern.png` — декоративный паттерн-подложка
+- `assets/big_win/glyphs_big_win/` — отдельный набор глифов под счётчик
+  (`glyph_0..9`, `glyph_chip`, `glyph_comma`, `glyph_dot`, `glyph_K`,
+  `glyph_M`). Не пересекается с основным `assets/textures/glyphs/` —
+  для BIG WIN используется свой набор, чтобы визуально отличить.
+
+---
+
 ### Правила для Claude Code
 
 - **Всегда отвечать пользователю на русском языке**

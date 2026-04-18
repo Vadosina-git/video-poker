@@ -127,6 +127,77 @@ func _ready() -> void:
 	_set_status(Translations.tr_key("game.place_your_bet"))
 	_start_idle_blink_timer()
 
+	# TEMP DEBUG: test button for screen gold flash (anim 3.3)
+	_add_debug_flash_button()
+
+	# Scene entrance animation: top sections slide in from above, bottom
+	# controls slide up from below.
+	_play_entrance_animation()
+
+
+func _play_entrance_animation() -> void:
+	# Hide the sections SYNCHRONOUSLY before the first frame renders — otherwise
+	# the table flashes in its default layout before the animation kicks in.
+	_top_section.modulate.a = 0.0
+	_middle_section.modulate.a = 0.0
+	_bottom_section.modulate.a = 0.0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_instance_valid(_top_section) or not is_instance_valid(_bottom_section):
+		return
+	var vp_h: float = get_viewport_rect().size.y
+	var top_base_y: float = _top_section.position.y
+	var middle_base_y: float = _middle_section.position.y
+	var bottom_base_y: float = _bottom_section.position.y
+	var slide_up: float = vp_h * 0.6
+	var slide_down: float = vp_h * 0.6
+	_top_section.position.y = top_base_y - slide_up
+	_middle_section.position.y = middle_base_y - slide_up
+	_bottom_section.position.y = bottom_base_y + slide_down
+	# Now reveal — positions are already offset, so reveal happens at the
+	# pre-animation pose, not at the final layout.
+	_top_section.modulate.a = 1.0
+	_middle_section.modulate.a = 1.0
+	_bottom_section.modulate.a = 1.0
+	var dur: float = 0.6
+	# Manual two-phase bounce: slide past target by a small overshoot, then
+	# settle. Overshoot reduced further per user feedback.
+	var overshoot_px: float = 9.0
+	_tween_section_bounce(_top_section, top_base_y, overshoot_px, dur)
+	_tween_section_bounce(_middle_section, middle_base_y, overshoot_px, dur)
+	_tween_section_bounce(_bottom_section, bottom_base_y, -overshoot_px, dur)
+
+
+func _tween_section_bounce(section: Control, target_y: float, overshoot: float, dur: float) -> void:
+	var tw := section.create_tween()
+	tw.tween_property(section, "position:y", target_y + overshoot, dur * 0.82) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(section, "position:y", target_y, dur * 0.18) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+
+
+# TEMP DEBUG — remove after anim 3.3 review
+func _add_debug_flash_button() -> void:
+	var big_btn := Button.new()
+	big_btn.text = "BIG WIN"
+	big_btn.add_theme_font_size_override("font_size", 16)
+	big_btn.custom_minimum_size = Vector2(110, 44)
+	big_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	big_btn.position = Vector2(16, 120)
+	big_btn.z_index = 500
+	add_child(big_btn)
+	big_btn.pressed.connect(func() -> void: BigWinOverlay.show_win(self, 12_000_000_000, "big"))
+
+	var huge_btn := Button.new()
+	huge_btn.text = "HUGE WIN"
+	huge_btn.add_theme_font_size_override("font_size", 16)
+	huge_btn.custom_minimum_size = Vector2(110, 44)
+	huge_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	huge_btn.position = Vector2(16, 172)
+	huge_btn.z_index = 500
+	add_child(huge_btn)
+	huge_btn.pressed.connect(func() -> void: BigWinOverlay.show_win(self, 12_000_000_000, "huge"))
+
 
 
 func _apply_theme() -> void:
@@ -797,11 +868,52 @@ func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
 		_show_win_overlay(hand_name)
 		_highlight_paytable_row(hand_rank)
 		_paytable_display.flash_winning_row()
+		# anim 5.1: win celebration — screen-edge gold glow + confetti burst
+		_celebrate_win(payout)
+		# anim 3.3: BIG WIN / HUGE WIN overlay if payout/bet qualifies.
+		var total_bet: int = _game_manager.bet * SaveManager.denomination
+		BigWinOverlay.show_if_qualifies(self, payout, total_bet)
 	else:
 		_paytable_display.clear_winning_row()
 		_set_status(Translations.tr_key("game.no_win"))
 		_show_lose_overlay()
 		_delay_unlock_buttons()
+
+
+func _celebrate_win(payout: int) -> void:
+	# Confetti burst only — vignette removed per user feedback.
+	# Pieces count scales mildly with the payout.
+	var pieces: int = clampi(12 + payout / 50, 14, 40)
+	var center: Vector2 = get_viewport_rect().size * 0.5
+	_spawn_win_confetti(center, pieces)
+
+
+func _spawn_win_confetti(center: Vector2, count: int) -> void:
+	var colors: Array = [
+		Color("FFEC00"), Color("FF5577"), Color("49C8FF"),
+		Color("7FE7A0"), Color("FF9A2E"), Color("D67AFF"),
+	]
+	for i in count:
+		var p := ColorRect.new()
+		var sz: float = randf_range(7.0, 12.0)
+		p.custom_minimum_size = Vector2(sz, sz)
+		p.size = Vector2(sz, sz)
+		p.color = colors[i % colors.size()]
+		p.pivot_offset = p.size * 0.5
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.z_index = 950
+		p.global_position = center + Vector2(randf_range(-30, 30), randf_range(-30, 30))
+		add_child(p)
+		var angle: float = randf_range(-PI, PI)
+		var dist: float = randf_range(250.0, 500.0)
+		var target: Vector2 = p.global_position + Vector2(cos(angle), sin(angle)) * dist
+		var dur: float = randf_range(0.9, 1.4)
+		var tw := p.create_tween().set_parallel(true)
+		tw.tween_property(p, "global_position", target, dur) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(p, "rotation", randf_range(-TAU * 2, TAU * 2), dur)
+		tw.tween_property(p, "modulate:a", 0.0, dur).set_ease(Tween.EASE_IN)
+		tw.chain().tween_callback(p.queue_free)
 
 
 var _credit_tween: Tween = null
@@ -1223,6 +1335,19 @@ func _build_shop_amounts() -> Array:
 
 
 func _show_shop() -> void:
+	ShopOverlay.show(self)
+	if not ShopOverlay.shop_closed.is_connected(_on_shop_closed_refresh):
+		ShopOverlay.shop_closed.connect(_on_shop_closed_refresh, CONNECT_ONE_SHOT)
+	return
+
+
+func _on_shop_closed_refresh() -> void:
+	# Shop may have added credits; refresh the balance display.
+	_update_balance(SaveManager.credits)
+
+
+func _legacy_show_shop_unused() -> void:
+	# --- LEGACY (unreachable) — kept for reference until refactor is verified.
 	if _shop_overlay:
 		_shop_overlay.queue_free()
 		_shop_overlay = null

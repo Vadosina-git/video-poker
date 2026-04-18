@@ -50,6 +50,34 @@ func get_starting_balance() -> int:
 	return int(init_config.get("starting_balance", 20000))
 
 
+## Big/huge win animation thresholds. Multiplier is computed as payout / bet
+## so larger bets don't overtrigger the celebration. Returns {"big_win": {min, max},
+## "huge_win": {min}} ranges.
+func get_big_win_thresholds() -> Dictionary:
+	var defaults := {
+		"big_win": {"min": 4, "max": 7},
+		"huge_win": {"min": 8},
+	}
+	return balance.get("big_win_thresholds", defaults)
+
+
+## Classify a payout relative to the bet. Returns "huge", "big", or "none".
+func classify_big_win(payout: int, bet: int) -> String:
+	if bet <= 0 or payout <= 0:
+		return "none"
+	var mult: float = float(payout) / float(bet)
+	var th := get_big_win_thresholds()
+	var huge_min: float = float(th.get("huge_win", {}).get("min", 8))
+	if mult >= huge_min:
+		return "huge"
+	var big: Dictionary = th.get("big_win", {})
+	var big_min: float = float(big.get("min", 4))
+	var big_max: float = float(big.get("max", 7))
+	if mult >= big_min and mult <= big_max:
+		return "big"
+	return "none"
+
+
 func get_gift_interval_hours() -> int:
 	return int(gift.get("interval_hours", 2))
 

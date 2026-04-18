@@ -282,6 +282,15 @@ func _on_mode_selected(index: int) -> void:
 	for i in _sidebar_buttons.size():
 		_style_sidebar_btn(_sidebar_buttons[i], i == _active_mode)
 	_build_carousel()
+	# Tab wiggle — small rotate bounce on the newly selected tab
+	if index < _sidebar_buttons.size():
+		var btn: Control = _sidebar_buttons[index]
+		btn.pivot_offset = btn.size * 0.5
+		var tw := btn.create_tween()
+		tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.tween_property(btn, "rotation", deg_to_rad(-1.225), 0.053).from(0.0)
+		tw.tween_property(btn, "rotation", deg_to_rad(0.98), 0.06)
+		tw.tween_property(btn, "rotation", 0.0, 0.067)
 
 
 func _style_sidebar_btn(btn: Button, active: bool) -> void:
@@ -331,8 +340,35 @@ func _style_sidebar_btn(btn: Button, active: bool) -> void:
 	_attach_press_effect(btn)
 
 
-## Attaches a quick scale-down/scale-up animation on press to a BaseButton.
-## Works for Button, TextureButton, etc. Scales around center via pivot_offset.
+## Hover overscale for any Control — slight zoom on mouse_entered, revert
+## on mouse_exited. Scales around center via pivot_offset (kept in sync
+## with the control's size so the bounce stays centered even if layout
+## changes). Used for BaseButtons via _attach_press_effect, and directly
+## for non-button controls like machine cards and the gift widget.
+func _attach_hover_bounce(ctrl: Control, target_scale: float = 1.04) -> void:
+	var update_pivot := func() -> void:
+		if is_instance_valid(ctrl):
+			ctrl.pivot_offset = ctrl.size / 2.0
+	update_pivot.call()
+	ctrl.resized.connect(update_pivot)
+	ctrl.mouse_entered.connect(func() -> void:
+		if not is_instance_valid(ctrl):
+			return
+		var tw := ctrl.create_tween()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ctrl, "scale", Vector2(target_scale, target_scale), 0.12)
+	)
+	ctrl.mouse_exited.connect(func() -> void:
+		if not is_instance_valid(ctrl):
+			return
+		var tw := ctrl.create_tween()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ctrl, "scale", Vector2.ONE, 0.14)
+	)
+
+
+## Attaches a quick scale-down/scale-up animation on press to a BaseButton,
+## plus a tiny hover overscale. Scales around center via pivot_offset.
 func _attach_press_effect(btn: BaseButton, target_scale: float = 0.93) -> void:
 	var update_pivot := func() -> void:
 		btn.pivot_offset = btn.size / 2.0
@@ -352,6 +388,127 @@ func _attach_press_effect(btn: BaseButton, target_scale: float = 0.93) -> void:
 		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(btn, "scale", Vector2.ONE, 0.11)
 	)
+	# Ripple effect on press (anim 2.1)
+	_attach_ripple(btn)
+	# Hover overscale (skipped on touch-only platforms)
+	btn.mouse_entered.connect(func() -> void:
+		if not is_instance_valid(btn):
+			return
+		if btn.button_pressed:
+			return
+		var tw := btn.create_tween()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(btn, "scale", Vector2(1.04, 1.04), 0.12)
+	)
+	btn.mouse_exited.connect(func() -> void:
+		if not is_instance_valid(btn):
+			return
+		var tw := btn.create_tween()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(btn, "scale", Vector2.ONE, 0.14)
+	)
+
+
+## Material-style ripple: on press, a translucent circle expands from the
+## click point and fades out. Uses a child overlay Control so the ripple
+## draws on top of the button's texture/label regardless of draw order.
+func _attach_ripple(btn: Control) -> void:
+	var overlay := Control.new()
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.clip_contents = true
+	overlay.z_index = 10
+	btn.add_child(overlay)
+	var state := {"center": Vector2.ZERO, "radius": 0.0, "alpha": 0.0}
+	overlay.draw.connect(func() -> void:
+		if state["alpha"] > 0.001 and state["radius"] > 0.0:
+			overlay.draw_circle(state["center"], state["radius"], Color(1, 1, 1, state["alpha"]))
+	)
+	btn.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			state["center"] = event.position
+			var max_r: float = Vector2(maxf(event.position.x, btn.size.x - event.position.x), \
+				maxf(event.position.y, btn.size.y - event.position.y)).length()
+			state["radius"] = 0.0
+			state["alpha"] = 0.55
+			overlay.queue_redraw()
+			var tw := overlay.create_tween().set_parallel(true)
+			tw.tween_method(func(r: float) -> void:
+				state["radius"] = r
+				overlay.queue_redraw()
+			, 0.0, max_r, 0.45).set_ease(Tween.EASE_OUT)
+			tw.tween_method(func(a: float) -> void:
+				state["alpha"] = a
+				overlay.queue_redraw()
+			, 0.55, 0.0, 0.45).set_ease(Tween.EASE_OUT)
+	)
+
+
+## One-shot golden gleam diagonal sweep across a Control — used when a
+## button transitions from disabled → enabled (anim 2.4).
+func _gleam_once(ctrl: Control, color: Color = Color(1, 0.95, 0.3, 0.85)) -> void:
+	if not is_instance_valid(ctrl):
+		return
+	ctrl.clip_contents = true
+	var state := {"t": -0.3}
+	var tw := ctrl.create_tween()
+	tw.tween_method(func(val: float) -> void:
+		state["t"] = val
+		ctrl.queue_redraw()
+	, -0.3, 1.3, 0.8).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
+	var draw_cb := func() -> void:
+		var t: float = state["t"]
+		if t < 0.0 or t > 1.0:
+			return
+		var w: float = ctrl.size.x
+		var h: float = ctrl.size.y
+		var cx: float = lerp(-w * 0.4, w * 1.1, t)
+		var half: float = w * 0.1
+		var skew: float = h * 0.6
+		var poly: PackedVector2Array = PackedVector2Array([
+			Vector2(cx - half, -2),
+			Vector2(cx + half, -2),
+			Vector2(cx + half - skew, h + 2),
+			Vector2(cx - half - skew, h + 2),
+		])
+		ctrl.draw_colored_polygon(poly, color)
+	ctrl.draw.connect(draw_cb)
+	# Disconnect once the animation finishes so the gleam doesn't linger.
+	tw.finished.connect(func() -> void:
+		if ctrl.draw.is_connected(draw_cb):
+			ctrl.draw.disconnect(draw_cb)
+		ctrl.queue_redraw()
+	)
+
+
+## Crossfade + rotate swap between two textures on a TextureRect (anim 2.5).
+## Fades current texture out with a 90° spin, swaps to `new_tex`, spins in.
+func _morph_texture(tex_rect: TextureRect, new_tex: Texture2D, duration: float = 0.25) -> void:
+	if not is_instance_valid(tex_rect):
+		return
+	tex_rect.pivot_offset = tex_rect.size * 0.5
+	var half: float = duration * 0.5
+	var tw := tex_rect.create_tween().set_parallel(true)
+	tw.tween_property(tex_rect, "rotation", deg_to_rad(90), half).set_ease(Tween.EASE_IN)
+	tw.tween_property(tex_rect, "modulate:a", 0.0, half).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(func() -> void:
+		tex_rect.texture = new_tex
+		tex_rect.rotation = deg_to_rad(-90)
+	)
+	tw.chain().tween_property(tex_rect, "rotation", 0.0, half).set_ease(Tween.EASE_OUT)
+	tw.tween_property(tex_rect, "modulate:a", 1.0, half).set_ease(Tween.EASE_OUT)
+
+
+## Short "success" pop on any Control — over-scale pulse + modulate flash.
+func _success_pop(ctrl: Control) -> void:
+	if not is_instance_valid(ctrl):
+		return
+	ctrl.pivot_offset = ctrl.size * 0.5
+	var tw := ctrl.create_tween().set_parallel(true)
+	tw.tween_property(ctrl, "scale", Vector2(1.18, 1.18), 0.1).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_property(ctrl, "scale", Vector2.ONE, 0.2).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ctrl, "modulate", Color(1.5, 1.5, 1.0), 0.1).from(Color.WHITE)
+	tw.chain().tween_property(ctrl, "modulate", Color.WHITE, 0.2)
 
 
 var _drag_active := false
@@ -389,6 +546,19 @@ var _drag_hit_rect_fn: Callable = Callable()
 ## carousel swipe (true).
 func carousel_drag_moved() -> bool:
 	return _drag_moved
+
+
+## Fade the horizontal scrollbar of the active scroll container in/out
+## (anim 4.5) — visible while dragging, invisible at rest.
+func _fade_scrollbar(visible: bool) -> void:
+	if _scroll_ref == null:
+		return
+	var sb := _scroll_ref.get_h_scroll_bar()
+	if sb == null:
+		return
+	var target_a: float = 0.6 if visible else 0.0
+	var tw := sb.create_tween()
+	tw.tween_property(sb, "modulate:a", target_a, 0.25)
 
 
 func _setup_drag_scroll(scroll: ScrollContainer) -> void:
@@ -439,10 +609,12 @@ func _input(event: InputEvent) -> void:
 				_velocity_samples.append(Vector2(event.global_position.x, Time.get_ticks_msec() / 1000.0))
 				if _inertia_tween and _inertia_tween.is_running():
 					_inertia_tween.kill()
+				_fade_scrollbar(true)
 		else:
 			if _drag_active:
 				_drag_active = false
 				_release_drag(_calc_velocity())
+				_fade_scrollbar(false)
 	elif event is InputEventMouseMotion and _drag_active:
 		var now: float = Time.get_ticks_msec() / 1000.0
 		_velocity_samples.append(Vector2(event.global_position.x, now))
@@ -570,7 +742,56 @@ func _build_carousel() -> void:
 				config["locked"],
 			)
 			card_node.play_pressed.connect(_on_play_pressed)
+			# Hover bounce (anim 2.2) — scale 1.04 on hover/exit
+			_attach_hover_bounce(card_node)
+			# Decorative shimmer sweep (anim 1.2): fast highlight pass.
+			# 1s sweep + 10.2s pause = 11.2s total cycle; alpha 0.35.
+			# PanelContainer's content_margin (22/26px) would inset this child
+			# to the logo area only — so we override position/size to span the
+			# card's full rect after each container sort.
+			var shim_host := Control.new()
+			shim_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			shim_host.clip_contents = true
+			card_node.add_child(shim_host)
+			var fix_shim_rect := func() -> void:
+				if is_instance_valid(shim_host) and is_instance_valid(card_node):
+					shim_host.position = Vector2.ZERO
+					shim_host.size = card_node.size
+			card_node.sort_children.connect(fix_shim_rect)
+			card_node.resized.connect(fix_shim_rect)
+			fix_shim_rect.call_deferred()
+			_attach_shimmer_sweep(shim_host, 1.0, Color(1, 1, 1, 0.09), 10.2)
 			_machine_cards.append(card_node)
+
+	# Stagger fade-in: cards appear sequentially with a tiny scale pop.
+	# NOTE: cards live inside a GridContainer, which overrides child position
+	# every layout pass — so we animate modulate + scale only (pivot-based),
+	# never position.
+	call_deferred("_play_stagger_fade_in")
+
+
+func _play_stagger_fade_in() -> void:
+	# Visual order: column-major (top→bottom within each column, columns L→R).
+	# Cards are added row-major, so remap add-index → visual order.
+	var cols: int = maxi(int(_grid.columns), 1)
+	var total: int = _machine_cards.size()
+	var rows: int = int(ceil(float(total) / float(cols)))
+	for i in total:
+		var card: Control = _machine_cards[i]
+		if not is_instance_valid(card):
+			continue
+		var row: int = i / cols
+		var col: int = i % cols
+		var visual_idx: int = col * rows + row
+		card.modulate.a = 0.0
+		card.pivot_offset = card.size * 0.5
+		card.scale = Vector2(0.94, 0.94)
+		var delay: float = 0.1 + float(visual_idx) * 0.067
+		var tw := card.create_tween().set_parallel(true)
+		tw.tween_interval(delay)
+		tw.chain().tween_property(card, "modulate:a", 1.0, 0.25)
+		tw.parallel().tween_property(card, "scale", Vector2.ONE, 0.32) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 
 
 func _mode_card_color() -> Color:
@@ -616,6 +837,12 @@ func _icon_path_for(variant_id: String) -> String:
 
 func _on_play_pressed(variant_id: String) -> void:
 	SaveManager.last_variant = variant_id
+	# Zoom-in on the tapped card (anim 6.2) before the transition
+	for card in _machine_cards:
+		if is_instance_valid(card) and card.variant_id == variant_id:
+			if card.has_method("play_zoom_in"):
+				card.play_zoom_in(0.3)
+			break
 	machine_selected.emit(variant_id)
 
 
@@ -628,6 +855,8 @@ func refresh_credits() -> void:
 
 var _settings_btn: BaseButton
 var _settings_overlay: Control = null
+var _settings_panel: Control = null
+var _settings_dim: ColorRect = null
 
 func _build_settings_button() -> void:
 	var tex_btn := TextureButton.new()
@@ -662,6 +891,7 @@ func _show_settings() -> void:
 			_hide_settings()
 	)
 	_settings_overlay.add_child(dim)
+	_settings_dim = dim
 
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
@@ -678,6 +908,7 @@ func _show_settings() -> void:
 	pstyle.content_margin_bottom = 24
 	panel.add_theme_stylebox_override("panel", pstyle)
 	_settings_overlay.add_child(panel)
+	_settings_panel = panel
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 16)
@@ -914,6 +1145,8 @@ func _hide_settings() -> void:
 	if _settings_overlay:
 		_settings_overlay.queue_free()
 		_settings_overlay = null
+		_settings_panel = null
+		_settings_dim = null
 
 
 # --- Language picker (sub-popup of settings) ---
@@ -1045,6 +1278,8 @@ func _build_gift_widget() -> void:
 	root.add_child(_gift_icon_rect)
 
 	root.gui_input.connect(_on_gift_gui_input)
+	# Hover bounce (anim 2.2) — applies in both ready + countdown states
+	_attach_hover_bounce(root)
 	_gift_btn = root
 
 	top_bar.add_child(_gift_btn)
@@ -1215,6 +1450,7 @@ func _claim_gift_reward(from_pos: Vector2 = Vector2.ZERO) -> void:
 	if _shop_gift_widget and is_instance_valid(_shop_gift_widget):
 		_rebuild_shop_gift_content(false)
 	if from_pos != Vector2.ZERO:
+		_spawn_confetti_burst(from_pos)
 		_spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
 	else:
 		_animate_balance_increment(old_credits, SaveManager.credits, 0.9)
@@ -1297,9 +1533,45 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 		tw.tween_property(chip, "modulate:a", 0.0, 0.1)
 		tw.tween_callback(chip.queue_free)
 
+		# Particle trail (anim 3.4): spawn small fading ghost copies along the
+		# chip's path to create a motion smear.
+		_spawn_chip_trail(chip_tex, chip_size, chip_color, from_pos + jitter, target_pos, stagger, travel_time)
+
 	var total_duration: float = travel_time + stagger_step * float(chip_count - 1)
 	_animate_balance_increment(old_credits, new_credits, total_duration)
 	_flash_balance_pill(total_duration)
+	# Big-win screen-wide golden tint (anim 3.3)
+	if new_credits - old_credits >= 10000:
+		_screen_gold_flash()
+
+
+## Spawns ~5 shrinking ghost chips along the trajectory of a cascade chip.
+## They stagger in time along the path and quickly fade, producing a trail.
+func _spawn_chip_trail(tex: Texture2D, size: Vector2, color: Color, start: Vector2, end: Vector2, base_stagger: float, travel: float) -> void:
+	var trail_count: int = 5
+	for k in trail_count:
+		var ghost := TextureRect.new()
+		ghost.texture = tex
+		ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ghost.custom_minimum_size = size
+		ghost.size = size
+		ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ghost.pivot_offset = size * 0.5
+		ghost.z_index = 490
+		ghost.modulate = Color(color.r, color.g, color.b, 0.0)
+		ghost.global_position = start - size * 0.5
+		add_child(ghost)
+		var progress: float = float(k + 1) / float(trail_count + 1)
+		var ghost_pos: Vector2 = start.lerp(end, progress)
+		var ghost_delay: float = base_stagger + travel * progress * 0.7
+		var tw := ghost.create_tween()
+		tw.tween_interval(ghost_delay)
+		tw.tween_property(ghost, "global_position", ghost_pos - size * 0.5, 0.01)
+		tw.parallel().tween_property(ghost, "modulate:a", 0.45 * (1.0 - progress), 0.01)
+		tw.tween_property(ghost, "modulate:a", 0.0, 0.28).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(ghost, "scale", Vector2(0.4, 0.4), 0.28).set_ease(Tween.EASE_OUT)
+		tw.tween_callback(ghost.queue_free)
 
 
 func _flash_balance_pill(duration: float) -> void:
@@ -1312,6 +1584,41 @@ func _flash_balance_pill(duration: float) -> void:
 	for i in flashes:
 		tw.tween_property(pill, "modulate", Color(1.55, 1.55, 0.85), half)
 		tw.tween_property(pill, "modulate", Color.WHITE, half)
+	# Coin flip on the chip glyph inside the pill (anim 3.2)
+	_coin_flip_chip()
+
+
+## Finds the first chip glyph in the active pill's currency box and flips
+## it around its Y axis (fake 3D via scale.x) once.
+func _coin_flip_chip() -> void:
+	var cd: Dictionary = _active_cash_cd()
+	var box: Node = cd.get("box", null)
+	if not is_instance_valid(box):
+		return
+	for child in box.get_children():
+		if child is TextureRect:
+			var tex_rect: TextureRect = child
+			tex_rect.pivot_offset = tex_rect.size * 0.5
+			var tw := tex_rect.create_tween()
+			tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+			tw.tween_property(tex_rect, "scale:x", 0.0, 0.18)
+			tw.tween_property(tex_rect, "scale:x", 1.0, 0.18)
+			break  # only the chip glyph (first TextureRect in the HBox)
+
+
+## Full-screen golden tint flash for large incoming chip gains (anim 3.3).
+## Only triggers when delta exceeds a threshold (10,000+).
+func _screen_gold_flash() -> void:
+	var flash := ColorRect.new()
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flash.color = Color(1.0, 0.85, 0.1, 0.0)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.z_index = 999
+	add_child(flash)
+	var tw := flash.create_tween()
+	tw.tween_property(flash, "color:a", 0.22, 0.12).set_ease(Tween.EASE_OUT)
+	tw.tween_property(flash, "color:a", 0.0, 0.45).set_ease(Tween.EASE_IN)
+	tw.tween_callback(flash.queue_free)
 
 
 # --- Shop popup (IGT Game King style — horizontal scroll of pack cards) ---
@@ -1344,6 +1651,22 @@ var _lobby_hit_rect_backup: Callable = Callable()
 
 
 func _show_shop() -> void:
+	ShopOverlay.show(self)
+	if not ShopOverlay.shop_closed.is_connected(_on_shop_closed_refresh):
+		ShopOverlay.shop_closed.connect(_on_shop_closed_refresh, CONNECT_ONE_SHOT)
+	return
+
+
+func _on_shop_closed_refresh() -> void:
+	refresh_credits()
+	# Force gift widget redraw too — user may have claimed while shop was open.
+	if _gift_btn and is_instance_valid(_gift_btn):
+		_gift_ready = not _is_gift_ready()
+		_update_gift_state()
+
+
+func _legacy_show_shop_unused() -> void:
+	# --- LEGACY (unreachable) — kept for reference until refactor is fully verified.
 	if _shop_overlay:
 		return
 	_shop_overlay = Control.new()
@@ -1352,11 +1675,22 @@ func _show_shop() -> void:
 	_shop_overlay.z_index = 100
 	add_child(_shop_overlay)
 
-	# Full-screen dark-navy backdrop
+	# Full-screen dark-navy backdrop (fades in from transparent)
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.05, 0.04, 0.22, 1.0)
+	bg.color = Color(0.05, 0.04, 0.22, 0.0)
 	_shop_overlay.add_child(bg)
+	bg.create_tween().tween_property(bg, "color:a", 1.0, 0.2)
+
+	# Shop open animation: slide-up + bounce scale on the whole overlay contents
+	_shop_overlay.pivot_offset = Vector2(get_viewport_rect().size.x * 0.5, get_viewport_rect().size.y)
+	_shop_overlay.scale = Vector2(0.95, 0.95)
+	_shop_overlay.position.y = 40
+	_shop_overlay.modulate.a = 0.0
+	var intro := _shop_overlay.create_tween().set_parallel(true)
+	intro.tween_property(_shop_overlay, "modulate:a", 1.0, 0.22)
+	intro.tween_property(_shop_overlay, "scale", Vector2.ONE, 0.35).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	intro.tween_property(_shop_overlay, "position:y", 0.0, 0.28).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 	# Close X button (top-right, yellow circle)
 	var close_btn := Button.new()
@@ -1528,6 +1862,9 @@ func _build_shop_gift_widget() -> Control:
 	_shop_gift_icon = icon
 
 	_rebuild_shop_gift_content(_is_gift_ready())
+
+	# Hover bounce (anim 2.2) — applies in both ready + countdown states
+	_attach_hover_bounce(root)
 
 	root.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -1739,6 +2076,7 @@ func _build_bonus_banner(percent: int) -> PanelContainer:
 func _build_top_ribbon(text: String) -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	pc.clip_contents = true
 	var st := StyleBoxFlat.new()
 	st.bg_color = Color("FFEC00")
 	st.set_corner_radius_all(6)
@@ -1753,7 +2091,45 @@ func _build_top_ribbon(text: String) -> PanelContainer:
 	lab.add_theme_font_size_override("font_size", 18)
 	lab.add_theme_color_override("font_color", Color.BLACK)
 	pc.add_child(lab)
+	# Diagonal shine sweep every ~3 sec
+	_attach_shimmer_sweep(pc, 3.0, Color(1, 1, 1, 0.7))
 	return pc
+
+
+## Overlays a diagonal white shimmer stripe that sweeps across the control
+## from left to right once every `period` seconds. Works on any Control via
+## `draw.connect`. Only shows inside clip_contents.
+func _attach_shimmer_sweep(ctrl: Control, period: float = 3.0, color: Color = Color(1, 1, 1, 0.4), pause: float = -1.0) -> void:
+	# We animate a float "shimmer_t" 0..1, then use it in _draw to paint a
+	# slanted polygon moving across the control's rect.
+	var state := {"t": -0.2}
+	var pause_time: float = pause if pause >= 0.0 else period * 0.4
+	var tick := func() -> void:
+		var tw := ctrl.create_tween()
+		tw.set_loops()
+		tw.tween_method(func(val: float) -> void:
+			state["t"] = val
+			ctrl.queue_redraw()
+		, -0.3, 1.3, period).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+		tw.tween_interval(pause_time)
+	tick.call()
+	ctrl.draw.connect(func() -> void:
+		var t: float = state["t"]
+		if t < 0.0 or t > 1.0:
+			return
+		var w: float = ctrl.size.x
+		var h: float = ctrl.size.y
+		var cx: float = lerp(-w * 0.4, w * 1.1, t)
+		var half: float = w * 0.08
+		var skew: float = h * 0.6
+		var poly: PackedVector2Array = PackedVector2Array([
+			Vector2(cx - half, -2),
+			Vector2(cx + half, -2),
+			Vector2(cx + half - skew, h + 2),
+			Vector2(cx - half - skew, h + 2),
+		])
+		ctrl.draw_colored_polygon(poly, color)
+	)
 
 
 func _build_extra_ribbon(bonus_chips: int, bg: Color) -> PanelContainer:
@@ -1844,9 +2220,42 @@ func _on_shop_buy(amount: int, from_pos: Vector2 = Vector2.ZERO) -> void:
 	SaveManager.save_game()
 	# Shop stays open — cascade flies to the shop-side cash pill.
 	if from_pos != Vector2.ZERO:
+		_spawn_confetti_burst(from_pos)
 		_spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
 	else:
 		_animate_balance_increment(old_credits, SaveManager.credits, 0.9)
+
+
+## Local confetti burst — 14 coloured squares that fly out radially from
+## `from_pos`, rotate, fade, and free themselves. Pure Control-based (no
+## GPUParticles2D so it works fine on the web renderer).
+func _spawn_confetti_burst(from_pos: Vector2) -> void:
+	var colors: Array = [
+		Color("FFEC00"), Color("FF5577"), Color("49C8FF"),
+		Color("7FE7A0"), Color("FF9A2E"), Color("D67AFF"),
+	]
+	for i in 14:
+		var piece := ColorRect.new()
+		var sz := randf_range(6.0, 10.0)
+		piece.custom_minimum_size = Vector2(sz, sz)
+		piece.size = Vector2(sz, sz)
+		piece.color = colors[i % colors.size()]
+		piece.pivot_offset = piece.size * 0.5
+		piece.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		piece.z_index = 600
+		piece.global_position = from_pos - piece.size * 0.5
+		add_child(piece)
+
+		var angle: float = randf_range(-PI, PI)
+		var dist: float = randf_range(80.0, 180.0)
+		var target: Vector2 = piece.global_position + Vector2(cos(angle), sin(angle)) * dist
+		var duration: float = randf_range(0.45, 0.75)
+		var tw := piece.create_tween().set_parallel(true)
+		tw.tween_property(piece, "global_position", target, duration) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(piece, "rotation", randf_range(-TAU, TAU), duration)
+		tw.tween_property(piece, "modulate:a", 0.0, duration).set_ease(Tween.EASE_IN)
+		tw.chain().tween_callback(piece.queue_free)
 
 
 func _hide_shop() -> void:
@@ -1856,8 +2265,17 @@ func _hide_shop() -> void:
 			_inertia_tween.kill()
 		_drag_active = false
 		_overscroll = 0.0
-		_shop_overlay.queue_free()
+		# Mirror of the open animation: fade + scale-down + slide-down.
+		var ov := _shop_overlay
 		_shop_overlay = null
+		ov.pivot_offset = Vector2(get_viewport_rect().size.x * 0.5, get_viewport_rect().size.y)
+		var outro := ov.create_tween().set_parallel(true)
+		outro.tween_property(ov, "modulate:a", 0.0, 0.14)
+		outro.tween_property(ov, "scale", Vector2(0.95, 0.95), 0.17) \
+			.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+		outro.tween_property(ov, "position:y", 40.0, 0.15) \
+			.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+		outro.chain().tween_callback(ov.queue_free)
 	_shop_cash_cd = {}
 	_shop_cash_pill = null
 	_shop_gift_widget = null
