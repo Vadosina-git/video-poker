@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://pkbvf5o72rmm"
-path="res://.godot/imported/glyph_4.svg-b55908ff5b374f2926976dd2f2b347fa.ctex"
+uid="uid://brnr5qn7gefbw"
+path="res://.godot/imported/glyph_chip.png-3f4194b969dbe5b9efae321758444e5a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/big_win/glyphs_big_win/glyph_4.svg"
-dest_files=["res://.godot/imported/glyph_4.svg-b55908ff5b374f2926976dd2f2b347fa.ctex"]
+source_file="res://assets/big_win/glyphs_big_win/glyph_chip.png"
+dest_files=["res://.godot/imported/glyph_chip.png-3f4194b969dbe5b9efae321758444e5a.ctex"]
 
 [params]
 
@@ -38,6 +38,3 @@ process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1
-svg/scale=4.0
-editor/scale_with_editor_scale=false
-editor/convert_colors_with_editor_theme=false

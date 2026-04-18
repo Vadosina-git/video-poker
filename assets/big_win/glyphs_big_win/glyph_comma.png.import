@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://jw6yi3fmf8rp"
-path="res://.godot/imported/glyph_dot.svg-dd7071ddb4b60383753026f1d922b4dc.ctex"
+uid="uid://byv75vh0ayxnn"
+path="res://.godot/imported/glyph_comma.png-1d098fccf8a394241b7db42b10c76375.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/big_win/glyphs_big_win/glyph_dot.svg"
-dest_files=["res://.godot/imported/glyph_dot.svg-dd7071ddb4b60383753026f1d922b4dc.ctex"]
+source_file="res://assets/big_win/glyphs_big_win/glyph_comma.png"
+dest_files=["res://.godot/imported/glyph_comma.png-1d098fccf8a394241b7db42b10c76375.ctex"]
 
 [params]
 
@@ -38,6 +38,3 @@ process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1
-svg/scale=4.0
-editor/scale_with_editor_scale=false
-editor/convert_colors_with_editor_theme=false

@@ -133,12 +133,17 @@ func show_win(host: Node, amount: int, level: String = "big") -> void:
 	counter_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	counter_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(counter_box)
+	# Build fixed-width slot pool based on the final value. All slots have
+	# the same width (monospaced glyphs) and always reserve space; unused
+	# slots are hidden via modulate.a = 0 so layout never shifts.
+	_init_counter_slots(counter_box, amount)
 	_update_counter(counter_box, 0)
 	await get_tree().process_frame
+	var counter_max_w: float = counter_box.size.x
 	var gap: float = 12.0
 	var counter_top: float = title.position.y + title.size.y + gap
 	counter_box.position = Vector2(
-		overlay.size.x * 0.5 - counter_box.size.x * 0.5,
+		overlay.size.x * 0.5 - counter_max_w * 0.5,
 		counter_top,
 	)
 	var counter_state := {"val": 0}
@@ -148,16 +153,10 @@ func show_win(host: Node, amount: int, level: String = "big") -> void:
 		if ival != counter_state["val"]:
 			counter_state["val"] = ival
 			_update_counter(counter_box, ival)
-			counter_box.position.x = overlay.size.x * 0.5 - counter_box.size.x * 0.5
-			counter_box.position.y = counter_top
 	, 0.0, float(amount), COUNTER_DURATION) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	counter_tw.tween_callback(func() -> void:
 		_update_counter(counter_box, amount)
-		counter_box.position = Vector2(
-			overlay.size.x * 0.5 - counter_box.size.x * 0.5,
-			counter_top,
-		)
 		_tap_ready = true
 	)
 
@@ -198,6 +197,7 @@ func _dismiss() -> void:
 	var ov := _overlay
 	_overlay = null
 	_tap_ready = false
+	_counter_slots.clear()  # slots will be freed with the overlay subtree
 	var tw := ov.create_tween()
 	tw.tween_property(ov, "modulate:a", 0.0, 0.3)
 	tw.tween_callback(ov.queue_free)
@@ -207,11 +207,11 @@ func _load_glyphs() -> void:
 	if not _glyphs.is_empty():
 		return
 	var names := {
-		"0": "glyph_0.svg", "1": "glyph_1.svg", "2": "glyph_2.svg",
-		"3": "glyph_3.svg", "4": "glyph_4.svg", "5": "glyph_5.svg",
-		"6": "glyph_6.svg", "7": "glyph_7.svg", "8": "glyph_8.svg",
-		"9": "glyph_9.svg", ",": "glyph_comma.svg", ".": "glyph_dot.svg",
-		"chip": "glyph_chip.svg", "K": "glyph_K.svg", "M": "glyph_M.svg",
+		"0": "glyph_0.png", "1": "glyph_1.png", "2": "glyph_2.png",
+		"3": "glyph_3.png", "4": "glyph_4.png", "5": "glyph_5.png",
+		"6": "glyph_6.png", "7": "glyph_7.png", "8": "glyph_8.png",
+		"9": "glyph_9.png", ",": "glyph_comma.png", ".": "glyph_dot.png",
+		"chip": "glyph_chip.png", "K": "glyph_K.png", "M": "glyph_M.png",
 	}
 	for key in names:
 		var path: String = GLYPH_PATH + names[key]
@@ -219,32 +219,79 @@ func _load_glyphs() -> void:
 			_glyphs[key] = load(path)
 
 
-func _update_counter(box: HBoxContainer, value: int) -> void:
+## Odometer-style counter. All slots are the same width (monospaced glyphs)
+## and always contribute to HBox layout — unused slots use modulate.a = 0 so
+## they still reserve space but don't render. Result: visible digits never
+## move during the increment tween.
+var _counter_slots: Array = []
+## Number of slots = 1 (chip) + final formatted char count. Set once in show_win.
+var _counter_total_slots: int = 0
+## Pixel width of each slot (monospaced).
+var _counter_slot_w: int = 0
+
+
+## Initialise the slot pool for a specific max-value string. Call once before
+## starting the increment tween. Builds N+1 equal-width slots in the HBox.
+func _init_counter_slots(box: HBoxContainer, max_value: int) -> void:
+	# Drop any stale refs from a previous overlay.
+	_counter_slots.clear()
 	for child in box.get_children():
 		box.remove_child(child)
-		child.free()
-	var text := SaveManager.format_money(value)
-	_add_glyph(box, "chip")
-	for ch in text:
-		if ch in _glyphs:
-			_add_glyph(box, ch)
+		child.queue_free()
 
-
-func _add_glyph(box: HBoxContainer, key: String) -> void:
-	if key not in _glyphs:
-		return
-	var tex: Texture2D = _glyphs[key]
-	var aspect: float = tex.get_width() / maxf(tex.get_height(), 1.0)
+	var final_text := SaveManager.format_money(max_value)
+	_counter_total_slots = 1 + final_text.length()  # +1 for chip prefix
 	var h: int = COUNTER_HEIGHT
-	var w: int = int(ceili(h * aspect))
-	var tr := TextureRect.new()
-	tr.texture = tex
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	tr.custom_minimum_size = Vector2(w, h)
-	tr.modulate = Color(1, 0.95, 0.25, 1)
-	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(tr)
+	# Use the digit "0" glyph to define the slot width (monospaced digits).
+	var ref_tex: Texture2D = _glyphs.get("0", null)
+	if ref_tex:
+		var aspect: float = ref_tex.get_width() / maxf(ref_tex.get_height(), 1.0)
+		_counter_slot_w = int(ceili(h * aspect))
+	else:
+		_counter_slot_w = h
+	for i in _counter_total_slots:
+		var tr := TextureRect.new()
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.modulate = Color(1, 0.95, 0.25, 0.0)  # hidden by default
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.custom_minimum_size = Vector2(_counter_slot_w, h)
+		box.add_child(tr)
+		_counter_slots.append(tr)
+
+
+func _update_counter(box: HBoxContainer, value: int) -> void:
+	# If slots aren't built yet (defensive), build now using the current value.
+	if _counter_slots.is_empty():
+		_init_counter_slots(box, value)
+
+	var visible_color := Color(1, 0.95, 0.25, 1)
+	var hidden_color := Color(1, 0.95, 0.25, 0.0)
+	var text := SaveManager.format_money(value)
+	# Slot 0 = chip (always visible). Slots 1..N — right-aligned digits.
+	# Leading slots stay hidden to keep the number right-justified against
+	# the final width, so already-visible digits don't shift as the value
+	# gains more characters.
+	var digit_slots: int = _counter_total_slots - 1
+	var pad: int = digit_slots - text.length()
+	for i in _counter_slots.size():
+		var tr: TextureRect = _counter_slots[i]
+		if not is_instance_valid(tr):
+			continue
+		if i == 0:
+			tr.texture = _glyphs.get("chip", null)
+			tr.modulate = visible_color
+			continue
+		var text_idx: int = (i - 1) - pad
+		if text_idx < 0 or text_idx >= text.length():
+			tr.modulate = hidden_color
+			continue
+		var ch: String = text[text_idx]
+		if ch in _glyphs:
+			tr.texture = _glyphs[ch]
+			tr.modulate = visible_color
+		else:
+			tr.modulate = hidden_color
 
 
 func _spawn_coin_rain(layer: Control) -> void:
@@ -302,12 +349,14 @@ func _spawn_single_coin(layer: Control) -> void:
 	if chip_tex == null:
 		return
 	var tr := TextureRect.new()
+	# IMPORTANT: set expand_mode BEFORE size — default EXPAND_KEEP_SIZE uses
+	# the texture's native size as the min size, clamping any smaller size up.
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tr.texture = chip_tex
 	var sz: int = randi_range(48, 96)
 	tr.custom_minimum_size = Vector2(sz, sz)
 	tr.size = Vector2(sz, sz)
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tr.modulate = Color(1, 0.95, 0.3, 1)
 	tr.pivot_offset = Vector2(sz, sz) * 0.5

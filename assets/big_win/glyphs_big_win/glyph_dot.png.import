@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://3om3i4i6oog2"
-path="res://.godot/imported/glyph_3.svg-edc676d5dddfa64a2e0001f413c6420c.ctex"
+uid="uid://cff27vachgdlt"
+path="res://.godot/imported/glyph_dot.png-03971f8e56b23f79c7a47b104c67abe5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/big_win/glyphs_big_win/glyph_3.svg"
-dest_files=["res://.godot/imported/glyph_3.svg-edc676d5dddfa64a2e0001f413c6420c.ctex"]
+source_file="res://assets/big_win/glyphs_big_win/glyph_dot.png"
+dest_files=["res://.godot/imported/glyph_dot.png-03971f8e56b23f79c7a47b104c67abe5.ctex"]
 
 [params]
 
@@ -38,6 +38,3 @@ process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1
-svg/scale=4.0
-editor/scale_with_editor_scale=false
-editor/convert_colors_with_editor_theme=false
