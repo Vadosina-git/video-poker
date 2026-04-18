@@ -27,6 +27,7 @@ SoundManager="*res://scripts/sound_manager.gd"
 Translations="*res://scripts/translations.gd"
 ConfigManager="*res://scripts/config_manager.gd"
 VibrationManager="*res://scripts/vibration_manager.gd"
+BigWinOverlay="*res://scripts/big_win_overlay.gd"
 
 [display]
 

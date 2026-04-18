@@ -1187,6 +1187,8 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 		_highlight_all_winning()
 		if _winning_lines.size() > 0:
 			_start_win_cycle()
+		# BIG WIN / HUGE WIN overlay — normalize against total bet (all lines).
+		BigWinOverlay.show_if_qualifies(self, total_payout, _manager.get_total_bet())
 	else:
 		_last_total_payout = 0
 		_set_win_dimmed()

@@ -7,5 +7,10 @@
     "ten_play": {"denominations": [1, 2, 5, 10, 25, 50, 100, 1000000], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 2000},
     "ultra_vp": {"denominations": [1, 2, 5, 10, 25, 50, 100, 1000000], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 800},
     "spin_poker": {"denominations": [1, 2, 5, 10], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 1000}
+  },
+  "big_win_thresholds": {
+    "_comment": "Bet-normalized multiplier = payout / bet. BIG WIN fires when multiplier is in [big_win.min, big_win.max]. HUGE WIN fires at or above huge_win.min.",
+    "big_win": {"min": 4, "max": 7},
+    "huge_win": {"min": 8}
   }
 }

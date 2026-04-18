@@ -855,6 +855,8 @@ func refresh_credits() -> void:
 
 var _settings_btn: BaseButton
 var _settings_overlay: Control = null
+var _settings_panel: Control = null
+var _settings_dim: ColorRect = null
 
 func _build_settings_button() -> void:
 	var tex_btn := TextureButton.new()
@@ -889,6 +891,7 @@ func _show_settings() -> void:
 			_hide_settings()
 	)
 	_settings_overlay.add_child(dim)
+	_settings_dim = dim
 
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
@@ -905,6 +908,7 @@ func _show_settings() -> void:
 	pstyle.content_margin_bottom = 24
 	panel.add_theme_stylebox_override("panel", pstyle)
 	_settings_overlay.add_child(panel)
+	_settings_panel = panel
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 16)
@@ -1141,6 +1145,8 @@ func _hide_settings() -> void:
 	if _settings_overlay:
 		_settings_overlay.queue_free()
 		_settings_overlay = null
+		_settings_panel = null
+		_settings_dim = null
 
 
 # --- Language picker (sub-popup of settings) ---
@@ -2253,8 +2259,17 @@ func _hide_shop() -> void:
 			_inertia_tween.kill()
 		_drag_active = false
 		_overscroll = 0.0
-		_shop_overlay.queue_free()
+		# Mirror of the open animation: fade + scale-down + slide-down.
+		var ov := _shop_overlay
 		_shop_overlay = null
+		ov.pivot_offset = Vector2(get_viewport_rect().size.x * 0.5, get_viewport_rect().size.y)
+		var outro := ov.create_tween().set_parallel(true)
+		outro.tween_property(ov, "modulate:a", 0.0, 0.14)
+		outro.tween_property(ov, "scale", Vector2(0.95, 0.95), 0.17) \
+			.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+		outro.tween_property(ov, "position:y", 40.0, 0.15) \
+			.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_CUBIC)
+		outro.chain().tween_callback(ov.queue_free)
 	_shop_cash_cd = {}
 	_shop_cash_pill = null
 	_shop_gift_widget = null

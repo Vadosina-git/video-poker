@@ -127,6 +127,32 @@ func _ready() -> void:
 	_set_status(Translations.tr_key("game.place_your_bet"))
 	_start_idle_blink_timer()
 
+	# TEMP DEBUG: test button for screen gold flash (anim 3.3)
+	_add_debug_flash_button()
+
+
+# TEMP DEBUG — remove after anim 3.3 review
+func _add_debug_flash_button() -> void:
+	var big_btn := Button.new()
+	big_btn.text = "BIG WIN"
+	big_btn.add_theme_font_size_override("font_size", 16)
+	big_btn.custom_minimum_size = Vector2(110, 44)
+	big_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	big_btn.position = Vector2(16, 120)
+	big_btn.z_index = 500
+	add_child(big_btn)
+	big_btn.pressed.connect(func() -> void: BigWinOverlay.show_win(self, 12_000_000_000, "big"))
+
+	var huge_btn := Button.new()
+	huge_btn.text = "HUGE WIN"
+	huge_btn.add_theme_font_size_override("font_size", 16)
+	huge_btn.custom_minimum_size = Vector2(110, 44)
+	huge_btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	huge_btn.position = Vector2(16, 172)
+	huge_btn.z_index = 500
+	add_child(huge_btn)
+	huge_btn.pressed.connect(func() -> void: BigWinOverlay.show_win(self, 12_000_000_000, "huge"))
+
 
 
 func _apply_theme() -> void:
@@ -799,6 +825,9 @@ func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
 		_paytable_display.flash_winning_row()
 		# anim 5.1: win celebration — screen-edge gold glow + confetti burst
 		_celebrate_win(payout)
+		# anim 3.3: BIG WIN / HUGE WIN overlay if payout/bet qualifies.
+		var total_bet: int = _game_manager.bet * SaveManager.denomination
+		BigWinOverlay.show_if_qualifies(self, payout, total_bet)
 	else:
 		_paytable_display.clear_winning_row()
 		_set_status(Translations.tr_key("game.no_win"))

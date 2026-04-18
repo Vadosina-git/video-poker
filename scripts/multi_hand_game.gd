@@ -1306,6 +1306,10 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 	if total_payout > 0:
 		VibrationManager.vibrate("win_small")
 		_set_win_active(total_payout)
+		# BIG WIN / HUGE WIN overlay. total_bet already accounts for Ultra VP
+		# (bet=10 at MAX under Ultra VP already represents the doubled cost).
+		var total_bet: int = _manager.bet * _num_hands * SaveManager.denomination
+		BigWinOverlay.show_if_qualifies(self, total_payout, total_bet)
 	else:
 		_last_win_amount = 0
 		_win_label.text = Translations.tr_key("game.win_label")
