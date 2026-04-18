@@ -193,6 +193,83 @@ func _ready() -> void:
 		_update_multiplier_labels()
 		_update_info_card_status()
 
+	_play_entrance_animation()
+
+
+func _play_entrance_animation() -> void:
+	# Hide sections SYNCHRONOUSLY before the first frame renders to avoid a
+	# flash of the default layout before the slide-in starts.
+	var title_bar: Control = get_node_or_null("VBoxContainer/TitleBar") as Control
+	var top_nodes: Array[Control] = []
+	if is_instance_valid(title_bar):
+		top_nodes.append(title_bar)
+	if is_instance_valid(_hands_area):
+		top_nodes.append(_hands_area)
+	var bottom_nodes: Array[Control] = []
+	if is_instance_valid(_bottom_section):
+		bottom_nodes.append(_bottom_section)
+	# Paytable side badges — they live at the root and are positioned by
+	# _position_badges (deferred). Animate them in from above alongside the
+	# hands area so they don't pop in suddenly after the slide finishes.
+	var badge_nodes: Array[Control] = []
+	if is_instance_valid(_left_badges):
+		badge_nodes.append(_left_badges)
+	if is_instance_valid(_right_badges):
+		badge_nodes.append(_right_badges)
+	for n in top_nodes + bottom_nodes + badge_nodes:
+		n.modulate.a = 0.0
+	# Extra frames so _position_badges (which awaits 2 frames) finishes and
+	# the badges' real positions are captured by the animation.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var vp_h: float = get_viewport_rect().size.y
+	var slide: float = vp_h * 0.6
+	var dur: float = 0.6
+	var overshoot_px: float = 9.0
+	for n in top_nodes:
+		if not is_instance_valid(n):
+			continue
+		var base_y: float = n.position.y
+		n.position.y = base_y - slide
+		n.modulate.a = 1.0
+		_tween_mh_section_bounce(n, base_y, overshoot_px, dur, 0.0)
+	for n in bottom_nodes:
+		if not is_instance_valid(n):
+			continue
+		var base_y: float = n.position.y
+		n.position.y = base_y + slide
+		n.modulate.a = 1.0
+		_tween_mh_section_bounce(n, base_y, -overshoot_px, dur, 0.0)
+	# Badges fly in with a short delay after the main sections land, using
+	# the same bounce profile (independent tween per column).
+	var badge_delay: float = 0.18
+	for n in badge_nodes:
+		if not is_instance_valid(n):
+			continue
+		var base_y: float = n.position.y
+		n.position.y = base_y - slide
+		n.visible = true
+		# Keep alpha at 0 during the delay so they don't flash at offset y;
+		# flip to 1 just before the tween starts via the helper.
+		_tween_mh_section_bounce(n, base_y, overshoot_px, dur, badge_delay)
+
+
+func _tween_mh_section_bounce(section: Control, target_y: float, overshoot: float, dur: float, delay: float = 0.0) -> void:
+	var tw := section.create_tween()
+	if delay > 0.0:
+		tw.tween_interval(delay)
+		# Turn alpha on at the moment the slide starts (keeps badges invisible
+		# while waiting so they don't flash at the offset y).
+		tw.tween_callback(func() -> void:
+			if is_instance_valid(section):
+				section.modulate.a = 1.0
+		)
+	tw.tween_property(section, "position:y", target_y + overshoot, dur * 0.82) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(section, "position:y", target_y, dur * 0.18) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+
 
 func _setup_background() -> void:
 	var bg: Control = %Background

@@ -130,6 +130,51 @@ func _ready() -> void:
 	# TEMP DEBUG: test button for screen gold flash (anim 3.3)
 	_add_debug_flash_button()
 
+	# Scene entrance animation: top sections slide in from above, bottom
+	# controls slide up from below.
+	_play_entrance_animation()
+
+
+func _play_entrance_animation() -> void:
+	# Hide the sections SYNCHRONOUSLY before the first frame renders — otherwise
+	# the table flashes in its default layout before the animation kicks in.
+	_top_section.modulate.a = 0.0
+	_middle_section.modulate.a = 0.0
+	_bottom_section.modulate.a = 0.0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_instance_valid(_top_section) or not is_instance_valid(_bottom_section):
+		return
+	var vp_h: float = get_viewport_rect().size.y
+	var top_base_y: float = _top_section.position.y
+	var middle_base_y: float = _middle_section.position.y
+	var bottom_base_y: float = _bottom_section.position.y
+	var slide_up: float = vp_h * 0.6
+	var slide_down: float = vp_h * 0.6
+	_top_section.position.y = top_base_y - slide_up
+	_middle_section.position.y = middle_base_y - slide_up
+	_bottom_section.position.y = bottom_base_y + slide_down
+	# Now reveal — positions are already offset, so reveal happens at the
+	# pre-animation pose, not at the final layout.
+	_top_section.modulate.a = 1.0
+	_middle_section.modulate.a = 1.0
+	_bottom_section.modulate.a = 1.0
+	var dur: float = 0.6
+	# Manual two-phase bounce: slide past target by a small overshoot, then
+	# settle. Overshoot reduced further per user feedback.
+	var overshoot_px: float = 9.0
+	_tween_section_bounce(_top_section, top_base_y, overshoot_px, dur)
+	_tween_section_bounce(_middle_section, middle_base_y, overshoot_px, dur)
+	_tween_section_bounce(_bottom_section, bottom_base_y, -overshoot_px, dur)
+
+
+func _tween_section_bounce(section: Control, target_y: float, overshoot: float, dur: float) -> void:
+	var tw := section.create_tween()
+	tw.tween_property(section, "position:y", target_y + overshoot, dur * 0.82) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(section, "position:y", target_y, dur * 0.18) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+
 
 # TEMP DEBUG — remove after anim 3.3 review
 func _add_debug_flash_button() -> void:

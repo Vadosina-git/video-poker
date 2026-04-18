@@ -7,7 +7,7 @@ var _current_scene: Control = null
 var _paytables: Dictionary = {}
 var _loader_active: bool = false
 
-const LOADER_DURATION := 3.0
+const LOADER_DURATION := 2.0
 
 
 func _ready() -> void:
@@ -32,7 +32,7 @@ func _show_lobby() -> void:
 func _fade_in_scene(scene: Control) -> void:
 	scene.modulate.a = 0.0
 	var tw := scene.create_tween()
-	tw.tween_property(scene, "modulate:a", 1.0, 0.22).set_ease(Tween.EASE_OUT)
+	tw.tween_property(scene, "modulate:a", 1.0, 0.33).set_ease(Tween.EASE_OUT)
 
 
 func _on_machine_selected(variant_id: String) -> void:
@@ -43,14 +43,14 @@ func _on_machine_selected(variant_id: String) -> void:
 	add_child(loader)
 	# Fade loader in
 	loader.modulate.a = 0.0
-	loader.create_tween().tween_property(loader, "modulate:a", 1.0, 0.18)
+	loader.create_tween().tween_property(loader, "modulate:a", 1.0, 0.27)
 	await get_tree().create_timer(LOADER_DURATION).timeout
 	_loader_active = false
 	# Load the target scene BEFORE fading out the loader so we don't flash
 	_load_game_scene(variant_id)
 	if is_instance_valid(loader):
 		var fade := loader.create_tween()
-		fade.tween_property(loader, "modulate:a", 0.0, 0.28).set_ease(Tween.EASE_IN)
+		fade.tween_property(loader, "modulate:a", 0.0, 0.42).set_ease(Tween.EASE_IN)
 		fade.tween_callback(loader.queue_free)
 
 
@@ -71,7 +71,9 @@ func _load_game_scene(variant_id: String) -> void:
 			_make_full_rect(spin_game)
 			_current_scene = spin_game
 			spin_game.back_to_lobby.connect(_show_lobby)
-			_fade_in_scene(spin_game)
+			# No fade-in — spin_poker handles its own reveal via the ready-cover
+			# overlay (otherwise the scene's fade makes everything translucent,
+			# including the cover, revealing the grid mid-setup).
 			return
 
 	if hand_count > 1 or ultra_vp:
