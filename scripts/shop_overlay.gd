@@ -159,6 +159,20 @@ func _build_overlay() -> void:
 		rate_hb.offset_top = -56
 		rate_hb.offset_bottom = -20
 
+	# "Restore Purchases" link, bottom-left (App Store review requires it).
+	var restore_btn := Button.new()
+	restore_btn.text = Translations.tr_key("shop.restore")
+	restore_btn.flat = true
+	restore_btn.add_theme_font_size_override("font_size", 14)
+	restore_btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
+	restore_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	restore_btn.pressed.connect(func() -> void: IapManager.restore_purchases())
+	_overlay.add_child(restore_btn)
+	restore_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	restore_btn.offset_left = 24
+	restore_btn.offset_top = -44
+	restore_btn.offset_bottom = -20
+
 	# Gift widget at bottom-right.
 	var gift := _build_gift_widget()
 	_gift_widget = gift
@@ -433,9 +447,10 @@ func _build_pack_card(item: Dictionary) -> PanelContainer:
 		vb.add_child(extra)
 
 	var buy_btn := _build_buy_button()
+	var product_id: String = str(item.get("id", ""))
 	buy_btn.pressed.connect(func() -> void:
 		var spawn_pos: Vector2 = buy_btn.global_position + buy_btn.size * 0.5
-		_on_buy(total, spawn_pos)
+		_initiate_purchase(product_id, total, spawn_pos)
 	)
 	vb.add_child(buy_btn)
 
@@ -598,7 +613,31 @@ func _build_exchange_rate_row(coins_per_dollar: int) -> HBoxContainer:
 
 # --- Purchase / reward animations -------------------------------------------
 
+## Route "buy" button through IapManager. IapManager handles the actual chip
+## grant (stub or RevenueCat) and emits purchase_success — we listen for that
+## once-per-call and run the visual reward animations.
+func _initiate_purchase(product_id: String, expected_amount: int, from_pos: Vector2) -> void:
+	var old_credits: int = SaveManager.credits
+
+	# One-shot listener — disconnects itself after firing.
+	var on_success := func(pid: String, _chips: int) -> void:
+		if pid != product_id:
+			return
+		_spawn_confetti_burst(from_pos)
+		_spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
+	var on_failure := func(pid: String, err: String) -> void:
+		if pid != product_id:
+			return
+		push_warning("Shop: purchase %s failed: %s" % [pid, err])
+
+	IapManager.purchase_success.connect(on_success, CONNECT_ONE_SHOT)
+	IapManager.purchase_failed.connect(on_failure, CONNECT_ONE_SHOT)
+	IapManager.purchase(product_id)
+
+
 func _on_buy(amount: int, from_pos: Vector2) -> void:
+	# Legacy entry point — kept as a thin wrapper for non-shop callers
+	# (e.g. gift claim). Normal shop flow goes through _initiate_purchase.
 	var old_credits: int = SaveManager.credits
 	SaveManager.add_credits(amount)
 	SaveManager.save_game()

@@ -29,6 +29,7 @@ ConfigManager="*res://scripts/config_manager.gd"
 VibrationManager="*res://scripts/vibration_manager.gd"
 BigWinOverlay="*res://scripts/big_win_overlay.gd"
 ShopOverlay="*res://scripts/shop_overlay.gd"
+IapManager="*res://scripts/iap_manager.gd"
 
 [display]
 

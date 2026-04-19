@@ -21,6 +21,12 @@ build/
 .keystore.env
 .env
 
+# RevenueCat plugin binaries — 850MB+ of .xcframework + .aar.
+# Install locally via: ./scripts/install_revenuecat.sh
+/ios/plugins/revenue_cat/
+/android/revenue_cat/
+/.godot_cache/
+
 # macOS
 .DS_Store
 
