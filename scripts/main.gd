@@ -15,7 +15,55 @@ func _ready() -> void:
 	LobbyScene = load("res://scenes/lobby/lobby.tscn")
 	GameScene = load("res://scenes/game.tscn")
 	_paytables = Paytable.load_all()
+	await _show_splash()
 	_show_lobby()
+
+
+## Fake splash-screen loader shown for `splash_duration_sec` (configurable).
+## Extends Godot's native boot splash — same background color + spinner chip —
+## so the transition feels seamless for the player.
+func _show_splash() -> void:
+	var duration: float = float(ConfigManager.init_config.get("splash_duration_sec", 4.0))
+	if duration <= 0.0:
+		return
+
+	var splash := Control.new()
+	splash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	splash.z_index = 4096
+	add_child(splash)
+
+	var bg := ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.0, 0.0, 0.527, 1.0)
+	splash.add_child(bg)
+
+	# Logo image — same as boot_splash so transition is invisible.
+	var logo := TextureRect.new()
+	logo.texture = load("res://assets/textures/logo_splash.png")
+	logo.set_anchors_preset(Control.PRESET_CENTER)
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = Vector2(360, 360)
+	logo.size = Vector2(360, 360)
+	logo.pivot_offset = Vector2(180, 180)
+	logo.position = Vector2(-180, -260)
+	splash.add_child(logo)
+
+	# Spinning chip below the logo.
+	var spinner_wrap := CenterContainer.new()
+	spinner_wrap.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	spinner_wrap.offset_top = -180
+	spinner_wrap.offset_bottom = -40
+	splash.add_child(spinner_wrap)
+	var spinner := _create_spinner()
+	spinner_wrap.add_child(spinner)
+
+	await get_tree().create_timer(duration).timeout
+
+	var fade := splash.create_tween()
+	fade.tween_property(splash, "modulate:a", 0.0, 0.4).set_ease(Tween.EASE_IN)
+	fade.tween_callback(splash.queue_free)
+	await fade.finished
 
 
 func _show_lobby() -> void:

@@ -88,6 +88,7 @@ func _ready() -> void:
 	_build_settings_button()
 	_build_gift_widget()
 	_add_top_bar_padding()
+	AgeGate.show_if_needed(self)
 
 
 func _add_top_bar_padding() -> void:
@@ -954,6 +955,16 @@ func _show_settings() -> void:
 		_style_lang_btn(vib_btn, new_val)
 	)
 	vbox.add_child(vib_btn)
+
+	# Privacy policy — opens GitHub Pages page in system browser.
+	var privacy_btn := Button.new()
+	privacy_btn.text = Translations.tr_key("settings.privacy_policy")
+	privacy_btn.custom_minimum_size = Vector2(280, 56)
+	_style_lang_btn(privacy_btn, false)
+	privacy_btn.pressed.connect(func() -> void:
+		OS.shell_open("https://vadosina-git.github.io/privacy-policy/video-poker-privacy.html")
+	)
+	vbox.add_child(privacy_btn)
 
 	# Close button
 	var close_btn := Button.new()

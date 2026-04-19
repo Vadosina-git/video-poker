@@ -1,0 +1,203 @@
+# Morning Testing Instructions — release_01
+
+Доброе утро! Пока ты спал, я:
+1. Настроил релиз Android + iOS
+2. Провёл ревью кода + сторов + безопасности через параллельных агентов
+3. Пофиксил все критические issues
+4. Написал и прогнал unit tests
+5. Пересобрал APK/IPA со всеми фиксами
+
+---
+
+## 1. Критический bugfix в геймплее 🎰
+
+**Нашли через code review**: `DeucesAndJoker` при выпадении jackpot-руки (4 deuces + joker = 10,000 coins) при bet 1-4 платил **0**, а не fallback к Five of a Kind. Т.е. игрок получал джекпот но проигрывал ставку. Исправлено + покрыто тестом.
+
+- `scripts/variants/deuces_and_joker.gd`: `get_payout()` теперь при `_last_hand_key == "four_deuces_joker" and bet < 5` возвращает `_lookup_payout("five_of_a_kind", bet)`.
+
+---
+
+## 2. App Store / Google Play rejection risks
+
+Прогнал через агента общие причины отказов. Критические находки и фиксы:
+
+| Риск | Стор | Было | Стало |
+|---|---|---|---|
+| Android target SDK 34 | Google Play | `target_sdk=34` | **`target_sdk=35`** (обязательно с Aug 2025) |
+| Неиспользуемые permissions | Google Play | INTERNET + ACCESS_NETWORK_STATE | Удалены (не используются) |
+| Keystore password в git | Public repo | Был committed | **Убран из cfg → `.keystore.env` (gitignored)** |
+| Age gate отсутствует | Google Play (с Jan 2026) | Нет | **Added first-launch 18+ modal** |
+| Disclaimer entertainment-only | Apple 5.3 / IARC | Нет | **В age_gate modal + translations** |
+| Privacy manifest ИТMS-91053 | Apple | `UserDefaults` не задекларирован | **Добавлен в PrivacyInfo.xcprivacy** |
+| Shop "BUY" / "$" | Apple 3.1.1 | Title "GET CHIPS" | **"FREE CHIPS" + no prices displayed** |
+| Save file plaintext | User tampering | Plaintext JSON | **XOR obfuscation + plaintext migration** |
+| FileAccess crash | Stability | Null ref если open fails | **`if file == null: return`** |
+
+**Остаётся на тебе (не могу автоматизировать):**
+- Hosted privacy policy URL — надо опубликовать one-page на GitHub Pages или другом хостинге: "Этот app не собирает персональные данные. Прогресс хранится локально на устройстве, не передаётся."
+- App Store Connect: **Age Rating → "Frequent/Intense Simulated Gambling"** → 17+
+- Google Play Console: IARC questionnaire → YES на "simulated gambling" → 18+
+- App Privacy Details (Apple) → "Data Not Collected" для всех категорий
+- Play Data Safety → "no data collected / no data shared"
+- App Store Connect: создать app record с bundle `com.khralz.videopoker` под KHRALZ team
+
+---
+
+## 3. Unit tests
+
+Новая директория `tests/` с 3 тестовыми сьютами:
+- `tests/test_hand_evaluator.gd` — 19 тестов (royal/straight flush, four of a kind, low straight A-2-3-4-5, wheel SF, jacks-or-better, hold masks, edge cases)
+- `tests/test_deck.gd` — 10 тестов (52/53 cards, Fisher-Yates uniqueness, multihand replacement consistency)
+- `tests/test_deuces_and_joker.gd` — 11 тестов (jackpot at MAX_BET, **jackpot fallback at bet 1-4**, natural royal, wild royal, 5oak, 3oak min hand)
+
+**Запуск:**
+```bash
+./tests/run_all.sh
+```
+
+Все 40 тестов прошли ✓.
+
+---
+
+## 4. Release артефакты
+
+### Android
+- `build/video_poker_release.apk` (81MB, signed с upload keystore `/Users/vadimprokop/upload-keystore.jks`)
+- `build/video_poker_debug.apk` (87MB, debug keystore)
+- Signing verified: `Signer #1: CN=Ivan Al Zeidi, O=KHRALZ, SHA-256=03:21:61:7D:...`
+- Установлен на эмуляторе, проверен: лобби, age gate первого запуска, тап YES → лобби.
+
+**Сборка signed release APK:**
+```bash
+./scripts/build_android_release.sh  # читает .keystore.env
+```
+
+Скрипт инжектит пароль в `export_presets.cfg` только на время export и возвращает файл в исходное состояние (никаких секретов в коммитах).
+
+### iOS
+- `build/ios/VideoPoker.xcodeproj` — Xcode project, Team=`KQBUD75V9A` (KHRALZ), bundle=`com.khralz.videopoker`, iOS 15+
+- Info.plist: оба landscape (Left + Right) на iPhone и iPad
+- `PrivacyInfo.xcprivacy`: UserDefaults + FileTimestamp + SystemBootTime + DiskSpace задекларированы, tracking=false
+- `xcodebuild iphoneos Release` → **BUILD SUCCEEDED**
+
+**Пересборка iOS:**
+```bash
+rm -rf build/ios && mkdir -p build/ios
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/VideoPoker.xcodeproj
+./scripts/patch_ios_export.sh  # обязательно после каждого re-export!
+```
+
+Godot перезаписывает Info.plist и PrivacyInfo.xcprivacy на свои дефолты, скрипт `patch_ios_export.sh` возвращает наши App Store-ready версии.
+
+---
+
+## 5. Как запустить на устройствах
+
+### Android эмулятор
+
+```bash
+~/Library/Android/sdk/emulator/emulator -avd VideoPoker_API34 -gpu host &
+sleep 30
+export PATH="$HOME/Library/Android/sdk/platform-tools:$PATH"
+adb install -r "/Users/vadimprokop/Documents/Godot/video poker/build/video_poker_release.apk"
+adb shell monkey -p com.khralz.videopoker -c android.intent.category.LAUNCHER 1
+```
+
+При первом запуске после clean install увидишь **Age Confirmation dialog**: "Are you 18 years or older?" с YES/NO. YES сохраняет флаг, дальше приложение работает нормально.
+
+### iPhone через TestFlight (KHRALZ team)
+
+Предусловия (разово):
+1. В Xcode → Settings → Accounts добавить Apple ID с доступом к team `KQBUD75V9A`.
+2. App Store Connect (под KHRALZ) → New App с bundle `com.khralz.videopoker`, Name "Video Poker".
+3. Privacy policy URL — подготовить и прикрепить в App Store Connect (см. выше).
+4. Age Rating → 17+ через "Frequent/Intense Simulated Gambling".
+5. App Privacy → "Data Not Collected" по всем категориям.
+
+Upload:
+1. `open "/Users/vadimprokop/Documents/Godot/video poker/build/ios/VideoPoker.xcodeproj"`
+2. Target `Any iOS Device (arm64)`
+3. Product → **Archive** (5-10 мин)
+4. Organizer → Distribute App → App Store Connect → Upload
+5. Через 5-15 мин build появится в TestFlight → iOS Builds
+6. Пригласить себя как internal tester → принять приглашение на iPhone через TestFlight app
+
+### iPhone прямой Run (для быстрой проверки)
+1. Подключить iPhone по USB
+2. В Xcode выбрать iPhone как target
+3. `⌘R`
+
+Твой Apple ID должен быть в KHRALZ team с ролью Developer+ (попроси Ivan добавить если надо).
+
+---
+
+## 6. Что протестировать в первую очередь
+
+Когда игра запустится на реальных устройствах — golden path:
+
+| # | Сценарий | Ожидание |
+|---|---|---|
+| 1 | Первый запуск после clean install | Age confirmation modal появляется |
+| 2 | Тап YES I AM 18+ | Modal исчезает, показывается лобби |
+| 3 | Тап NO | App quits |
+| 4 | Перезапуск после YES | Modal не появляется (флаг сохранён) |
+| 5 | Лобби scroll + тап Jacks or Better | Переход в single-hand игру |
+| 6 | DEAL → HOLD → DRAW → Evaluation | Нормальный game loop |
+| 7 | Deuces and Joker Wild при bet=1, 4 deuces+joker | **10,000 coins? Нет! 9** (проверка критичного фикса) |
+| 8 | Deuces and Joker Wild при bet=5, 4 deuces+joker | **10,000 coins** (jackpot) |
+| 9 | Shop ⊕ | Title "FREE CHIPS" (раньше было GET CHIPS) |
+| 10 | Multi-hand (Triple/Five/Ten) | Играбельно, multi-hand evaluation корректен |
+| 11 | Ultra VP | Per-hand multipliers работают |
+| 12 | Spin Poker | 3×5 grid, shutters/reels |
+| 13 | BIG WIN / HUGE WIN | Автоматически при mult ≥ 4 |
+| 14 | Smooth orientation на iPhone notch/Dynamic Island | Safe area соблюдается |
+
+---
+
+## 7. Git state
+
+Ветка: `release_01` (форк от `main`).  
+Последний коммит: `6fd7568 release(android/ios): enable emulator rendering + Apple Team ID`
+
+Не закоммичено (за эту сессию):
+- `project.godot` — orientation=0, gl_compatibility
+- `export_presets.cfg` — team ID KQBUD75V9A, target_sdk=35, permissions cleanup, password removed
+- `.gitignore` — добавлены `.keystore.env`, `.env`
+- `data/translations.json` — age_gate + shop.title rename
+- `scripts/save_manager.gd` — null check + XOR obfuscation + age_gate_confirmed
+- `scripts/paytable.gd` — lazy autoload resolution
+- `scripts/lobby_manager.gd` — AgeGate.show_if_needed()
+- `scripts/age_gate.gd` — **новый файл**
+- `scripts/variants/deuces_and_joker.gd` — jackpot fallback fix
+- `scripts/build_android_release.sh` — **новый**
+- `scripts/patch_ios_export.sh` — **новый**
+- `tests/test_hand_evaluator.gd` — **новый**
+- `tests/test_deck.gd` — **новый**
+- `tests/test_deuces_and_joker.gd` — **новый**
+- `tests/run_all.sh` — **новый**
+- `docs/morning_testing_instructions.md` — **этот файл**
+
+Unignored local: `.keystore.env` (содержит пароль, локально) — gitignored.
+
+Когда одобришь изменения, скажи — закоммичу в `release_01`.
+
+---
+
+## 8. Что отложено / не сделано (требует твоего решения)
+
+1. **Privacy policy URL** — host one-page. Можно GitHub Pages в этом же репо.
+2. **App Store Connect app record** — нужен Ivan's account access.
+3. **Google Play Console**: target audience 18+, IARC, Data safety — заполняется через UI.
+4. **Real IAP integration** — если решите добавить. Сейчас shop показывает "FREE CHIPS", это должно пройти review как free-chip daily bonus.
+5. **Shop refactor** — текущий shop показывает packs 1-6 с разными количествами фишек и "FREE" кнопкой. Apple review может всё же зацепить за "pack" / "bonus %" формулировки, напоминающие IAP. Если хочешь — могу:
+   - Либо переименовать "pack" → "gift"
+   - Либо полностью убрать shop из v1 до момента настоящей IAP интеграции
+
+---
+
+## 9. Потенциальные проблемы
+
+- **Эмулятор чёрный экран** — убедись что запущен с `-gpu host`, не `swiftshader_indirect`.
+- **Провал tap на YES в age gate** — кнопка маленькая (160x50), на 2340x1080 landscape центрируется. Physical tap должен попадать в центр ~(2087, 992) на чистом landscape.
+- **«Untrusted developer» на iPhone** — Settings → General → VPN & Device Management → Trust.
+- **iOS provisioning profile fails** — Ivan должен пригласить тебя в KHRALZ team с Developer+ role.

@@ -2,12 +2,8 @@ class_name DeucesAndJoker
 extends BaseVariant
 ## Deuces and Joker Wild: 53-card deck with 5 wild cards (4 deuces + 1 Joker).
 ## Minimum qualifying hand: Three of a Kind.
-##
-## TODO: Joker support requires a 53-card deck. The current Deck class only
-## builds 52 cards and does not include a Joker card. Once Deck and CardData
-## are extended to support Joker cards, update this variant to treat the Joker
-## as a fifth wild alongside the four deuces. For now, only deuces are wild
-## (using the same algorithm as DeucesWild) as a placeholder.
+## "four_deuces_joker" (all 5 wilds) jackpot pays 10,000 only at MAX_BET=5;
+## at bets 1-4 it falls back to Five of a Kind payout (see get_payout).
 
 var _last_hand: Array[CardData] = []
 var _last_hand_key: String = ""
@@ -47,6 +43,10 @@ func evaluate(hand: Array[CardData]) -> HandEvaluator.HandRank:
 
 
 func get_payout(hand_rank: HandEvaluator.HandRank, bet: int) -> int:
+	# Jackpot hand (all 5 wilds) pays 10,000 only at MAX_BET=5.
+	# At bet 1-4 it falls back to five_of_a_kind payout.
+	if _last_hand_key == "four_deuces_joker" and bet < 5:
+		return _lookup_payout("five_of_a_kind", bet)
 	return _lookup_payout(_last_hand_key, bet)
 
 
@@ -85,10 +85,6 @@ func get_hold_mask(hand: Array[CardData], hand_rank: HandEvaluator.HandRank) -> 
 	return mask
 
 
-## Wild card evaluation treating deuces as wild.
-## TODO: Once Joker is added to the deck, also treat the Joker card as wild
-## here. The "four_deuces_joker" hand (all 4 deuces + joker) will only be
-## possible once the Joker exists in the deck.
 func _evaluate_wild(hand: Array[CardData]) -> String:
 	var wilds: int = 0
 	var non_wild_ranks: Array[int] = []

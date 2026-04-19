@@ -15,6 +15,7 @@ var depth_hint_shown: bool = false  # True once the game depth tooltip has been 
 var last_gift_time: int = 0         # Unix timestamp of last gift claim
 var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
 var language: String = "system"  # "system" | "en" | "ru" | "es"
+var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (see age_gate.gd)
 var settings := {
 	"sound_fx": true,
 	"music": true,
@@ -162,22 +163,53 @@ func save_game() -> void:
 		"last_gift_time": last_gift_time,
 		"ultra_multipliers": ultra_multipliers,
 		"language": language,
+		"age_gate_confirmed": age_gate_confirmed,
 		"settings": settings,
 	}
+	var json_text := JSON.stringify(data, "\t")
+	var obfuscated := _obfuscate(json_text)
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	file.store_string(JSON.stringify(data, "\t"))
+	if file == null:
+		push_warning("save_game: failed to open %s for writing" % SAVE_PATH)
+		return
+	file.store_buffer(obfuscated)
 	file.close()
+
+
+const _OBFUSCATION_KEY := 0x5A
+
+
+func _obfuscate(text: String) -> PackedByteArray:
+	var bytes := text.to_utf8_buffer()
+	for i in bytes.size():
+		bytes[i] = bytes[i] ^ _OBFUSCATION_KEY
+	return bytes
+
+
+func _deobfuscate(bytes: PackedByteArray) -> String:
+	var out := bytes.duplicate()
+	for i in out.size():
+		out[i] = out[i] ^ _OBFUSCATION_KEY
+	return out.get_string_from_utf8()
 
 
 func load_game() -> void:
 	if not FileAccess.file_exists(SAVE_PATH):
 		return
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
-	var json_text := file.get_as_text()
+	if file == null:
+		push_warning("load_game: failed to open %s" % SAVE_PATH)
+		return
+	var bytes := file.get_buffer(file.get_length())
 	file.close()
+	# Try obfuscated format first; if that fails, try plaintext (legacy migration).
+	var json_text := _deobfuscate(bytes)
 	var json := JSON.new()
 	if json.parse(json_text) != OK:
-		return
+		# Fallback for existing plaintext save files created before obfuscation.
+		json_text = bytes.get_string_from_utf8()
+		if json.parse(json_text) != OK:
+			return
 	var data: Dictionary = json.data
 	credits = int(data.get("credits", DEFAULT_CREDITS))
 	denomination = int(data.get("denomination", 1))
@@ -195,6 +227,7 @@ func load_game() -> void:
 	last_gift_time = int(data.get("last_gift_time", 0))
 	ultra_multipliers = data.get("ultra_multipliers", {})
 	language = String(data.get("language", "system"))
+	age_gate_confirmed = bool(data.get("age_gate_confirmed", false))
 	var saved_settings: Dictionary = data.get("settings", {})
 	for key in saved_settings:
 		if key in settings:

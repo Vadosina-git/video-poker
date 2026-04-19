@@ -22,8 +22,11 @@ const STANDARD_HAND_KEYS := {
 
 
 static func load_all() -> Dictionary:
-	# Primary: read from ConfigManager (configs/machines.json)
-	var machines_data: Dictionary = ConfigManager.machines.get("machines", {})
+	# Primary: read from ConfigManager (configs/machines.json).
+	# Resolved lazily so headless unit-test scripts (which don't load autoloads)
+	# can preload this class without hitting an "Identifier not found" error.
+	var cm: Node = Engine.get_main_loop().root.get_node_or_null("/root/ConfigManager")
+	var machines_data: Dictionary = cm.machines.get("machines", {}) if cm else {}
 	if machines_data.size() > 0:
 		return _load_from_machines(machines_data)
 	# Fallback: read from legacy data/paytables.json
@@ -57,7 +60,8 @@ static func _load_from_machines(machines_data: Dictionary) -> Dictionary:
 		pt.variant_id = vid
 		# Name from localization, fallback to id
 		var label_key: String = m.get("label_key", "machine." + vid)
-		var translated: String = Translations.tr_key(label_key)
+		var tr: Node = Engine.get_main_loop().root.get_node_or_null("/root/Translations")
+		var translated: String = tr.tr_key(label_key) if tr else label_key
 		pt.name = translated if translated != label_key else vid.replace("_", " ").capitalize()
 		pt.deck_size = int(m.get("deck_size", 52))
 		pt.rtp = 0.0
@@ -101,7 +105,9 @@ func get_hand_display_name(hand_key: String) -> String:
 	## Localized display name for a paytable key. Falls back to the key itself
 	## (uppercased, underscores stripped) if no translation exists yet.
 	var key := "hand." + hand_key
-	var translated := Translations.tr_key(key)
-	if translated != key:
-		return translated
+	var tr: Node = Engine.get_main_loop().root.get_node_or_null("/root/Translations")
+	if tr:
+		var translated: String = tr.tr_key(key)
+		if translated != key:
+			return translated
 	return hand_key.replace("_", " ").to_upper()

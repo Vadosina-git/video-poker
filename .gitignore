@@ -18,6 +18,8 @@ build/
 # Keystore (SECRETS — never commit!)
 *.keystore
 *.jks
+.keystore.env
+.env
 
 # macOS
 .DS_Store
