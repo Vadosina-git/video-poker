@@ -8,5 +8,5 @@
   "default_locale": "en",
   "tutorial_enabled": true,
   "first_gift_delay_hours": 0,
-  "splash_duration_sec": 4.0
+  "splash_duration_sec": 0
 }

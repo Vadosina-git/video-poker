@@ -13,6 +13,7 @@ var ultra_vp: bool = false  # Ultra VP mode flag
 var spin_poker: bool = false   # Spin Poker mode flag
 var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
 var last_gift_time: int = 0         # Unix timestamp of last gift claim
+var pack_claim_times: Dictionary = {}  # product_id → unix ts of last free-timed pack claim
 var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
 var language: String = "system"  # "system" | "en" | "ru" | "es"
 var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (see age_gate.gd)
@@ -161,6 +162,7 @@ func save_game() -> void:
 		"spin_poker": spin_poker,
 		"depth_hint_shown": depth_hint_shown,
 		"last_gift_time": last_gift_time,
+		"pack_claim_times": pack_claim_times,
 		"ultra_multipliers": ultra_multipliers,
 		"language": language,
 		"age_gate_confirmed": age_gate_confirmed,
@@ -225,6 +227,10 @@ func load_game() -> void:
 	spin_poker = bool(data.get("spin_poker", false))
 	depth_hint_shown = bool(data.get("depth_hint_shown", false))
 	last_gift_time = int(data.get("last_gift_time", 0))
+	var saved_claims: Dictionary = data.get("pack_claim_times", {})
+	pack_claim_times.clear()
+	for key in saved_claims:
+		pack_claim_times[str(key)] = int(saved_claims[key])
 	ultra_multipliers = data.get("ultra_multipliers", {})
 	language = String(data.get("language", "system"))
 	age_gate_confirmed = bool(data.get("age_gate_confirmed", false))
@@ -246,6 +252,23 @@ func set_bet_level(mode_id: String, level: int) -> void:
 
 func add_credits(amount: int) -> void:
 	credits += amount
+	save_game()
+
+
+## Free-timed shop packs: returns remaining cooldown in seconds (0 if ready to claim).
+func get_pack_cooldown_remaining(product_id: String, cooldown_seconds: int) -> int:
+	if cooldown_seconds <= 0:
+		return 0
+	var last_claim: int = int(pack_claim_times.get(product_id, 0))
+	if last_claim == 0:
+		return 0
+	var now: int = int(Time.get_unix_time_from_system())
+	var remaining: int = cooldown_seconds - (now - last_claim)
+	return max(remaining, 0)
+
+
+func mark_pack_claimed(product_id: String) -> void:
+	pack_claim_times[product_id] = int(Time.get_unix_time_from_system())
 	save_game()
 
 

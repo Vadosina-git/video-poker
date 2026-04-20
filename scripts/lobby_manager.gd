@@ -256,11 +256,22 @@ func _build_sidebar() -> void:
 	_sidebar.custom_minimum_size.x = 253
 
 	# Find active mode from SaveManager (match hands + ultra_vp flag)
+	var found := false
 	for j in PLAY_MODES.size():
 		var m: Dictionary = PLAY_MODES[j]
 		if m["hands"] == SaveManager.hand_count and m["ultra_vp"] == SaveManager.ultra_vp and m.get("spin_poker", false) == SaveManager.spin_poker:
 			_active_mode = j
+			found = true
 			break
+	if not found and PLAY_MODES.size() > 0:
+		# Saved mode was disabled in config — sync SaveManager to the first
+		# enabled mode so machine routing doesn't leak stale flags (e.g. old
+		# spin_poker=true would otherwise launch spin_poker_game.tscn).
+		_active_mode = 0
+		SaveManager.hand_count = PLAY_MODES[0]["hands"]
+		SaveManager.ultra_vp = PLAY_MODES[0]["ultra_vp"]
+		SaveManager.spin_poker = PLAY_MODES[0].get("spin_poker", false)
+		SaveManager.save_game()
 
 	_sidebar_buttons.clear()
 	for i in PLAY_MODES.size():

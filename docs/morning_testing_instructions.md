@@ -118,9 +118,12 @@ Upload:
 1. `open "/Users/vadimprokop/Documents/Godot/video poker/build/ios/VideoPoker.xcodeproj"`
 2. Target `Any iOS Device (arm64)`
 3. Product → **Archive** (5-10 мин)
-4. Organizer → Distribute App → App Store Connect → Upload
-5. Через 5-15 мин build появится в TestFlight → iOS Builds
-6. Пригласить себя как internal tester → принять приглашение на iPhone через TestFlight app
+4. Organizer → Distribute App → App Store Connect → **Export** (не Upload) → `build/ios/export/VideoPoker.ipa`
+5. `./scripts/upload_testflight.sh` — закидывает .ipa через ASC API key (см. §11).
+6. Через 5-15 мин build появится в TestFlight → iOS Builds
+7. Пригласить internal tester'ов (emails в §11) → они принимают приглашение в TestFlight app
+
+Альтернатива шагам 4-5: Organizer → Distribute App → Upload (как раньше, через UI).
 
 ### iPhone прямой Run (для быстрой проверки)
 1. Подключить iPhone по USB
@@ -254,3 +257,67 @@ Shop теперь маршрутизирует "FREE" кнопку через `I
 - **Провал tap на YES в age gate** — кнопка маленькая (160x50), на 2340x1080 landscape центрируется. Physical tap должен попадать в центр ~(2087, 992) на чистом landscape.
 - **«Untrusted developer» на iPhone** — Settings → General → VPN & Device Management → Trust.
 - **iOS provisioning profile fails** — Ivan должен пригласить тебя в KHRALZ team с Developer+ role.
+
+---
+
+## 11. App Store Connect API + TestFlight / Sandbox (общие аккаунты KHRALZ)
+
+Данные взяты из общего справочника `SHARED_ACCOUNTS_REFERENCE.md`. Работают для любого app на Team `KQBUD75V9A`.
+
+### API key (автоматизация загрузок в TestFlight)
+
+Уже на машине:
+- `~/.appstoreconnect/private_keys/AuthKey_X5959253U4.p8` (основной ASC API key, права `600`)
+- `~/.appstoreconnect/private_keys/AuthKey_XL7R7TRL5N.p8` (In-App Purchase / Subscription key)
+
+Переменные — в `.appstore.env` (gitignored). Шаблон — `.appstore.env.example`.
+Скрипт загрузки — `scripts/upload_testflight.sh`.
+
+```bash
+./scripts/upload_testflight.sh build/ios/export/VideoPoker.ipa
+# Использует xcrun altool + ASC API key, не требует пароля/2FA.
+```
+
+Про патч iOS-экспорта: `scripts/patch_ios_export.sh` теперь также проставляет
+`ITSAppUsesNonExemptEncryption = false` (убирает export-compliance prompt)
+и `TARGETED_DEVICE_FAMILY = "1"` (iPhone only — iPad layout не готов).
+
+### Sandbox IAP тестер (один на все apps team KQBUD75V9A)
+
+Email: `vakhrustalev+sandbox@gmail.com` (страна — США).
+**Пароль — в `.appstore.env` → `APP_STORE_SANDBOX_PASSWORD`** (gitignored, не в публичном репо).
+
+Добавляется в App Store Connect → Users and Access → Sandbox Testers (добавлен заранее — переиспользуем).
+На iPhone: выйти из prod Apple ID в Settings → Media & Purchases → Sign Out → запустить app из TestFlight → при попытке покупки iOS предложит sandbox login.
+
+### TestFlight internal testers
+
+Раз создана запись в App Store Connect, пригласить:
+
+| Email | Кто |
+|-------|-----|
+| `alzeydi@gmail.com` | Иван (владелец dev-аккаунта) |
+| `ardnaskela91@mail.ru` | Александра |
+| `vadimprokop12@gmail.com` | Вадим (Admin) |
+
+Внутренние тестеры не требуют Beta Review — билд доступен сразу после обработки.
+
+### App Store Connect app record — когда создавать
+
+| Параметр | Значение |
+|----------|----------|
+| Name | `Video Poker` |
+| Bundle ID | `com.khralz.videopoker` |
+| SKU | `videopoker-classic-001` (любой уникальный) |
+| Primary language | English (U.S.) |
+| Platforms | iOS |
+| Team | KHRALZ (`KQBUD75V9A`) |
+| Privacy Policy URL | `https://vadosina-git.github.io/privacy-policy/video-poker-privacy.html` |
+
+После создания записи: скопировать `Apple ID` (числовой, не bundle) в `.appstore.env` → `APP_STORE_APP_APPLE_ID=`.
+
+### RevenueCat привязка
+
+RC проект **Video Poker Classic** создаётся на RC-аккаунте Вадима (не на аккаунте Ивана).
+Привязка к App Store: в RC → Project Settings → Apps → iOS → загрузить **In-App Purchase key** (`AuthKey_XL7R7TRL5N.p8`, Key ID `XL7R7TRL5N`, Issuer `835ae8fb-4e40-4740-85c6-30a390729c1c`).
+Привязка к Google Play: отдельный Service Account JSON — пока не настроен, см. §10 шаги 3.

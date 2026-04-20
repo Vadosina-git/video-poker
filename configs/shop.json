@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "currency_icon": "chip",
   "images_path": "res://assets/shop/",
   "exchange_rate": {"coins_per_dollar": 100, "show_label": false},
@@ -7,62 +7,32 @@
     {
       "id": "pack_01",
       "sort_order": 1,
-      "price_usd": 0.99,
-      "chips": 5000,
-      "bonus_chips": 15000,
+      "cooldown_seconds": 1800,
+      "chips": 1000,
+      "bonus_chips": 0,
       "color_scheme": "purple",
-      "top_badge_key": "shop.badge.special_pack",
-      "image": "shop_pack_07.png"
+      "top_badge_key": "shop.badge.quick_gift",
+      "image": "shop_pack_01.png"
     },
     {
       "id": "pack_02",
       "sort_order": 2,
-      "price_usd": 1.99,
-      "chips": 10000,
-      "bonus_chips": 2500,
-      "color_scheme": "blue",
-      "top_badge_key": null,
-      "image": "shop_pack_02.png"
-    },
-    {
-      "id": "pack_03",
-      "sort_order": 3,
-      "price_usd": 5.99,
-      "chips": 25000,
-      "bonus_chips": 25000,
+      "cooldown_seconds": 10800,
+      "chips": 5000,
+      "bonus_chips": 0,
       "color_scheme": "blue",
       "top_badge_key": null,
       "image": "shop_pack_03.png"
     },
     {
-      "id": "pack_04",
-      "sort_order": 4,
-      "price_usd": 11.99,
-      "chips": 50000,
-      "bonus_chips": 75000,
+      "id": "pack_03",
+      "sort_order": 3,
+      "cooldown_seconds": 21600,
+      "chips": 10000,
+      "bonus_chips": 0,
       "color_scheme": "blue",
-      "top_badge_key": null,
-      "image": "shop_pack_04.png"
-    },
-    {
-      "id": "pack_05",
-      "sort_order": 5,
-      "price_usd": 22.99,
-      "chips": 100000,
-      "bonus_chips": 200000,
-      "color_scheme": "blue",
-      "top_badge_key": "shop.badge.most_popular",
+      "top_badge_key": "shop.badge.big_gift",
       "image": "shop_pack_05.png"
-    },
-    {
-      "id": "pack_06",
-      "sort_order": 6,
-      "price_usd": 49.99,
-      "chips": 250000,
-      "bonus_chips": 750000,
-      "color_scheme": "blue",
-      "top_badge_key": null,
-      "image": "shop_pack_06.png"
     }
   ]
 }

@@ -38,6 +38,11 @@ static func _build(host: Control) -> void:
 	style.content_margin_bottom = 24
 	panel.add_theme_stylebox_override("panel", style)
 	panel.set_anchors_preset(Control.PRESET_CENTER)
+	# PRESET_CENTER pins anchors to (0.5, 0.5) but the panel grows down-right
+	# from that point by default. GROW_DIRECTION_BOTH makes it expand equally
+	# in all directions from the anchor, genuinely centering the modal.
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.custom_minimum_size = Vector2(620, 0)
 	overlay.add_child(panel)
 

@@ -446,15 +446,109 @@ func _build_pack_card(item: Dictionary) -> PanelContainer:
 		extra.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		vb.add_child(extra)
 
-	var buy_btn := _build_buy_button()
-	var product_id: String = str(item.get("id", ""))
-	buy_btn.pressed.connect(func() -> void:
-		var spawn_pos: Vector2 = buy_btn.global_position + buy_btn.size * 0.5
-		_initiate_purchase(product_id, total, spawn_pos)
-	)
-	vb.add_child(buy_btn)
+	var cooldown_sec: int = int(item.get("cooldown_seconds", 0))
+	if cooldown_sec > 0:
+		# Free-timed pack: claim for free once per cooldown_seconds.
+		vb.add_child(_build_timed_pack_button(item))
+	else:
+		# Paid IAP pack: routed through IapManager (stub awards, RC charges).
+		var buy_btn := _build_buy_button()
+		var product_id: String = str(item.get("id", ""))
+		buy_btn.pressed.connect(func() -> void:
+			var spawn_pos: Vector2 = buy_btn.global_position + buy_btn.size * 0.5
+			_initiate_purchase(product_id, total, spawn_pos)
+		)
+		vb.add_child(buy_btn)
 
 	return card
+
+
+## Cooldown-aware claim button for free-timed packs. Swaps between two states
+## in place (enabled green FREE ↔ disabled grey FREE IN HH:MM:SS). A 1s Timer
+## ticks the countdown label while the pack is locked; on reaching zero the
+## button re-enables itself without rebuilding the card.
+func _build_timed_pack_button(item: Dictionary) -> Control:
+	var product_id: String = str(item.get("id", ""))
+	var cooldown: int = int(item.get("cooldown_seconds", 0))
+	var total: int = int(item.get("chips", 0)) + int(item.get("bonus_chips", 0))
+
+	var container := Control.new()
+	container.custom_minimum_size = Vector2(0, 44)
+	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var btn := Button.new()
+	btn.set_anchors_preset(Control.PRESET_FULL_RECT)
+	btn.add_theme_font_size_override("font_size", 22)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_color_override("font_outline_color", Color(0, 0.25, 0.05, 0.9))
+	btn.add_theme_constant_override("outline_size", 3)
+	container.add_child(btn)
+
+	var timer := Timer.new()
+	timer.wait_time = 1.0
+	timer.autostart = false
+	container.add_child(timer)
+
+	var apply_state := func() -> void:
+		var remaining: int = SaveManager.get_pack_cooldown_remaining(product_id, cooldown)
+		if remaining <= 0:
+			btn.disabled = false
+			btn.text = Translations.tr_key("common.free")
+			btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			_apply_timed_btn_style(btn, false)
+			timer.stop()
+		else:
+			btn.disabled = true
+			btn.text = Translations.tr_key("shop.free_in_fmt", [_fmt_countdown(remaining)])
+			_apply_timed_btn_style(btn, true)
+			if timer.is_stopped():
+				timer.start()
+
+	timer.timeout.connect(apply_state)
+	btn.pressed.connect(func() -> void:
+		if SaveManager.get_pack_cooldown_remaining(product_id, cooldown) > 0:
+			return
+		var old_credits: int = SaveManager.credits
+		SaveManager.add_credits(total)
+		SaveManager.mark_pack_claimed(product_id)
+		var spawn_pos: Vector2 = btn.global_position + btn.size * 0.5
+		_spawn_confetti_burst(spawn_pos)
+		_spawn_chip_cascade(spawn_pos, old_credits, SaveManager.credits)
+		SoundManager.play("gift_claim")
+		apply_state.call()
+	)
+	_attach_press_effect(btn)
+	apply_state.call()
+	return container
+
+
+func _fmt_countdown(seconds: int) -> String:
+	var h: int = seconds / 3600
+	var m: int = (seconds % 3600) / 60
+	var s: int = seconds % 60
+	if h > 0:
+		return "%d:%02d:%02d" % [h, m, s]
+	return "%02d:%02d" % [m, s]
+
+
+func _apply_timed_btn_style(btn: Button, locked: bool) -> void:
+	var st := StyleBoxFlat.new()
+	st.set_corner_radius_all(22)
+	st.set_border_width_all(2)
+	if locked:
+		st.bg_color = Color(0.30, 0.30, 0.36)
+		st.border_color = Color(0.14, 0.14, 0.18)
+	else:
+		st.bg_color = Color(0.15, 0.80, 0.35)
+		st.border_color = Color(0.04, 0.40, 0.12)
+	btn.add_theme_stylebox_override("normal", st)
+	btn.add_theme_stylebox_override("disabled", st)
+	btn.add_theme_stylebox_override("focus", st)
+	var hover := st.duplicate()
+	if not locked:
+		hover.bg_color = Color(0.20, 0.88, 0.40)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", hover)
 
 
 func _build_chips_display(amount: int, font_size: int, color: Color) -> HBoxContainer:

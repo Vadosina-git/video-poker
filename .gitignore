@@ -20,6 +20,7 @@ build/
 *.jks
 .keystore.env
 .env
+.appstore.env
 
 # RevenueCat plugin binaries — 850MB+ of .xcframework + .aar.
 # Install locally via: ./scripts/install_revenuecat.sh
