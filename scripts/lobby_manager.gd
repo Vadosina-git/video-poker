@@ -69,7 +69,29 @@ func _build_play_modes() -> void:
 			{"id": "single_play", "label_key": "lobby.mode_single_play", "hands": 1, "ultra_vp": false, "spin_poker": false, "machines": []},
 		]
 var _active_mode: int = 0
+# Per-mode gradient pairs for the supercell skin (top → bottom).
+# Classic skin still uses the static `grid_bg_top/bottom` from its theme
+# JSON so the original look is preserved bit-for-bit.
+const SUPERCELL_MODE_BG := {
+	"single_play": [Color("22CBFD"), Color("A5E6FF")],   # cyan — default supercell
+	# Multi-hand modes progressively darken with hand count so the
+	# player feels the stakes deepen visually as Triple → Five → Ten.
+	"triple_play": [Color("7986CB"), Color("3949AB")],   # light indigo
+	"five_play":   [Color("5C6BC0"), Color("283593")],   # mid indigo
+	"ten_play":    [Color("3F51B5"), Color("1A237E")],   # deep indigo / navy
+	"ultra_vp":    [Color("4CAF50"), Color("1B5E20")],   # supercell green
+	"spin_poker":  [Color("7E57C2"), Color("4527A0")],   # supercell purple
+}
+var _active_bg_top: Color = Color(0.04, 0.04, 0.08, 1)
+var _active_bg_bot: Color = Color(0.04, 0.04, 0.08, 1)
+var _bg_node: ColorRect = null
 var _sidebar_buttons: Array[Button] = []
+var _gift_footer_label: Label = null
+var _gift_footer_tex: TextureRect = null
+var _gift_footer_ready_path: String = ""
+var _gift_footer_waiting_path: String = ""
+var _store_btn: Control = null
+var _shop_badge_visible: bool = false
 
 
 func _ready() -> void:
@@ -77,185 +99,650 @@ func _ready() -> void:
 	MachineCardScene = load("res://scenes/lobby/machine_card.tscn")
 	_build_play_modes()
 	_paytables = Paytable.load_all()
+	_build_bg_layer()
 	_apply_theme()
+	# Currency glyphs — MUST run AFTER _apply_theme() so _cash_pill points
+	# at the freshly built HBox row inside the new LEFT zone.
 	_cash_label.text = Translations.tr_key("lobby.cash")
-	_cash_cd = SaveManager.create_currency_display(32, Color.WHITE)
-	_cash_label.get_parent().add_child(_cash_cd["box"])
-	_cash_label.get_parent().move_child(_cash_cd["box"], _cash_label.get_index() + 1)
+	# Stroked digits — gives the chip count the same legibility as the
+	# CREDITS: label above (which uses font_outline_color). Without this
+	# the white digits float against the bright top bar with no edge.
+	_cash_cd = SaveManager.create_currency_display(28, Color.WHITE,
+		ThemeManager.color("topbar_text_outline", Color.BLACK), 2.0)
+	_cash_pill.add_child(_cash_cd["box"])
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
-	_credits_label.text = Translations.tr_key("lobby.credits_fmt", [SaveManager.credits])
 	_build_carousel()
-	_build_settings_button()
-	_build_gift_widget()
-	_add_top_bar_padding()
-	AgeGate.show_if_needed(self)
+	_build_theme_cheat_btn()
 
 
-func _add_top_bar_padding() -> void:
-	# HBoxContainer doesn't honour stylebox content_margin for child layout,
-	# so we insert empty spacer Controls at the extreme left & right to inset
-	# every top-bar element (cash pill, title, gift, shop +, settings) by SAFE_AREA_H.
-	var top_bar := $VBoxContainer/TopBar as HBoxContainer
-	var left_pad := Control.new()
-	left_pad.custom_minimum_size.x = SAFE_AREA_H
-	top_bar.add_child(left_pad)
-	top_bar.move_child(left_pad, 0)
-	var right_pad := Control.new()
-	right_pad.custom_minimum_size.x = SAFE_AREA_H
-	top_bar.add_child(right_pad)
+## Paint the existing full-rect Background node from the active theme and
+## Renders the lobby background. Single universal rule:
+##   If `themes/<id>/backgrounds/background.png` exists → show the PNG,
+##   nothing else (no gradient, no overlay, no pattern). Delete the file
+##   and the theme falls back to its code-constructed layers:
+##     1. primary gradient texture (radial/linear) if declared
+##     2. else vertical 2-stop gradient from grid_bg_top/bottom
+##     3. else solid fill (bg_main)
+##     4. optional overlay gradient on top
+##     5. optional diagonal-stripe pattern on top
+func _build_bg_layer() -> void:
+	var bg := $Background as ColorRect
+	if bg == null:
+		return
+	bg.color = Color(0, 0, 0, 0)
+
+	# ── PNG takes absolute priority — no mixing with generated layers. ──
+	var png_tex: Texture2D = ThemeManager.background_texture()
+	if png_tex != null:
+		var tr := TextureRect.new()
+		tr.name = "ThemeBackdrop"
+		tr.texture = png_tex
+		tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(tr)
+		move_child(tr, bg.get_index() + 1)
+		# Age gate — classic-skin only. Supercell is branded as a
+		# trainer app and intentionally omits the 18+ gate.
+		if ThemeManager.current_id == "classic":
+			AgeGate.show_if_needed(self)
+		return
+
+	# ── Code fallback: generated gradient + pattern layers. ──
+	var grad_tex: Texture2D = ThemeManager.background_gradient_texture()
+	var has_gradient_2stops: bool = ThemeManager.has_color("grid_bg_top") and ThemeManager.has_color("grid_bg_bottom")
+	var solid_col: Color = ThemeManager.color("bg_main", Color(0.04, 0.04, 0.08, 1))
+	# Cache the bg node so `_apply_mode_bg()` can re-trigger draw when the
+	# active mode changes (supercell skin only — see SUPERCELL_MODE_BG).
+	_bg_node = bg
+	_apply_mode_bg()
+	bg.draw.connect(func() -> void:
+		var ci := bg.get_canvas_item()
+		var rect := Rect2(Vector2.ZERO, bg.size)
+		if grad_tex == null:
+			if has_gradient_2stops:
+				_draw_vertical_gradient(ci, rect, _active_bg_top, _active_bg_bot)
+			else:
+				RenderingServer.canvas_item_add_rect(ci, rect, solid_col)
+		ThemeManager.draw_pattern(ci, rect)
+	)
+	var insert_idx: int = bg.get_index() + 1
+	if grad_tex != null:
+		var gr := TextureRect.new()
+		gr.name = "ThemeGradient"
+		gr.texture = grad_tex
+		gr.set_anchors_preset(Control.PRESET_FULL_RECT)
+		gr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		# KEEP_ASPECT_COVERED so a radial gradient on a square texture
+		# stays circular on any viewport aspect (some edges may crop).
+		# Linear gradients look the same either way since the banding
+		# runs along one axis only.
+		gr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		gr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(gr)
+		move_child(gr, insert_idx)
+		insert_idx += 1
+	var overlay_tex: Texture2D = ThemeManager.background_overlay_gradient_texture()
+	if overlay_tex != null:
+		var ov := TextureRect.new()
+		ov.name = "ThemeGradientOverlay"
+		ov.texture = overlay_tex
+		ov.set_anchors_preset(Control.PRESET_FULL_RECT)
+		ov.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		# Overlay gradients are vertical (top→bottom darkener) — let
+		# them stretch to fill the viewport exactly.
+		ov.stretch_mode = TextureRect.STRETCH_SCALE
+		ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(ov)
+		move_child(ov, insert_idx)
+	# Age gate — classic-skin only (same reason as above branch).
+	if ThemeManager.current_id == "classic":
+		AgeGate.show_if_needed(self)
 
 
-const SAFE_AREA_H := 40
+func _build_theme_cheat_btn() -> void:
+	var btn := Button.new()
+	btn.text = "THEME: %s" % ThemeManager.display_name(ThemeManager.current_id)
+	btn.add_theme_font_size_override("font_size", 12)
+	btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0, 0, 0, 0.5)
+	st.set_corner_radius_all(6)
+	st.content_margin_left = 8
+	st.content_margin_right = 8
+	st.content_margin_top = 4
+	st.content_margin_bottom = 4
+	btn.add_theme_stylebox_override("normal", st)
+	btn.add_theme_stylebox_override("hover", st)
+	btn.add_theme_stylebox_override("pressed", st)
+	btn.add_theme_stylebox_override("focus", st)
+	btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	btn.position = Vector2(8, -34)
+	btn.z_index = 200
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.pressed.connect(func() -> void:
+		ThemeManager.cycle_theme()
+		get_tree().reload_current_scene()
+	)
+	add_child(btn)
+	_build_resolution_cheat_btn()
+
+
+# ── Resolution simulation cheat (dev-only) ────────────────────────────
+# Presets for testing lobby layout at actual handheld aspects. Values
+# are landscape pixel dimensions scaled to fit a typical desktop
+# monitor. Stretch mode = canvas_items + keep_height means logical
+# viewport height stays 680; only the aspect ratio differs visually.
+const RES_PRESETS := [
+	{"name": "iPhone SE",     "w": 1334, "h": 750},  # smallest iPhone, 16:9
+	{"name": "iPhone 16 PM",  "w": 1864, "h": 860},  # largest iPhone, 19.5:9
+	{"name": "Pixel 8",       "w": 1830, "h": 824},  # 20:9 Android
+	{"name": "Galaxy S24",    "w": 1560, "h": 720},  # common 19.5:9 Android
+	{"name": "Galaxy S24 U",  "w": 1708, "h": 768},  # large 19.5:9 Android
+]
+
+var _res_preset_idx: int = 0
+var _res_cheat_btn: Button = null
+
+
+func _build_resolution_cheat_btn() -> void:
+	var btn := Button.new()
+	btn.add_theme_font_size_override("font_size", 12)
+	btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0, 0, 0, 0.5)
+	st.set_corner_radius_all(6)
+	st.content_margin_left = 8
+	st.content_margin_right = 8
+	st.content_margin_top = 4
+	st.content_margin_bottom = 4
+	btn.add_theme_stylebox_override("normal", st)
+	btn.add_theme_stylebox_override("hover", st)
+	btn.add_theme_stylebox_override("pressed", st)
+	btn.add_theme_stylebox_override("focus", st)
+	btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	btn.position = Vector2(8, -68)  # 34px above the THEME cheat button
+	btn.z_index = 200
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_res_cheat_btn = btn
+	# Restore the preset index from tree meta (set before scene reload)
+	# and re-apply the viewport/content_scale_size — covers the case
+	# where Window state reset somehow.
+	if get_tree().has_meta("cheat_res_preset_idx"):
+		_res_preset_idx = int(get_tree().get_meta("cheat_res_preset_idx"))
+		_set_viewport_to_preset(_res_preset_idx)
+	_update_resolution_label()
+	btn.pressed.connect(func() -> void:
+		_res_preset_idx = (_res_preset_idx + 1) % RES_PRESETS.size()
+		_apply_resolution_preset(_res_preset_idx)
+	)
+	add_child(btn)
+
+
+func _apply_resolution_preset(idx: int) -> void:
+	if idx < 0 or idx >= RES_PRESETS.size():
+		return
+	_set_viewport_to_preset(idx)
+	get_tree().set_meta("cheat_res_preset_idx", idx)
+	# Scene reload so _apply_theme / _build_carousel / _update_tile_sizes
+	# re-run against the new logical viewport size.
+	call_deferred("_reload_for_cheat")
+
+
+## Sets both the OS window size AND the logical content_scale_size of
+## the root Window so the simulated phone aspect is what layout code
+## actually sees. Without content_scale_size the canvas_items stretch
+## mode keeps the project.godot viewport (1476×680) regardless of
+## window size — aspects wouldn't change.
+func _set_viewport_to_preset(idx: int) -> void:
+	if idx < 0 or idx >= RES_PRESETS.size():
+		return
+	var p: Dictionary = RES_PRESETS[idx]
+	var w: int = int(p["w"])
+	var h: int = int(p["h"])
+	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	DisplayServer.window_set_size(Vector2i(w, h))
+	var screen := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+	var win_pos := Vector2i(
+		screen.position.x + (screen.size.x - w) / 2,
+		screen.position.y + (screen.size.y - h) / 2)
+	DisplayServer.window_set_position(win_pos)
+	# Drive the logical canvas size to the preset — this is what
+	# Container / Control hierarchies actually lay out against.
+	# CONTENT_SCALE_ASPECT_KEEP preserves the simulated aspect uniformly;
+	# if the window can't exactly match the preset (monitor capped,
+	# window chrome, etc.), content letterboxes instead of stretching
+	# non-uniformly — which would have visibly distorted every icon.
+	var root_win: Window = get_window()
+	if root_win != null:
+		root_win.content_scale_size = Vector2i(w, h)
+		root_win.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+
+
+func _reload_for_cheat() -> void:
+	get_tree().reload_current_scene()
+
+
+func _update_resolution_label() -> void:
+	if _res_cheat_btn == null:
+		return
+	var p: Dictionary = RES_PRESETS[_res_preset_idx]
+	_res_cheat_btn.text = "RES: %s (%dx%d)" % [p["name"], int(p["w"]), int(p["h"])]
+
+
+const SAFE_AREA_H := 20
+# Extra horizontal padding inside the top bar so the balance pill (left)
+# and the settings/support icons (right) stay clear of the screen's
+# rounded corners / notch instead of hugging the bezel.
+const TOP_BAR_SIDE_PAD := 48
 
 func _apply_theme() -> void:
 	$VBoxContainer.add_theme_constant_override("separation", 0)
 	$VBoxContainer/SafeArea/ContentHBox.add_theme_constant_override("separation", 0)
-	# Safe horizontal inset for sidebar + central panel (keeps them off-edge)
+	# Safe zone around the center: SAFE_AREA_H pixels on left/right so
+	# carousel content clears the device safe area (notch / rounded
+	# corners). Top/bottom stay flush since header + footer handle
+	# vertical spacing.
 	var safe := $VBoxContainer/SafeArea as MarginContainer
 	safe.add_theme_constant_override("margin_left", SAFE_AREA_H)
 	safe.add_theme_constant_override("margin_right", SAFE_AREA_H)
+	safe.add_theme_constant_override("margin_top", 0)
+	safe.add_theme_constant_override("margin_bottom", 0)
+	# Old left sidebar is obsolete — mode buttons now live in the bottom footer.
+	var old_sidebar := %Sidebar as Control
+	if old_sidebar:
+		old_sidebar.visible = false
 	_style_top_bar()
-	_style_grid_frame()
-	_build_sidebar()
+	_clear_grid_frame()
+	_style_footer()
+	_build_footer_modes()
 	var scroll := %GridScroll as ScrollContainer
+	# vertical_scroll_mode=DISABLED (the scene default) force-stretches the
+	# grid to the full scroll height, which expands tiles beyond their
+	# custom_minimum_size. SHOW_NEVER keeps scroll math alive (no bar drawn)
+	# but lets the grid sit at its actual min_size — so our computed tile
+	# heights are honored. Grid gets SHRINK_CENTER so it vertically centers
+	# when the viewport is taller than the two rows need.
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	scroll.get_h_scroll_bar().modulate.a = 0
+	scroll.get_v_scroll_bar().modulate.a = 0
+	_grid.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_setup_drag_scroll(scroll)
-	_grid.add_theme_constant_override("h_separation", 24)
+	# Horizontal gap between columns; vertical gap is wider so the two
+	# rows have visible breathing room (the supercell sticker shadow needs
+	# vertical clearance to read as a separate plate, not as a connector).
+	_grid.add_theme_constant_override("h_separation", 8)
 	_grid.add_theme_constant_override("v_separation", 24)
+	# Recompute tile size whenever the center area height changes (device
+	# rotation, safe-area insets, header/footer height adjustments).
+	if not scroll.resized.is_connected(_update_tile_sizes):
+		scroll.resized.connect(_update_tile_sizes)
 
 
+## Tiles scale proportionally to the vertical space available in the center
+## area. Header and footer "squeeze" the middle — the grid rows share the
+## remaining height equally, and tile width is derived from the theme's
+## declared aspect ratio. User scrolls horizontally to see off-screen columns.
+func _update_tile_sizes() -> void:
+	var scroll := %GridScroll as ScrollContainer
+	if scroll == null or _machine_cards.is_empty():
+		return
+	var avail_h: float = scroll.size.y
+	if avail_h < 1.0:
+		return
+	var cols: int = maxi(int(_grid.columns), 1)
+	var rows: int = int(ceil(float(_machine_cards.size()) / float(cols)))
+	rows = maxi(rows, 1)
+	# Must match GridContainer's v_separation override below — keep in sync.
+	var v_sep: float = 24.0
+	# Reserve space under each row for the sticker drop shadow. Without
+	# this padding the last row's shadow would be clipped by the scroll
+	# rect (and the row would appear to "hang" over the footer).
+	const SHADOW_PAD := 12.0
+	var tile_h: float = (avail_h - v_sep * float(rows - 1) - SHADOW_PAD * float(rows)) / float(rows)
+	# tile_h above is the exact height that fills the available area minus
+	# row separators and shadow reserve — letting the bottom row sit flush
+	# against (but not over) the footer. Upper clamp prevents absurdly tall
+	# tiles on huge desktop windows.
+	tile_h = clampf(tile_h, 40.0, 360.0)
+	var base: Vector2 = ThemeManager.tile_min_size()
+	var aspect: float = (base.x / base.y) if base.y > 0.0 else 1.0
+	var tile_w: float = tile_h * aspect
+	for card in _machine_cards:
+		if is_instance_valid(card) and card.has_method("apply_tile_size"):
+			card.apply_tile_size(tile_w, tile_h)
+
+
+## Builds the full 3-zone top bar layout (Figma-aligned):
+##   [CREDITS block + Store]        [VIDEO POKER TRAINER]        [Support | Settings]
+## Everything floats — no pills, no fills. Clears existing TopBar children
+## and reparents scene-declared Labels (%CashLabel, %LobbyTitle) into the
+## new structure. %LobbyCredits is dropped entirely.
 func _style_top_bar() -> void:
 	var top_bar := $VBoxContainer/TopBar as HBoxContainer
-	top_bar.custom_minimum_size = Vector2(0, 110)
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.72, 0.06, 0.06)
-	bg.content_margin_left = SAFE_AREA_H
-	bg.content_margin_right = SAFE_AREA_H
-	bg.content_margin_top = 10
-	bg.content_margin_bottom = 10
-	bg.border_color = Color(0.22, 0.0, 0.0)
-	bg.border_width_bottom = 4
+	top_bar.custom_minimum_size = Vector2(0, 120)
+	var bg := StyleBoxEmpty.new()
 	top_bar.add_theme_stylebox_override("panel", bg)
-	top_bar.draw.connect(func() -> void:
-		bg.draw(top_bar.get_canvas_item(), Rect2(Vector2.ZERO, top_bar.size))
-	)
-	top_bar.add_theme_constant_override("separation", 16)
+	top_bar.add_theme_constant_override("separation", 12)
 
-	# CashLabel: white bold with thin black outline
-	_cash_label.add_theme_font_size_override("font_size", 30)
-	_cash_label.add_theme_color_override("font_color", Color.WHITE)
-	_cash_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	_cash_label.add_theme_constant_override("outline_size", 3)
-
-	# Wrap CashLabel in a yellow-bordered pill (currency box added later in _ready)
-	var cash_idx := _cash_label.get_index()
-	var cash_pill := PanelContainer.new()
-	_cash_pill = cash_pill
-	cash_pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var cash_style := StyleBoxFlat.new()
-	cash_style.bg_color = Color(0.05, 0.03, 0.03)
-	cash_style.set_border_width_all(4)
-	cash_style.border_color = Color("FFEC00")
-	cash_style.set_corner_radius_all(28)
-	cash_style.content_margin_left = 22
-	cash_style.content_margin_right = 22
-	cash_style.content_margin_top = 4
-	cash_style.content_margin_bottom = 4
-	cash_pill.add_theme_stylebox_override("panel", cash_style)
-	var cash_inner := HBoxContainer.new()
-	cash_inner.add_theme_constant_override("separation", 14)
-	cash_inner.alignment = BoxContainer.ALIGNMENT_CENTER
-	cash_pill.add_child(cash_inner)
-	top_bar.add_child(cash_pill)
-	top_bar.move_child(cash_pill, cash_idx)
-	_cash_label.reparent(cash_inner)
-
-	# Shop button — PNG-baked pill (SVG had rasterisation/layout issues inside
-	# containers). TextureButton handles click + focus natively.
-	var shop_btn := TextureButton.new()
-	shop_btn.texture_normal = load("res://assets/textures/shop_button_lobby.png")
-	shop_btn.ignore_texture_size = true
-	shop_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	shop_btn.custom_minimum_size = Vector2(88, 68)
-	shop_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	shop_btn.size_flags_horizontal = 0
-	shop_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	shop_btn.pressed.connect(_show_shop)
-	_attach_press_effect(shop_btn)
-	top_bar.add_child(shop_btn)
-	top_bar.move_child(shop_btn, cash_pill.get_index() + 1)
-
-	# White "+" overlay centered on the button
-	shop_btn.draw.connect(func() -> void:
-		var c: Vector2 = shop_btn.size * 0.5
-		var arm: float = minf(shop_btn.size.x, shop_btn.size.y) * 0.22
-		var th: float = arm * 0.6
-		shop_btn.draw_rect(Rect2(c.x - arm, c.y - th * 0.5, arm * 2.0, th), Color.WHITE)
-		shop_btn.draw_rect(Rect2(c.x - th * 0.5, c.y - arm, th, arm * 2.0), Color.WHITE)
-	)
-
-	# Title "VIDEO POKER": yellow with red outline, in oval pill
 	var title := %LobbyTitle as Label
+	# Detach the reusable scene labels; drop the unused credits label.
+	if _cash_label.get_parent():
+		_cash_label.get_parent().remove_child(_cash_label)
+	if title.get_parent():
+		title.get_parent().remove_child(title)
+	if _credits_label.get_parent():
+		_credits_label.get_parent().remove_child(_credits_label)
+		_credits_label.queue_free()
+
+	# Wipe any leftover children (scene spacers etc.) so we rebuild cleanly.
+	for c in top_bar.get_children():
+		top_bar.remove_child(c)
+		c.queue_free()
+
+	# ---------- LEFT safe zone ----------
+	var left_pad := Control.new()
+	left_pad.custom_minimum_size = Vector2(TOP_BAR_SIDE_PAD, 0)
+	top_bar.add_child(left_pad)
+
+	# ---------- LEFT zone ----------
+	var left := HBoxContainer.new()
+	left.add_theme_constant_override("separation", 16)
+	left.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top_bar.add_child(left)
+
+	# "CREDITS:" label (row 1) + chip/value row (row 2).
+	var theme_font: Font = ThemeManager.font()
+	_cash_label.add_theme_font_size_override("font_size", 20)
+	_cash_label.add_theme_color_override("font_color", ThemeManager.color("topbar_text", Color.WHITE))
+	_cash_label.add_theme_color_override("font_outline_color", ThemeManager.color("topbar_text_outline", Color.BLACK))
+	_cash_label.add_theme_constant_override("outline_size", 3)
+	if theme_font != null:
+		_cash_label.add_theme_font_override("font", theme_font)
+
+	var cash_group := VBoxContainer.new()
+	cash_group.add_theme_constant_override("separation", 2)
+	cash_group.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	left.add_child(cash_group)
+	cash_group.add_child(_cash_label)
+	# Value row — currency glyphs appended here in _ready.
+	var cash_value_row := HBoxContainer.new()
+	cash_value_row.add_theme_constant_override("separation", 6)
+	cash_value_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	cash_group.add_child(cash_value_row)
+	_cash_pill = cash_value_row
+
+	# Store button (primitive bag icon + label + conditional badge).
+	# The badge is a plain red dot that appears only while at least one
+	# free reward is available in the shop (daily gift OR any IAP pack
+	# off its cooldown). State is maintained by _refresh_shop_badge.
+	_store_btn = _make_top_icon_btn("store",
+		Translations.tr_key("lobby.store"),
+		_show_shop)
+	_store_btn.draw.connect(func() -> void:
+		if _shop_badge_visible:
+			_draw_badge(_store_btn)
+	)
+	left.add_child(_store_btn)
+
+	# ---------- expanding spacer ----------
+	var sp1 := Control.new()
+	sp1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_bar.add_child(sp1)
+
+	# ---------- CENTER zone: title ----------
 	title.text = Translations.tr_key("lobby.title")
-	title.add_theme_font_size_override("font_size", 48)
-	title.add_theme_color_override("font_color", Color("FFEC00"))
-	title.add_theme_color_override("font_outline_color", Color(0.35, 0.0, 0.0))
-	title.add_theme_constant_override("outline_size", 6)
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", ThemeManager.color("title_text", Color.WHITE))
+	title.add_theme_color_override("font_outline_color", ThemeManager.color("title_outline", Color.BLACK))
+	title.add_theme_constant_override("outline_size", 4)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if theme_font != null:
+		title.add_theme_font_override("font", theme_font)
+	top_bar.add_child(title)
 
-	var title_idx := title.get_index()
-	var title_pill := PanelContainer.new()
-	title_pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var title_style := StyleBoxFlat.new()
-	title_style.bg_color = Color(0.24, 0.0, 0.0)
-	title_style.set_border_width_all(4)
-	title_style.border_color = Color("FFEC00")
-	title_style.set_corner_radius_all(48)
-	title_style.content_margin_left = 40
-	title_style.content_margin_right = 40
-	title_style.content_margin_top = 4
-	title_style.content_margin_bottom = 4
-	title_pill.add_theme_stylebox_override("panel", title_style)
-	top_bar.add_child(title_pill)
-	top_bar.move_child(title_pill, title_idx)
-	title.reparent(title_pill)
+	# ---------- expanding spacer ----------
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_bar.add_child(sp2)
 
-	_credits_label.visible = false
+	# ---------- RIGHT zone: Support + Settings ----------
+	var right := HBoxContainer.new()
+	right.add_theme_constant_override("separation", 18)
+	right.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top_bar.add_child(right)
+	right.add_child(_make_top_icon_btn("support",
+		Translations.tr_key("lobby.support"),
+		_show_support))
+	right.add_child(_make_top_icon_btn("settings",
+		Translations.tr_key("lobby.settings"),
+		_show_settings))
+
+	# ---------- RIGHT safe zone ----------
+	var right_pad := Control.new()
+	right_pad.custom_minimum_size = Vector2(TOP_BAR_SIDE_PAD, 0)
+	top_bar.add_child(right_pad)
 
 
-func _style_grid_frame() -> void:
+## Creates a top-bar icon button (primitive icon on top, label below).
+## `kind` selects the drawn icon (store/support/settings). Notification
+## badges are attached by the caller (see _store_btn + _refresh_shop_badge).
+func _make_top_icon_btn(kind: String, label_text: String, on_press: Callable) -> Control:
+	var root := Button.new()
+	root.custom_minimum_size = Vector2(80, 96)
+	root.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var empty := StyleBoxEmpty.new()
+	root.add_theme_stylebox_override("normal", empty)
+	root.add_theme_stylebox_override("hover", empty)
+	root.add_theme_stylebox_override("pressed", empty)
+	root.add_theme_stylebox_override("focus", empty)
+	root.pressed.connect(on_press)
+	_attach_press_effect(root)
+	# PNG takes priority over primitive glyph. Same convention as
+	# machine tiles — drop the PNG into themes/<id>/icons/<kind>.png
+	# and it's picked up automatically.
+	var png_path: String = ThemeManager.ui_icon_path(kind)
+	if png_path != "":
+		var tr := TextureRect.new()
+		tr.texture = load(png_path)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		# STRETCH_SCALE — every icon now renders at the exact rect size
+		# regardless of its source PNG's aspect / internal padding. Source
+		# PNGs are pre-cropped to ~1:1 so the cosmetic stretch is invisible
+		# (<4%); this guarantees store/support/settings come out the same
+		# pixel height instead of one icon shrinking due to extra alpha
+		# margin in the asset.
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		tr.offset_top = 2
+		# Icon ends at y=78 — the label below (offset_top = -18 from
+		# BOTTOM_WIDE → y=78..96) sits flush with the icon's bottom edge,
+		# zero gap. Label slot is 18px so the 14pt + 3px-outline text
+		# ("STORE" / "SUPPORT" / "SETTINGS") doesn't overflow upward into
+		# the icon when bottom-aligned.
+		tr.offset_bottom = 78
+		root.add_child(tr)
+	else:
+		# Primitive-drawn icon fallback.
+		root.draw.connect(func() -> void:
+			_draw_top_icon(root, kind)
+		)
+	var lab := Label.new()
+	lab.text = label_text
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	lab.add_theme_font_size_override("font_size", 14)
+	lab.add_theme_color_override("font_color", ThemeManager.color("topbar_text", Color.WHITE))
+	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	lab.add_theme_constant_override("outline_size", 3)
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		lab.add_theme_font_override("font", theme_font)
+	lab.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	# Label sits flush with the icon: icon ends at y=78, label spans
+	# y=78..96 (18px tall) — zero gap. Bottom-aligned text fits inside
+	# this slot at font 14 + outline 3 without overflowing into the icon.
+	lab.offset_top = -18
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(lab)
+	return root
+
+
+## Renders a primitive icon glyph into the top-half (~50x50) of a
+## top-bar button. Meant as a placeholder — later swapped for PNG assets
+## via the same config mechanism as machine tiles.
+func _draw_top_icon(ctrl: Control, kind: String) -> void:
+	var s: Vector2 = ctrl.size
+	var cx: float = s.x * 0.5
+	var cy: float = s.y * 0.36
+	var r: float = 22.0
+	var stroke := ThemeManager.color("grid_border", Color("FFEC00"))
+	var w := 2.5
+	match kind:
+		"store":
+			# Rounded bag outline + handle arc
+			var rect := Rect2(cx - r, cy - r * 0.7, r * 2.0, r * 1.4)
+			_draw_rounded_rect_outline(ctrl, rect, 4.0, stroke, w)
+			# handle
+			ctrl.draw_arc(Vector2(cx, cy - r * 0.7), r * 0.5, PI, TAU, 16, stroke, w)
+		"support":
+			ctrl.draw_arc(Vector2(cx, cy), r, 0, TAU, 32, stroke, w)
+			# "?" centered
+			var font: Font = ThemeManager.font()
+			if font == null:
+				font = ctrl.get_theme_default_font()
+			if font != null:
+				var qs: Vector2 = font.get_string_size("?", HORIZONTAL_ALIGNMENT_CENTER, -1, 28)
+				ctrl.draw_string(font, Vector2(cx - qs.x * 0.5, cy + qs.y * 0.35), "?",
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 28, stroke)
+		"settings":
+			# Simple gear: outer circle + inner dot + 8 teeth as short lines.
+			ctrl.draw_arc(Vector2(cx, cy), r * 0.7, 0, TAU, 32, stroke, w)
+			ctrl.draw_arc(Vector2(cx, cy), r * 0.25, 0, TAU, 16, stroke, w)
+			for i in 8:
+				var a: float = float(i) * PI / 4.0
+				var p1 := Vector2(cx + cos(a) * r * 0.8, cy + sin(a) * r * 0.8)
+				var p2 := Vector2(cx + cos(a) * r, cy + sin(a) * r)
+				ctrl.draw_line(p1, p2, stroke, w)
+
+
+func _draw_rounded_rect_outline(ctrl: Control, rect: Rect2, radius: float, col: Color, width: float) -> void:
+	# Approximates a rounded rect outline via 4 lines + 4 arcs. Good enough
+	# for placeholder icons; won't be pixel-perfect on large radii.
+	var l := rect.position.x; var t := rect.position.y
+	var r := rect.position.x + rect.size.x; var b := rect.position.y + rect.size.y
+	ctrl.draw_line(Vector2(l + radius, t), Vector2(r - radius, t), col, width)
+	ctrl.draw_line(Vector2(l + radius, b), Vector2(r - radius, b), col, width)
+	ctrl.draw_line(Vector2(l, t + radius), Vector2(l, b - radius), col, width)
+	ctrl.draw_line(Vector2(r, t + radius), Vector2(r, b - radius), col, width)
+	ctrl.draw_arc(Vector2(l + radius, t + radius), radius, PI, PI * 1.5, 8, col, width)
+	ctrl.draw_arc(Vector2(r - radius, t + radius), radius, PI * 1.5, TAU, 8, col, width)
+	ctrl.draw_arc(Vector2(r - radius, b - radius), radius, 0, PI * 0.5, 8, col, width)
+	ctrl.draw_arc(Vector2(l + radius, b - radius), radius, PI * 0.5, PI, 8, col, width)
+
+
+## Number-less notification dot hovering over the top-right of a
+## top-bar button. Used on the Store icon to signal "a free reward is
+## waiting". Callers gate the draw on their own state flag.
+func _draw_badge(ctrl: Control) -> void:
+	var s: Vector2 = ctrl.size
+	# Hugs the icon's top-right corner. Icon spans y=2..80 horizontally
+	# centered with KEEP_ASPECT_CENTERED, so a square texture lands at
+	# ~(8, 2)..(72, 66). Putting the dot at cx+18, cy=12 plants it just
+	# inside the visible icon's upper-right rather than floating in the
+	# button's empty corner.
+	var cx: float = s.x * 0.5 + 18.0
+	var cy: float = 12.0
+	var r := 7.0
+	ctrl.draw_circle(Vector2(cx, cy), r, Color("#E53935"))
+	ctrl.draw_arc(Vector2(cx, cy), r, 0, TAU, 24, Color.WHITE, 1.5)
+
+
+## True while the shop has at least one claimable free reward: the
+## daily gift (when its cooldown has elapsed) or any IAP pack currently
+## off its own cooldown. Called every frame from _process — cheap:
+## integer math + a dictionary lookup.
+func _has_free_shop_reward() -> bool:
+	if _is_gift_ready():
+		return true
+	var items: Array = ConfigManager.get_shop_items()
+	for it in items:
+		if not (it is Dictionary):
+			continue
+		var id: String = str(it.get("id", ""))
+		var cd: int = int(it.get("cooldown_seconds", 0))
+		if id == "" or cd <= 0:
+			continue
+		if SaveManager.get_pack_cooldown_remaining(id, cd) <= 0:
+			return true
+	return false
+
+
+## Toggles the Store button's notification dot to match the current
+## shop state, triggering a redraw only on transitions.
+func _refresh_shop_badge() -> void:
+	if _store_btn == null or not is_instance_valid(_store_btn):
+		return
+	var visible_now: bool = _has_free_shop_reward()
+	if visible_now != _shop_badge_visible:
+		_shop_badge_visible = visible_now
+		_store_btn.queue_redraw()
+
+
+## The central zone inside the SafeArea has no inner padding — SafeArea
+## alone provides the side inset. No frame, no background.
+func _clear_grid_frame() -> void:
 	var grid_margin := $VBoxContainer/SafeArea/ContentHBox/GridMargin as MarginContainer
-	grid_margin.add_theme_constant_override("margin_left", 30)
-	grid_margin.add_theme_constant_override("margin_right", 40)
-	grid_margin.add_theme_constant_override("margin_top", 30)
-	grid_margin.add_theme_constant_override("margin_bottom", 30)
-	var frame_style := StyleBoxFlat.new()
-	frame_style.bg_color = Color(0.05, 0.08, 0.48)
-	frame_style.set_border_width_all(6)
-	frame_style.border_color = Color("FFEC00")
-	frame_style.set_corner_radius_all(0)
-	frame_style.anti_aliasing = false
-	grid_margin.draw.connect(func() -> void:
-		frame_style.draw(grid_margin.get_canvas_item(), Rect2(Vector2.ZERO, grid_margin.size))
-	)
+	grid_margin.add_theme_constant_override("margin_left", 0)
+	grid_margin.add_theme_constant_override("margin_right", 0)
+	grid_margin.add_theme_constant_override("margin_top", 0)
+	grid_margin.add_theme_constant_override("margin_bottom", 0)
 
 
-func _build_sidebar() -> void:
-	_sidebar.add_theme_constant_override("separation", 14)
-	_sidebar.z_index = 5  # draw active tab's extended bg on top of the central panel's yellow border
-	var sb_style := StyleBoxFlat.new()
-	sb_style.bg_color = Color.BLACK
-	sb_style.content_margin_left = 18
-	sb_style.content_margin_right = 18
-	sb_style.content_margin_top = 24
-	sb_style.content_margin_bottom = 24
-	_sidebar.add_theme_stylebox_override("panel", sb_style)
-	_sidebar.draw.connect(func() -> void:
-		sb_style.draw(_sidebar.get_canvas_item(), Rect2(Vector2.ZERO, _sidebar.size))
-	)
-	_sidebar.custom_minimum_size.x = 253
+## Render a vertical gradient by stacking N thin horizontal rects. Cheap and
+## works without custom textures or shaders — 60 slices is visually smooth at
+## typical grid heights (~800px → ~13px per slice).
+func _draw_vertical_gradient(ci: RID, rect: Rect2, top: Color, bottom: Color, slices: int = 60) -> void:
+	if slices <= 0:
+		return
+	var step: float = rect.size.y / float(slices)
+	for i in slices:
+		var t: float = float(i) / float(slices - 1)
+		var col := top.lerp(bottom, t)
+		var y: float = rect.position.y + step * float(i)
+		# Extend one pixel to cover rounding gaps between slices.
+		RenderingServer.canvas_item_add_rect(ci,
+			Rect2(rect.position.x, y, rect.size.x, step + 1.0),
+			col)
 
-	# Find active mode from SaveManager (match hands + ultra_vp flag)
+
+func _style_footer() -> void:
+	var footer := %Footer as HBoxContainer
+	# Tall enough for the 136-tall mode buttons (icon 92 + label 40 + top
+	# breathing room). Shrunk after the 1.5× icon size reduction.
+	footer.custom_minimum_size = Vector2(0, 160)
+	# Minimum gap between buttons — they keep a tight spacing by default.
+	# Buttons keep their own custom_minimum_size and group-center so the
+	# strip grows when more modes are added but never spreads out to fill
+	# the full footer width.
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	footer.add_theme_constant_override("separation", 8)
+	# No fill, no border — mode buttons float over the background pattern.
+	var st := StyleBoxEmpty.new()
+	st.content_margin_left = SAFE_AREA_H
+	st.content_margin_right = SAFE_AREA_H
+	st.content_margin_top = 8
+	st.content_margin_bottom = 8
+	footer.add_theme_stylebox_override("panel", st)
+
+
+func _build_footer_modes() -> void:
+	# Find active mode from SaveManager (match hands + ultra_vp flag).
 	var found := false
 	for j in PLAY_MODES.size():
 		var m: Dictionary = PLAY_MODES[j]
@@ -272,16 +759,29 @@ func _build_sidebar() -> void:
 		SaveManager.ultra_vp = PLAY_MODES[0]["ultra_vp"]
 		SaveManager.spin_poker = PLAY_MODES[0].get("spin_poker", false)
 		SaveManager.save_game()
+	# Repaint the lobby backdrop using the now-resolved active mode.
+	# Without this, returning from a non-default mode (e.g. spin_poker)
+	# would briefly leave the bg on the single_play cyan because
+	# `_build_bg_layer` runs before `_active_mode` is restored from save.
+	_apply_mode_bg()
 
+	var footer := %Footer as HBoxContainer
+	for child in footer.get_children():
+		child.queue_free()
 	_sidebar_buttons.clear()
+
+	# Leftmost: gift widget (replaces the Figma "Coming Soon" slot — per
+	# direction "на место иконки coming soon влево вниз"). Same footprint
+	# as a mode button so the row reads as one icon strip.
+	footer.add_child(_build_footer_gift())
+
 	for i in PLAY_MODES.size():
-		var btn := Button.new()
-		btn.text = Translations.tr_key(PLAY_MODES[i]["label_key"])
-		btn.custom_minimum_size = Vector2(0, 76)
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_style_sidebar_btn(btn, i == _active_mode)
+		var mode_id: String = PLAY_MODES[i].get("id", "")
+		var btn := _make_footer_mode_btn(mode_id,
+			Translations.tr_key(PLAY_MODES[i]["label_key"]),
+			i == _active_mode)
 		btn.pressed.connect(_on_mode_selected.bind(i))
-		_sidebar.add_child(btn)
+		footer.add_child(btn)
 		_sidebar_buttons.append(btn)
 
 
@@ -291,10 +791,13 @@ func _on_mode_selected(index: int) -> void:
 	SaveManager.ultra_vp = PLAY_MODES[index]["ultra_vp"]
 	SaveManager.spin_poker = PLAY_MODES[index].get("spin_poker", false)
 	SaveManager.save_game()
-	for i in _sidebar_buttons.size():
-		_style_sidebar_btn(_sidebar_buttons[i], i == _active_mode)
+	# Repaint the lobby backdrop with the new mode's gradient (supercell
+	# only — classic stays on its theme-default colors).
+	_apply_mode_bg()
+	# Rebuild footer so the newly active mode's icon+label switch to
+	# accent color. Cheap — 6 buttons + a gift slot.
+	_build_footer_modes()
 	_build_carousel()
-	# Tab wiggle — small rotate bounce on the newly selected tab
 	if index < _sidebar_buttons.size():
 		var btn: Control = _sidebar_buttons[index]
 		btn.pivot_offset = btn.size * 0.5
@@ -305,51 +808,239 @@ func _on_mode_selected(index: int) -> void:
 		tw.tween_property(btn, "rotation", 0.0, 0.067)
 
 
-func _style_sidebar_btn(btn: Button, active: bool) -> void:
-	var style := StyleBoxFlat.new()
-	style.content_margin_left = 18
-	style.content_margin_right = 18
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
-	if active:
-		# Active tab merges seamlessly into the central panel: bg matches panel
-		# color, yellow border on 3 sides, flat right edge extending exactly
-		# across the 6px yellow frame border (no visible overshoot into panel).
-		style.bg_color = Color(0.05, 0.08, 0.48)  # matches central panel bg
-		style.border_width_left = 6
-		style.border_width_top = 6
-		style.border_width_bottom = 6
-		style.border_width_right = 0
-		style.border_color = Color("FFEC00")
-		style.corner_radius_top_left = 10
-		style.corner_radius_bottom_left = 10
-		style.corner_radius_top_right = 0
-		style.corner_radius_bottom_right = 0
-		style.expand_margin_right = 6
-		style.anti_aliasing = false
+## Footer mode button: primitive icon above a label. Active state is
+## signaled by accent color only (icon stroke + label) — no fills/borders.
+## Metadata `mode_id` drives the primitive drawn (so PNG swaps can be
+## slotted in later using the same keys as machine tiles).
+## Resolve the lobby gradient pair for the currently selected mode.
+## Supercell uses the per-mode SUPERCELL_MODE_BG palette; every other
+## skin (currently classic) keeps its theme-defined `grid_bg_top/bottom`.
+func _apply_mode_bg() -> void:
+	var mode_id: String = "single_play"
+	if _active_mode >= 0 and _active_mode < PLAY_MODES.size():
+		mode_id = PLAY_MODES[_active_mode].get("id", "single_play")
+	if ThemeManager.current_id == "supercell":
+		var pair: Variant = SUPERCELL_MODE_BG.get(mode_id, null)
+		if pair == null:
+			pair = SUPERCELL_MODE_BG["single_play"]
+		_active_bg_top = pair[0]
+		_active_bg_bot = pair[1]
 	else:
-		style.bg_color = Color(0.04, 0.06, 0.28)
-		style.set_border_width_all(3)
-		style.border_color = Color(0.32, 0.28, 0.08)
-		style.set_corner_radius_all(10)
-	btn.add_theme_stylebox_override("normal", style)
-	if active:
-		# Active tab: no hover/pressed lightening (stays visually flat).
-		btn.add_theme_stylebox_override("hover", style)
-		btn.add_theme_stylebox_override("pressed", style)
-		btn.add_theme_stylebox_override("focus", style)
+		var solid: Color = ThemeManager.color("bg_main", Color(0.04, 0.04, 0.08))
+		_active_bg_top = ThemeManager.color("grid_bg_top", solid)
+		_active_bg_bot = ThemeManager.color("grid_bg_bottom", solid)
+	if _bg_node != null and is_instance_valid(_bg_node):
+		_bg_node.queue_redraw()
+
+
+func _make_footer_mode_btn(mode_id: String, label_text: String, active: bool) -> Button:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(176, 136)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var empty := StyleBoxEmpty.new()
+	btn.add_theme_stylebox_override("normal", empty)
+	btn.add_theme_stylebox_override("hover", empty)
+	btn.add_theme_stylebox_override("pressed", empty)
+	btn.add_theme_stylebox_override("focus", empty)
+	var active_col := ThemeManager.color("sidebar_active_text", Color("FFEC00"))
+	var idle_col := ThemeManager.color("sidebar_text", Color(0.75, 0.65, 0.15))
+	var col: Color = active_col if active else idle_col
+	btn.set_meta("mode_id", mode_id)
+	btn.set_meta("active", active)
+
+	# Icon area: PNG if available, fallback to primitive glyph.
+	var icon_tex: Texture2D = _mode_icon_texture(mode_id)
+	if icon_tex != null:
+		var tex_rect := TextureRect.new()
+		tex_rect.texture = icon_tex
+		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Icon 92px tall (1.5× smaller than before), sits flush against
+		# the label's top edge — no gap, no overlap.
+		tex_rect.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		tex_rect.offset_top = 4
+		tex_rect.offset_bottom = 96
+		# Dim non-active icons via modulate; active stays at full alpha.
+		tex_rect.modulate = Color(1, 1, 1, 1.0) if active else Color(1, 1, 1, 0.72)
+		btn.add_child(tex_rect)
 	else:
-		var hover := style.duplicate()
-		hover.bg_color = style.bg_color.lightened(0.15)
-		btn.add_theme_stylebox_override("hover", hover)
-		btn.add_theme_stylebox_override("pressed", hover)
-		btn.add_theme_stylebox_override("focus", style)
-	btn.add_theme_font_size_override("font_size", 26)
-	btn.add_theme_color_override("font_color", Color("FFEC00") if active else Color(0.75, 0.65, 0.15))
-	btn.add_theme_color_override("font_hover_color", Color("FFEC00"))
-	btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
-	btn.add_theme_constant_override("outline_size", 4)
+		btn.draw.connect(func() -> void:
+			_draw_mode_icon(btn, mode_id, col)
+		)
+
+	var lab := Label.new()
+	lab.text = label_text
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.add_theme_font_size_override("font_size", 28)
+	lab.add_theme_color_override("font_color", col)
+	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	lab.add_theme_constant_override("outline_size", 4)
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		lab.add_theme_font_override("font", theme_font)
+	lab.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	lab.offset_top = -40
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(lab)
 	_attach_press_effect(btn)
+	return btn
+
+
+## Resolves a mode button icon via the active theme's folder
+## (assets/themes/<theme>/modes/<mode_id>.png). Returns null when the
+## theme doesn't ship a PNG — the primitive glyph takes over.
+func _mode_icon_texture(mode_id: String) -> Texture2D:
+	var path := ThemeManager.mode_icon_path(mode_id)
+	if path == "":
+		return null
+	return load(path)
+
+
+## Primitive icon used for each footer mode. Stroke-only outlined
+## rectangles/circles with a hint glyph — placeholder until PNG assets
+## land. Width/pos mirrors the top-bar icon helper.
+func _draw_mode_icon(ctrl: Control, mode_id: String, col: Color) -> void:
+	var s: Vector2 = ctrl.size
+	var cx: float = s.x * 0.5
+	var cy: float = s.y * 0.38
+	var r := 22.0
+	var w := 2.5
+	# Outlined square common base for all modes.
+	var rect := Rect2(cx - r, cy - r, r * 2.0, r * 2.0)
+	_draw_rounded_rect_outline(ctrl, rect, 6.0, col, w)
+	# Glyph hint — short text inside (1-2 chars) so modes are distinguishable
+	# even before PNG icons are provided.
+	var font: Font = ThemeManager.font()
+	if font == null:
+		font = ctrl.get_theme_default_font()
+	if font == null:
+		return
+	var glyph := ""
+	match mode_id:
+		"single_play": glyph = "1"
+		"triple_play": glyph = "3"
+		"five_play":   glyph = "5"
+		"ten_play":    glyph = "10"
+		"ultra_vp":    glyph = "X"
+		"spin_poker":  glyph = "~"
+		_:             glyph = "?"
+	var fs := 20 if glyph.length() <= 1 else 16
+	var gs: Vector2 = font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
+	ctrl.draw_string(font, Vector2(cx - gs.x * 0.5, cy + gs.y * 0.35), glyph,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+
+## Footer gift slot — same icon+label footprint as a mode button. Label
+## flips between "FREE" (ready) and "HH:MM:SS" (cooldown) in _process.
+func _build_footer_gift() -> Button:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(176, 136)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	var empty := StyleBoxEmpty.new()
+	btn.add_theme_stylebox_override("normal", empty)
+	btn.add_theme_stylebox_override("hover", empty)
+	btn.add_theme_stylebox_override("pressed", empty)
+	btn.add_theme_stylebox_override("focus", empty)
+	var col := ThemeManager.color("sidebar_active_text", Color("FFEC00"))
+	# PNG states: themes/<id>/icons/gift_ready.png + gift_waiting.png.
+	# When either exists we render via TextureRect and swap textures as
+	# the state changes (handled in _process via _refresh_gift_icon).
+	var ready_path: String = ThemeManager.ui_icon_path("gift_ready")
+	var waiting_path: String = ThemeManager.ui_icon_path("gift_waiting")
+	if ready_path != "" or waiting_path != "":
+		var tr := TextureRect.new()
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		tr.offset_top = 4
+		tr.offset_bottom = 96
+		btn.add_child(tr)
+		_gift_footer_tex = tr
+		_gift_footer_ready_path = ready_path
+		_gift_footer_waiting_path = waiting_path
+		_refresh_gift_icon()
+	else:
+		_gift_footer_tex = null
+		btn.draw.connect(func() -> void:
+			_draw_gift_icon(btn, col)
+		)
+	var lab := Label.new()
+	lab.text = _gift_footer_label_text()
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.add_theme_font_size_override("font_size", 28)
+	lab.add_theme_color_override("font_color", col)
+	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	lab.add_theme_constant_override("outline_size", 4)
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		lab.add_theme_font_override("font", theme_font)
+	lab.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	lab.offset_top = -40
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(lab)
+	_gift_footer_label = lab
+	# Tap behavior: open the shop overlay regardless of state. The actual
+	# claim must happen from the shop's own gift widget — the lobby button
+	# is just a portal so the player always lands inside the store before
+	# claiming (matches the trainer-skin "everything goes through the
+	# shop" UX).
+	btn.pressed.connect(func() -> void:
+		if ShopOverlay:
+			ShopOverlay.show(self)
+	)
+	_attach_press_effect(btn)
+	return btn
+
+
+func _draw_gift_icon(ctrl: Control, col: Color) -> void:
+	var s: Vector2 = ctrl.size
+	var cx: float = s.x * 0.5
+	var cy: float = s.y * 0.38
+	var r := 30.0
+	var w := 3.0
+	# Gift box: square outline + vertical ribbon line + top "bow" arc.
+	var rect := Rect2(cx - r, cy - r * 0.75, r * 2.0, r * 1.5)
+	_draw_rounded_rect_outline(ctrl, rect, 8.0, col, w)
+	ctrl.draw_line(Vector2(cx, cy - r * 0.75), Vector2(cx, cy + r * 0.75), col, w)
+	ctrl.draw_line(Vector2(cx - r, cy), Vector2(cx + r, cy), col, w)
+	ctrl.draw_arc(Vector2(cx - r * 0.4, cy - r * 0.75), r * 0.3, 0, PI, 12, col, w)
+	ctrl.draw_arc(Vector2(cx + r * 0.4, cy - r * 0.75), r * 0.3, 0, PI, 12, col, w)
+
+
+## Swaps the gift TextureRect's texture between ready/waiting states.
+## Called on init and from _process so state transitions follow the
+## timer without rebuilding the button.
+func _refresh_gift_icon() -> void:
+	if _gift_footer_tex == null or not is_instance_valid(_gift_footer_tex):
+		return
+	var path: String = _gift_footer_ready_path if _is_gift_ready() else _gift_footer_waiting_path
+	if path == "":
+		# Only one of the two PNGs present — keep showing it regardless of state.
+		path = _gift_footer_ready_path if _gift_footer_ready_path != "" else _gift_footer_waiting_path
+	if path == "":
+		return
+	var current := _gift_footer_tex.texture
+	if current == null or (current.resource_path if current is Resource else "") != path:
+		_gift_footer_tex.texture = load(path)
+
+
+func _gift_footer_label_text() -> String:
+	if _is_gift_ready():
+		return Translations.tr_key("common.free")
+	var interval_sec: int = ConfigManager.get_gift_interval_hours() * 3600
+	var remaining: int = interval_sec - (int(Time.get_unix_time_from_system()) - SaveManager.last_gift_time)
+	if remaining < 0:
+		remaining = 0
+	var h: int = remaining / 3600
+	var m: int = (remaining % 3600) / 60
+	var s: int = remaining % 60
+	return "%02d:%02d:%02d" % [h, m, s]
 
 
 ## Hover overscale for any Control — slight zoom on mouse_entered, revert
@@ -534,12 +1225,25 @@ var _drag_moved: bool = false        # set true once drag crosses tap-cancel thr
 
 const DRAG_TAP_CANCEL_PX := 10.0    # movement beyond this in any drag cancels a tap
 
-const OVERSCROLL_RESIST := 0.38
-const MAX_OVERSCROLL := 100.0
+## Asymptote of the iOS-style rubber-band curve (in pixels). At small
+## drag the response is close to 1:1; as drag grows it tapers toward
+## this value without ever reaching it, so a full-screen drag still
+## produces visible but heavily damped motion.
+const OVERSCROLL_ASYMPTOTE := 480.0
 const INERTIA_MULT := 0.28
 const INERTIA_DURATION := 0.85
-const SPRING_DURATION := 0.38
+const SPRING_DURATION := 0.7
 const MIN_INERTIA_VELOCITY := 120.0
+const FLING_OVERSHOOT_MULT := 0.55  # inertia-past-edge peak = excess * this
+
+
+## Rubber-band mapping: input = raw drag distance (≥ 0), output is the
+## attenuated overscroll distance. Formula `drag * A / (drag + A)` — at
+## drag=0 it's 0, at drag→∞ it approaches A. Progressive resistance.
+func _rubber_band(drag: float) -> float:
+	if drag <= 0.0:
+		return 0.0
+	return drag * OVERSCROLL_ASYMPTOTE / (drag + OVERSCROLL_ASYMPTOTE)
 
 # On web the mouse/touch-drag direction feels reversed vs. native; flip the
 # drag delta + velocity sign so swipe gestures behave naturally in-browser.
@@ -560,17 +1264,11 @@ func carousel_drag_moved() -> bool:
 	return _drag_moved
 
 
-## Fade the horizontal scrollbar of the active scroll container in/out
-## (anim 4.5) — visible while dragging, invisible at rest.
-func _fade_scrollbar(visible: bool) -> void:
-	if _scroll_ref == null:
-		return
-	var sb := _scroll_ref.get_h_scroll_bar()
-	if sb == null:
-		return
-	var target_a: float = 0.6 if visible else 0.0
-	var tw := sb.create_tween()
-	tw.tween_property(sb, "modulate:a", target_a, 0.25)
+## Scrollbar is always invisible — the carousel handles its own drag/
+## overscroll visuals, so fading the scrollbar in during drag was
+## redundant. Kept as a no-op so existing call sites still work.
+func _fade_scrollbar(_visible: bool) -> void:
+	pass
 
 
 func _setup_drag_scroll(scroll: ScrollContainer) -> void:
@@ -586,7 +1284,22 @@ func _max_scroll() -> int:
 func _set_overscroll(val: float) -> void:
 	_overscroll = val
 	if _drag_content and _scroll_ref:
-		_drag_content.position.x = float(-_scroll_ref.scroll_horizontal) + val
+		_drag_content.position.x = float(-_scroll_ref.scroll_horizontal) + val + _centering_offset()
+
+
+## When the grid's natural width is smaller than the scroll viewport
+## (all tiles fit on-screen → nothing to scroll), return the horizontal
+## offset that centers the grid within the scroll. Otherwise 0.
+## The value is added to position.x every frame in _process so
+## ScrollContainer's layout pass can't strip it.
+func _centering_offset() -> float:
+	if _scroll_ref == null or _grid == null:
+		return 0.0
+	var cw: float = _grid.get_combined_minimum_size().x
+	var sw: float = _scroll_ref.size.x
+	if cw >= sw:
+		return 0.0
+	return (sw - cw) * 0.5
 
 
 func _calc_velocity() -> float:
@@ -639,10 +1352,10 @@ func _input(event: InputEvent) -> void:
 		var m: int = _max_scroll()
 		if target < 0:
 			_scroll_ref.scroll_horizontal = 0
-			_set_overscroll(minf(float(-target) * OVERSCROLL_RESIST, MAX_OVERSCROLL))
+			_set_overscroll(_rubber_band(float(-target)))
 		elif target > m:
 			_scroll_ref.scroll_horizontal = m
-			_set_overscroll(maxf(float(m - target) * OVERSCROLL_RESIST, -MAX_OVERSCROLL))
+			_set_overscroll(-_rubber_band(float(target - m)))
 		else:
 			_scroll_ref.scroll_horizontal = target
 			_set_overscroll(0.0)
@@ -672,7 +1385,7 @@ func _release_drag(velocity: float) -> void:
 		# EASE_IN_OUT so it also starts at v=0, avoiding the velocity
 		# discontinuity at the peak that looked like an extra bounce.
 		var excess: float = float(-target)
-		var peak: float = -minf(excess * 0.35, MAX_OVERSCROLL)
+		var peak: float = -_rubber_band(excess * FLING_OVERSHOOT_MULT)
 		_scroll_ref.scroll_horizontal = 0
 		_inertia_tween = create_tween()
 		_inertia_tween.tween_method(_set_overscroll, 0.0, peak, 0.28) \
@@ -681,7 +1394,7 @@ func _release_drag(velocity: float) -> void:
 			.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
 	elif target > m:
 		var excess2: float = float(target - m)
-		var peak2: float = minf(excess2 * 0.35, MAX_OVERSCROLL)
+		var peak2: float = _rubber_band(excess2 * FLING_OVERSHOOT_MULT)
 		_scroll_ref.scroll_horizontal = m
 		_inertia_tween = create_tween()
 		_inertia_tween.tween_method(_set_overscroll, 0.0, -peak2, 0.28) \
@@ -724,6 +1437,12 @@ func _build_carousel() -> void:
 		for c in MACHINE_CONFIG:
 			configs.append(c)
 
+	# Center layout rule: ALWAYS 2 rows, columns grow with count so a
+	# longer machine list just extends the strip horizontally (rubber
+	# band + h-scroll do the rest) instead of wrapping into more rows.
+	const FIXED_ROWS := 2
+	_grid.columns = maxi(int(ceil(float(configs.size()) / float(FIXED_ROWS))), 1)
+
 	# GridContainer fills row-major (left→right, top→bottom). We want the
 	# visual order to be COLUMN-MAJOR (top→bottom within each column, columns
 	# left→right), so remap the add order: visual (row, col) gets
@@ -754,8 +1473,8 @@ func _build_carousel() -> void:
 				config["locked"],
 			)
 			card_node.play_pressed.connect(_on_play_pressed)
-			# Hover bounce (anim 2.2) — scale 1.04 on hover/exit
-			_attach_hover_bounce(card_node)
+			# Hover bounce removed — tile stays static on mouse-over.
+			# _attach_hover_bounce(card_node)
 			# Decorative shimmer sweep (anim 1.2): fast highlight pass.
 			# 1s sweep + 10.2s pause = 11.2s total cycle; alpha 0.35.
 			# PanelContainer's content_margin (22/26px) would inset this child
@@ -765,12 +1484,30 @@ func _build_carousel() -> void:
 			shim_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			shim_host.clip_contents = true
 			card_node.add_child(shim_host)
+			# Bind shim_host to the tile's actual visible rect (PNG artwork
+			# for icon mode, full card for text mode). This keeps the
+			# sweep glow inside the visible art instead of sweeping over
+			# the invisible letterbox margins on the container.
 			var fix_shim_rect := func() -> void:
-				if is_instance_valid(shim_host) and is_instance_valid(card_node):
-					shim_host.position = Vector2.ZERO
-					shim_host.size = card_node.size
+				if not (is_instance_valid(shim_host) and is_instance_valid(card_node)):
+					return
+				# PNG tiles run their own shader-based shimmer inside the
+				# TextureRect (alpha-masked by the artwork). Disable the
+				# external polygon overlay to avoid a visible double sweep.
+				if card_node.has_method("has_png_art") and card_node.has_png_art():
+					shim_host.visible = false
+					return
+				shim_host.visible = true
+				var r: Rect2 = card_node.visible_rect() \
+					if card_node.has_method("visible_rect") \
+					else Rect2(Vector2.ZERO, card_node.size)
+				shim_host.position = r.position
+				shim_host.size = r.size
 			card_node.sort_children.connect(fix_shim_rect)
 			card_node.resized.connect(fix_shim_rect)
+			# Also re-align when the tile's texture or size becomes known
+			# (initial texture load + apply_tile_size both emit this).
+			card_node.visual_ready.connect(fix_shim_rect)
 			fix_shim_rect.call_deferred()
 			_attach_shimmer_sweep(shim_host, 1.0, Color(1, 1, 1, 0.09), 10.2)
 			_machine_cards.append(card_node)
@@ -780,6 +1517,7 @@ func _build_carousel() -> void:
 	# every layout pass — so we animate modulate + scale only (pivot-based),
 	# never position.
 	call_deferred("_play_stagger_fade_in")
+	call_deferred("_update_tile_sizes")
 
 
 func _play_stagger_fade_in() -> void:
@@ -798,7 +1536,7 @@ func _play_stagger_fade_in() -> void:
 		card.modulate.a = 0.0
 		card.pivot_offset = card.size * 0.5
 		card.scale = Vector2(0.94, 0.94)
-		var delay: float = 0.1 + float(visual_idx) * 0.067
+		var delay: float = 0.05 + float(visual_idx) * 0.033
 		var tw := card.create_tween().set_parallel(true)
 		tw.tween_interval(delay)
 		tw.chain().tween_property(card, "modulate:a", 1.0, 0.25)
@@ -813,7 +1551,7 @@ func _mode_card_color() -> Color:
 	return MODE_CARD_COLORS["single_play"]
 
 
-# Icon filename prefix per variant_id (assets/lobby/{prefix}_{suffix}.png)
+# Icon filename prefix per variant_id (assets/themes/<theme>/machines/{prefix}_{suffix}.png)
 const ICON_VARIANT_PREFIX := {
 	"jacks_or_better":     "jacks_or_better",
 	"bonus_poker":         "bonus_poker",
@@ -844,7 +1582,10 @@ func _icon_path_for(variant_id: String) -> String:
 	if _active_mode >= 0 and _active_mode < PLAY_MODES.size():
 		mode_id = PLAY_MODES[_active_mode].get("id", "single_play")
 	var suffix: String = ICON_MODE_SUFFIX.get(mode_id, "classic")
-	return "res://assets/lobby/%s_%s.png" % [prefix, suffix]
+	# Theme-scoped path (assets/themes/<theme>/machines/<prefix>_<suffix>.png).
+	# ThemeManager returns "" when the theme has no PNG — caller stays
+	# safe because machine_card falls back to its text layout.
+	return ThemeManager.machine_icon_path(prefix, suffix)
 
 
 func _on_play_pressed(variant_id: String) -> void:
@@ -860,7 +1601,6 @@ func _on_play_pressed(variant_id: String) -> void:
 
 func refresh_credits() -> void:
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
-	_credits_label.text = Translations.tr_key("lobby.credits_fmt", [SaveManager.credits])
 
 
 # --- Settings popup ----------------------------------------------------------
@@ -869,22 +1609,7 @@ var _settings_btn: BaseButton
 var _settings_overlay: Control = null
 var _settings_panel: Control = null
 var _settings_dim: ColorRect = null
-
-func _build_settings_button() -> void:
-	var tex_btn := TextureButton.new()
-	tex_btn.texture_normal = load("res://assets/textures/menu_icon.svg")
-	tex_btn.ignore_texture_size = true
-	tex_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	tex_btn.custom_minimum_size = Vector2(56, 56)
-	tex_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
-	tex_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	tex_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	tex_btn.pressed.connect(_show_settings)
-	_attach_press_effect(tex_btn)
-	_settings_btn = tex_btn
-	var top_bar := $VBoxContainer/TopBar as HBoxContainer
-	top_bar.add_child(_settings_btn)
-
+var _support_overlay: Control = null
 
 func _show_settings() -> void:
 	if _settings_overlay:
@@ -933,18 +1658,20 @@ func _show_settings() -> void:
 	title.add_theme_color_override("font_color", Color("FFEC00"))
 	vbox.add_child(title)
 
-	# LANGUAGE row — single button that opens a sub-popup with options.
-	# Format: "LANGUAGE: English". Tapping it reveals the full picker.
-	var current := Translations.get_saved_language()
-	var lang_btn := Button.new()
-	lang_btn.text = "%s: %s" % [
-		Translations.tr_key("settings.language"),
-		Translations.display_name_for_code(current),
-	]
-	lang_btn.custom_minimum_size = Vector2(280, 56)
-	_style_lang_btn(lang_btn, false)
-	lang_btn.pressed.connect(_show_language_picker)
-	vbox.add_child(lang_btn)
+	# LANGUAGE row — hidden while Translations.FORCE_ENGLISH is true.
+	# To restore: flip the FORCE_ENGLISH constant in translations.gd and delete
+	# this conditional (the block is preserved below for easy re-enable).
+	if not Translations.FORCE_ENGLISH:
+		var current := Translations.get_saved_language()
+		var lang_btn := Button.new()
+		lang_btn.text = "%s: %s" % [
+			Translations.tr_key("settings.language"),
+			Translations.display_name_for_code(current),
+		]
+		lang_btn.custom_minimum_size = Vector2(280, 56)
+		_style_lang_btn(lang_btn, false)
+		lang_btn.pressed.connect(_show_language_picker)
+		vbox.add_child(lang_btn)
 
 	# Vibration toggle
 	var vib_on: bool = SaveManager.settings.get("vibration", true)
@@ -967,6 +1694,21 @@ func _show_settings() -> void:
 	)
 	vbox.add_child(vib_btn)
 
+	# Animation speed toggle — cycles 1..4 (internal 0..3). Preserves choice
+	# in SaveManager.speed_level so game + multi_hand screens pick it up.
+	var speed_btn := Button.new()
+	var _speed_label := func(level: int) -> String:
+		return "%s: %d/4" % [Translations.tr_key("settings.speed"), level + 1]
+	speed_btn.text = _speed_label.call(SaveManager.speed_level)
+	speed_btn.custom_minimum_size = Vector2(280, 56)
+	_style_lang_btn(speed_btn, false)
+	speed_btn.pressed.connect(func() -> void:
+		SaveManager.speed_level = (SaveManager.speed_level + 1) % 4
+		SaveManager.save_game()
+		speed_btn.text = _speed_label.call(SaveManager.speed_level)
+	)
+	vbox.add_child(speed_btn)
+
 	# Privacy policy — opens GitHub Pages page in system browser.
 	var privacy_btn := Button.new()
 	privacy_btn.text = Translations.tr_key("settings.privacy_policy")
@@ -976,6 +1718,21 @@ func _show_settings() -> void:
 		OS.shell_open("https://vadosina-git.github.io/privacy-policy/video-poker-privacy.html")
 	)
 	vbox.add_child(privacy_btn)
+
+	# Trainer disclaimer — supercell-only framing.
+	if ThemeManager.current_id == "supercell":
+		var disc_spacer := Control.new()
+		disc_spacer.custom_minimum_size = Vector2(0, 6)
+		vbox.add_child(disc_spacer)
+		var disc := Label.new()
+		disc.text = Translations.tr_key("trainer.disclaimer")
+		disc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		disc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		disc.add_theme_font_size_override("font_size", 13)
+		disc.add_theme_color_override("font_color", Color.WHITE)
+		disc.custom_minimum_size = Vector2(360, 0)
+		disc.modulate = Color(1, 1, 1, 0.78)
+		vbox.add_child(disc)
 
 	# Close button
 	var close_btn := Button.new()
@@ -1156,10 +1913,15 @@ func _perform_account_delete() -> void:
 	SaveManager.speed_level = 1
 	SaveManager.bet_level = 1
 	SaveManager.depth_hint_shown = false
+	# Reset all cooldown timers so gifts + free-timed packs are claimable right away.
+	SaveManager.last_gift_time = 0
+	SaveManager.pack_claim_times.clear()
 	SaveManager.save_game()
 	# Refresh lobby
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
-	_credits_label.text = "CREDITS: %d" % SaveManager.credits
+	# Force gift widget to re-evaluate readiness (shows COLLECT state immediately).
+	_gift_ready = false
+	_update_gift_state()
 
 
 func _hide_settings() -> void:
@@ -1169,6 +1931,139 @@ func _hide_settings() -> void:
 		_settings_overlay = null
 		_settings_panel = null
 		_settings_dim = null
+
+
+## Support popup — a scrollable list of per-mode rules. Hidden modes
+## (disabled in lobby_order.json) don't show their rules, matching the
+## "if a mode is hidden on the client, its rules stay hidden" rule.
+func _show_support() -> void:
+	if _support_overlay:
+		return
+	_support_overlay = Control.new()
+	_support_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_support_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_support_overlay.z_index = 100
+	add_child(_support_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed:
+			_hide_support()
+	)
+	_support_overlay.add_child(dim)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(640, 720)
+	panel.pivot_offset = panel.custom_minimum_size * 0.5
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color = ThemeManager.color("panel_bg", Color(0.05, 0.05, 0.18, 0.98))
+	pstyle.set_border_width_all(int(ThemeManager.size("border_width", 3)))
+	pstyle.border_color = ThemeManager.color("panel_border", Color("FFEC00"))
+	pstyle.set_corner_radius_all(int(ThemeManager.size("corner_radius", 12)))
+	pstyle.content_margin_left = 32
+	pstyle.content_margin_right = 32
+	pstyle.content_margin_top = 24
+	pstyle.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", pstyle)
+	_support_overlay.add_child(panel)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 14)
+	panel.add_child(vb)
+
+	var title := Label.new()
+	title.text = Translations.tr_key("support.title")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", ThemeManager.color("title_text", Color.WHITE))
+	title.add_theme_color_override("font_outline_color", ThemeManager.color("title_outline", Color.BLACK))
+	title.add_theme_constant_override("outline_size", 4)
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		title.add_theme_font_override("font", theme_font)
+	vb.add_child(title)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scroll)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 18)
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(body)
+
+	for mode in PLAY_MODES:
+		var mode_id: String = mode.get("id", "")
+		var title_key := "support.%s_title" % mode_id
+		var rules_key := "support.%s_rules" % mode_id
+		var section_title := Label.new()
+		section_title.text = Translations.tr_key(title_key)
+		section_title.add_theme_font_size_override("font_size", 22)
+		section_title.add_theme_color_override("font_color",
+			ThemeManager.color("sidebar_active_text", Color("FFEC00")))
+		if theme_font != null:
+			section_title.add_theme_font_override("font", theme_font)
+		body.add_child(section_title)
+
+		var rules := Label.new()
+		rules.text = Translations.tr_key(rules_key)
+		rules.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		rules.add_theme_font_size_override("font_size", 17)
+		rules.add_theme_color_override("font_color", ThemeManager.color("body_text", Color.WHITE))
+		body.add_child(rules)
+
+	# Trainer disclaimer — supercell only. Classic keeps its original
+	# casino-app framing (per app store metadata for that build).
+	if ThemeManager.current_id == "supercell":
+		var disc_spacer := Control.new()
+		disc_spacer.custom_minimum_size = Vector2(0, 8)
+		body.add_child(disc_spacer)
+		var disc := Label.new()
+		disc.text = Translations.tr_key("trainer.disclaimer")
+		disc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		disc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		disc.add_theme_font_size_override("font_size", 14)
+		disc.add_theme_color_override("font_color", ThemeManager.color("body_text", Color.WHITE))
+		if theme_font != null:
+			disc.add_theme_font_override("font", theme_font)
+		disc.modulate = Color(1, 1, 1, 0.78)
+		body.add_child(disc)
+
+	var close := Button.new()
+	close.text = Translations.tr_key("settings.close")
+	close.custom_minimum_size = Vector2(0, 48)
+	var cs := StyleBoxFlat.new()
+	cs.bg_color = ThemeManager.color("button_primary_bg", Color("FFEC00"))
+	cs.set_corner_radius_all(int(ThemeManager.size("button_corner_radius", 10)))
+	close.add_theme_stylebox_override("normal", cs)
+	close.add_theme_stylebox_override("hover", cs)
+	close.add_theme_stylebox_override("pressed", cs)
+	close.add_theme_stylebox_override("focus", cs)
+	close.add_theme_color_override("font_color",
+		ThemeManager.color("button_primary_text", Color.BLACK))
+	close.add_theme_font_size_override("font_size", 18)
+	if theme_font != null:
+		close.add_theme_font_override("font", theme_font)
+	close.pressed.connect(_hide_support)
+	vb.add_child(close)
+
+	panel.scale = Vector2(0.9, 0.9)
+	panel.modulate.a = 0.0
+	var tw := panel.create_tween().set_parallel(true)
+	tw.tween_property(panel, "scale", Vector2.ONE, 0.18) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(panel, "modulate:a", 1.0, 0.15)
+
+
+func _hide_support() -> void:
+	if _support_overlay:
+		_support_overlay.queue_free()
+		_support_overlay = null
 
 
 # --- Language picker (sub-popup of settings) ---
@@ -1271,13 +2166,13 @@ func _build_gift_widget() -> void:
 	root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	root.pivot_offset = Vector2(widget_w, widget_h) * 0.5
 
-	# Green pill button background
-	var pill := TextureRect.new()
-	pill.texture = load("res://assets/shop/gift_box_button.png")
+	# Transparent pill — only the gift icon + countdown text are visible;
+	# no fill, no border, consistent with the rest of the "floating" lobby.
+	var pill := Panel.new()
 	pill.position = Vector2(GIFT_ICON_SIZE - GIFT_ICON_OVERLAP, (widget_h - GIFT_BTN_H) * 0.5)
 	pill.size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
-	pill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	pill.stretch_mode = TextureRect.STRETCH_SCALE
+	pill.custom_minimum_size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
+	pill.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(pill)
 
@@ -1313,8 +2208,19 @@ func _build_gift_widget() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _gift_btn and not _gift_ready:
-		_update_gift_state()
+	# Clamp vertical scroll to 0 every frame — SHOW_NEVER hides the bar
+	# but still allows wheel/touch scrolling on a few residual pixels.
+	# Since the grid is sized to match the scroll height exactly, there's
+	# nothing to scroll vertically — we just null it out.
+	if _scroll_ref and _scroll_ref.scroll_vertical != 0:
+		_scroll_ref.scroll_vertical = 0
+	# Gift footer label + ready-state repaint. Cheap: only rebuilds text,
+	# not the whole footer. Icon swap happens inside _refresh_gift_icon.
+	if is_instance_valid(_gift_footer_label):
+		_gift_footer_label.text = _gift_footer_label_text()
+	_refresh_gift_icon()
+	# Store notification dot reflects availability of any free reward.
+	_refresh_shop_badge()
 	# Keep shop-side timer in sync while gift is recharging
 	if _shop_gift_label_area and is_instance_valid(_shop_gift_label_area) and not _gift_ready:
 		var shop_timer := _shop_gift_label_area.get_node_or_null("Timer") as Label
@@ -1325,9 +2231,13 @@ func _process(_delta: float) -> void:
 			var m: int = (remaining % 3600) / 60
 			var s: int = remaining % 60
 			shop_timer.text = "%dH %dM %dS" % [h, m, s]
-	# Re-apply rubber-band offset after ScrollContainer's sort resets content.position
-	if _overscroll != 0.0 and _drag_content and _scroll_ref:
-		_drag_content.position.x = float(-_scroll_ref.scroll_horizontal) + _overscroll
+	# Re-apply rubber-band offset + centering offset after ScrollContainer's
+	# sort resets content.position. Centering only triggers when the grid
+	# is narrower than the viewport (few-machine case).
+	if _drag_content and _scroll_ref:
+		var centering: float = _centering_offset()
+		if _overscroll != 0.0 or centering != 0.0:
+			_drag_content.position.x = float(-_scroll_ref.scroll_horizontal) + _overscroll + centering
 
 
 func _is_gift_ready() -> bool:
@@ -1364,12 +2274,10 @@ func _rebuild_gift_content(ready: bool) -> void:
 		_gift_icon_rect.texture = load("res://assets/shop/gift_box_ready_icon.png")
 
 		var collect_label := Label.new()
-		collect_label.text = "COLLECT!"
+		collect_label.text = Translations.tr_key("gift.daily_bonus")
 		collect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		collect_label.add_theme_font_size_override("font_size", 22)
+		collect_label.add_theme_font_size_override("font_size", 18)
 		collect_label.add_theme_color_override("font_color", Color.WHITE)
-		collect_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-		collect_label.add_theme_constant_override("outline_size", 3)
 		_gift_label_area.add_child(collect_label)
 
 		var amount_hb := HBoxContainer.new()
@@ -1377,7 +2285,8 @@ func _rebuild_gift_content(ready: bool) -> void:
 		amount_hb.add_theme_constant_override("separation", 4)
 		amount_hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-		var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+		# Chip glyph — texture will be swapped by user later.
+		var chip_tex: Texture2D = SaveManager.get_chip_texture()
 		if chip_tex:
 			var chip := TextureRect.new()
 			chip.texture = chip_tex
@@ -1459,13 +2368,14 @@ func _on_gift_pressed() -> void:
 
 
 func _claim_gift_reward(from_pos: Vector2 = Vector2.ZERO) -> void:
-	if not _gift_ready:
+	if not _is_gift_ready():
 		return
 	var chips: int = ConfigManager.get_gift_chips()
 	var old_credits: int = SaveManager.credits
 	SaveManager.add_credits(chips)
 	SaveManager.last_gift_time = int(Time.get_unix_time_from_system())
 	SaveManager.save_game()
+	_gift_ready = false
 	_update_gift_state()
 	SoundManager.play("gift_claim")
 	# Shop-side widget stays visible; just swap to the timer state.
@@ -1517,7 +2427,7 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 		return
 	var target_pos: Vector2 = pill_inner.global_position + pill_inner.size * 0.5
 
-	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex == null:
 		_animate_balance_increment(old_credits, new_credits, 0.9)
 		return
@@ -1836,7 +2746,8 @@ func _build_shop_balance_pill() -> PanelContainer:
 	cash_label.add_theme_constant_override("outline_size", 3)
 	inner.add_child(cash_label)
 
-	var cd := SaveManager.create_currency_display(32, Color.WHITE)
+	var cd := SaveManager.create_currency_display(32, Color.WHITE,
+		ThemeManager.color("topbar_text_outline", Color.BLACK), 2.0)
 	inner.add_child(cd["box"])
 	SaveManager.set_currency_value(cd, SaveManager.format_money(SaveManager.credits))
 	_shop_cash_cd = cd
@@ -1853,13 +2764,17 @@ func _build_shop_gift_widget() -> Control:
 	root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	root.pivot_offset = Vector2(widget_w, widget_h) * 0.5
 
-	# Pill bg
-	var pill := TextureRect.new()
-	pill.texture = load("res://assets/shop/gift_box_button.png")
+	# Pill bg — dark blue flat panel (trainer style).
+	var pill := Panel.new()
 	pill.position = Vector2(GIFT_ICON_SIZE - GIFT_ICON_OVERLAP, (widget_h - GIFT_BTN_H) * 0.5)
 	pill.size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
-	pill.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	pill.stretch_mode = TextureRect.STRETCH_SCALE
+	pill.custom_minimum_size = Vector2(GIFT_BTN_W, GIFT_BTN_H)
+	var pill_style := StyleBoxFlat.new()
+	pill_style.bg_color = Color("1E3A5F")
+	pill_style.set_corner_radius_all(int(GIFT_BTN_H * 0.5))
+	pill_style.set_border_width_all(2)
+	pill_style.border_color = Color("3A5F8C")
+	pill.add_theme_stylebox_override("panel", pill_style)
 	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(pill)
 
@@ -1913,12 +2828,10 @@ func _rebuild_shop_gift_content(ready: bool) -> void:
 		_shop_gift_icon.texture = load("res://assets/shop/gift_box_ready_icon.png")
 
 		var collect := Label.new()
-		collect.text = "COLLECT!"
+		collect.text = Translations.tr_key("gift.daily_bonus")
 		collect.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		collect.add_theme_font_size_override("font_size", 22)
+		collect.add_theme_font_size_override("font_size", 18)
 		collect.add_theme_color_override("font_color", Color.WHITE)
-		collect.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-		collect.add_theme_constant_override("outline_size", 3)
 		_shop_gift_label_area.add_child(collect)
 
 		var amount_hb := HBoxContainer.new()
@@ -1927,7 +2840,7 @@ func _rebuild_shop_gift_content(ready: bool) -> void:
 		amount_hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_shop_gift_label_area.add_child(amount_hb)
 
-		var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+		var chip_tex: Texture2D = SaveManager.get_chip_texture()
 		if chip_tex:
 			var chip := TextureRect.new()
 			chip.texture = chip_tex
@@ -2056,7 +2969,7 @@ func _build_chips_display(amount: int, font_size: int, color: Color) -> HBoxCont
 	num.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	num.add_theme_constant_override("outline_size", 3)
 	hb.add_child(num)
-	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex:
 		var chip := TextureRect.new()
 		chip.texture = chip_tex
@@ -2175,7 +3088,7 @@ func _build_extra_ribbon(bonus_chips: int, bg: Color) -> PanelContainer:
 	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	lab.add_theme_constant_override("outline_size", 3)
 	hb.add_child(lab)
-	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex:
 		var chip := TextureRect.new()
 		chip.texture = chip_tex
@@ -2220,7 +3133,7 @@ func _build_exchange_rate_row(coins_per_dollar: int) -> HBoxContainer:
 	n_label.add_theme_font_size_override("font_size", 22)
 	n_label.add_theme_color_override("font_color", Color("FFEC00"))
 	hb.add_child(n_label)
-	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex:
 		var chip := TextureRect.new()
 		chip.texture = chip_tex

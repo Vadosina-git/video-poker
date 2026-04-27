@@ -16,7 +16,8 @@ var last_gift_time: int = 0         # Unix timestamp of last gift claim
 var pack_claim_times: Dictionary = {}  # product_id → unix ts of last free-timed pack claim
 var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
 var language: String = "system"  # "system" | "en" | "ru" | "es"
-var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (see age_gate.gd)
+var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (classic-only, see age_gate.gd)
+var theme_name: String = "classic"  # Active visual theme id (ThemeManager reads on _ready)
 var settings := {
 	"sound_fx": true,
 	"music": true,
@@ -29,11 +30,69 @@ var settings := {
 
 var _glyphs: Dictionary = {}  # "0".."9", ",", ".", "chip", "K", "M" → Texture2D
 const GLYPH_PATH := "res://assets/textures/glyphs/"
+const _DEFAULT_CHIP_PATH := "res://assets/textures/glyphs/glyph_chip.svg"
 
 
 func _ready() -> void:
 	_load_glyphs()
 	load_game()
+
+
+## Swap the "chip" glyph used by every currency display (paytable rows
+## not included — they have their own coin nodes). ThemeManager calls
+## this when the active theme changes so multi-hand / spin / lobby /
+## shop currency widgets pick up the supercell coin instead of the
+## classic chip without needing to rebuild every dictionary.
+##
+## Pass an empty string to revert to the default classic chip.
+func set_chip_texture(path: String) -> void:
+	var resolved := path if path != "" else _DEFAULT_CHIP_PATH
+	if not ResourceLoader.exists(resolved):
+		resolved = _DEFAULT_CHIP_PATH
+	var tex: Texture2D = load(resolved) as Texture2D
+	if tex == null:
+		return
+	if _glyphs.has("chip") and _glyphs["chip"] == tex:
+		return
+	_glyphs["chip"] = tex
+
+
+## Returns the currently active chip / coin texture. Anywhere in the
+## codebase that used to do `load("res://assets/textures/glyphs/glyph_chip.svg")`
+## directly should call this instead — picks up the supercell coin
+## automatically once ThemeManager has switched the theme.
+func get_chip_texture() -> Texture2D:
+	if _glyphs.has("chip"):
+		return _glyphs["chip"]
+	if ResourceLoader.exists(_DEFAULT_CHIP_PATH):
+		return load(_DEFAULT_CHIP_PATH)
+	return null
+
+
+## Walk a currency display's HBox and re-point any chip TextureRect to
+## the current `_glyphs["chip"]`. Use after a theme switch to upgrade
+## already-rendered displays in place without rebuilding their text
+## children. The chip is conventionally the first child in the box.
+func refresh_chip_in_box(cd: Dictionary) -> void:
+	if not _glyphs.has("chip"):
+		return
+	var new_tex: Texture2D = _glyphs["chip"]
+	var box: HBoxContainer = cd.get("box", null) as HBoxContainer
+	if not is_instance_valid(box):
+		return
+	if box.get_child_count() == 0:
+		return
+	var first := box.get_child(0)
+	if not (first is TextureRect):
+		return
+	var tr: TextureRect = first as TextureRect
+	if tr.texture == new_tex:
+		return
+	tr.texture = new_tex
+	# Recompute aspect-correct width so the new icon doesn't squish.
+	var h: int = int(cd.get("glyph_h", 16))
+	var aspect: float = new_tex.get_width() / maxf(new_tex.get_height(), 1.0)
+	tr.custom_minimum_size = Vector2(int(ceili(h * aspect)), h)
 
 
 func _load_glyphs() -> void:
@@ -52,11 +111,20 @@ func _load_glyphs() -> void:
 
 ## Create a currency display widget.
 ## Returns a Dictionary with "box" (HBoxContainer) for adding to tree.
-func create_currency_display(glyph_h: int, color: Color) -> Dictionary:
+## Pass `outline_color` with non-zero alpha to render every glyph with a
+## stroked silhouette via res://shaders/glyph_outline.gdshader — used by
+## the lobby cash readout to make the digits pop on the bright top bar.
+func create_currency_display(glyph_h: int, color: Color, outline_color: Color = Color(0, 0, 0, 0), outline_size: float = 2.0) -> Dictionary:
 	var box := HBoxContainer.new()
 	box.add_theme_constant_override("separation", 0)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	return {"box": box, "glyph_h": glyph_h, "color": color}
+	return {
+		"box": box,
+		"glyph_h": glyph_h,
+		"color": color,
+		"outline_color": outline_color,
+		"outline_size": outline_size,
+	}
 
 
 ## Update currency display with a formatted string. Prepends chip icon.
@@ -85,14 +153,16 @@ func set_currency_value(cd: Dictionary, text: String, glyph_h: int = 0, color: C
 	for child in box.get_children():
 		box.remove_child(child)
 		child.free()
+	var outline_col: Color = cd.get("outline_color", Color(0, 0, 0, 0))
+	var outline_sz: float = cd.get("outline_size", 2.0)
 	if show_chip:
-		_add_glyph(box, "chip", h, col)
+		_add_glyph(box, "chip", h, col, outline_col, outline_sz)
 	for ch in text:
 		if ch in _glyphs:
-			_add_glyph(box, ch, h, col)
+			_add_glyph(box, ch, h, col, outline_col, outline_sz)
 
 
-func _add_glyph(box: HBoxContainer, key: String, h: int, color: Color) -> void:
+func _add_glyph(box: HBoxContainer, key: String, h: int, color: Color, outline_color: Color = Color(0, 0, 0, 0), outline_size: float = 2.0) -> void:
 	if key not in _glyphs:
 		return
 	var tex: Texture2D = _glyphs[key]
@@ -103,8 +173,29 @@ func _add_glyph(box: HBoxContainer, key: String, h: int, color: Color) -> void:
 	tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tex_rect.custom_minimum_size = Vector2(w, h)
-	tex_rect.modulate = color
 	tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Outline shader applies only to digit/punct/K/M glyphs — those are
+	# monochrome SVGs (white pixels + alpha) that pair cleanly with a
+	# black silhouette. The chip glyph is multi-color (yellow body, dark
+	# letter, optional shadow) and looks compressed under the dilated
+	# alpha mask, so it stays on the regular modulate path.
+	if outline_color.a > 0.0 and key != "chip":
+		var mat := ShaderMaterial.new()
+		mat.shader = load("res://shaders/glyph_outline.gdshader")
+		mat.set_shader_parameter("body_color", color)
+		mat.set_shader_parameter("outline_color", outline_color)
+		mat.set_shader_parameter("outline_size", outline_size)
+		tex_rect.material = mat
+		tex_rect.modulate = Color.WHITE
+	elif key == "chip":
+		# Chip glyph is a full-color PNG (yellow body + dark "C" letter
+		# on supercell, ring sprite on classic). Modulating it by the
+		# digits' color (e.g. dark brown for picker buttons) crushes the
+		# multi-color rendering into a near-black blob — keep it pristine
+		# white-modulated so its native colors show through.
+		tex_rect.modulate = Color.WHITE
+	else:
+		tex_rect.modulate = color
 	box.add_child(tex_rect)
 
 
@@ -119,13 +210,56 @@ static func format_money(n: int) -> String:
 	return "-" + result if n < 0 else result
 
 
-## Format number shortened: 1500 → "1K", 2000000 → "2M"
+## Format number shortened with 3-significant-figure precision and TRUNCATION
+## (no rounding up). Preserves enough digits that abbreviated 1,892,123 reads
+## as "1.89M", not "2M" — and 1,892 reads as "1.89K", not "2K".
+##   < 1,000          → "999"      (no abbreviation)
+##   1,000..9,999     → "1.89K"    (2 decimals, truncated)
+##   10,000..99,999   → "12.3K"    (1 decimal, truncated)
+##   100,000..999,999 → "123K"     (integer, truncated)
+##   1M+              → same scheme with M suffix; M extends to billions
+##                      ("1234M" rather than introduce a B glyph that the
+##                      currency-display set doesn't ship).
 static func format_short(n: int) -> String:
-	if n >= 1000000:
-		return "%.1fM" % (n / 1000000.0)
-	elif n >= 1000:
-		return "%.0fK" % (n / 1000.0)
-	return str(n)
+	var sign := "-" if n < 0 else ""
+	var abs_n := absi(n)
+	if abs_n >= 1_000_000:
+		return sign + _abbrev_truncated(abs_n, 1_000_000, "M")
+	if abs_n >= 1_000:
+		return sign + _abbrev_truncated(abs_n, 1_000, "K")
+	return sign + str(abs_n)
+
+
+## Format `n / divisor` with `suffix` using 3 significant figures and
+## floor-truncation so e.g. 1,892,123 / 1M = 1.892… → "1.89M" (never "2M").
+## Trailing zeros after the decimal point are stripped — "1.50K" → "1.5K",
+## "1.00K" → "1K", "12.0K" → "12K" — since a fixed-precision format that
+## ends in zero gives no extra information to the player.
+##   v in [100, 1000): integer, no decimals  → "234M"
+##   v in [10, 100):   one decimal           → "12.3M" / "12M" if .0
+##   v in [1, 10):     two decimals          → "1.89M" / "1.5M" / "1M"
+static func _abbrev_truncated(abs_n: int, divisor: int, suffix: String) -> String:
+	var v: float = float(abs_n) / float(divisor)
+	if v >= 100.0:
+		# >100K / >100M — three integer digits is plenty.
+		return str(int(v)) + suffix
+	if v >= 10.0:
+		# 12.3 — one decimal. Multiply×10 + int() floors to tenths.
+		var v10: int = int(v * 10.0)
+		var tenths: int = v10 % 10
+		if tenths == 0:
+			return "%d%s" % [v10 / 10, suffix]
+		return "%d.%d%s" % [v10 / 10, tenths, suffix]
+	# 1.89 — two decimals. Multiply×100 + int() floors to hundredths.
+	var v100: int = int(v * 100.0)
+	var int_part: int = v100 / 100
+	var frac: int = v100 % 100
+	if frac == 0:
+		return "%d%s" % [int_part, suffix]
+	# Strip a trailing zero from the hundredths slot — "1.50" → "1.5".
+	if frac % 10 == 0:
+		return "%d.%d%s" % [int_part, frac / 10, suffix]
+	return "%d.%02d%s" % [int_part, frac, suffix]
 
 
 ## Estimate pixel width of a currency string rendered at given glyph height.
@@ -166,6 +300,7 @@ func save_game() -> void:
 		"ultra_multipliers": ultra_multipliers,
 		"language": language,
 		"age_gate_confirmed": age_gate_confirmed,
+		"theme_name": theme_name,
 		"settings": settings,
 	}
 	var json_text := JSON.stringify(data, "\t")
@@ -234,19 +369,28 @@ func load_game() -> void:
 	ultra_multipliers = data.get("ultra_multipliers", {})
 	language = String(data.get("language", "system"))
 	age_gate_confirmed = bool(data.get("age_gate_confirmed", false))
+	theme_name = String(data.get("theme_name", "classic"))
 	var saved_settings: Dictionary = data.get("settings", {})
 	for key in saved_settings:
 		if key in settings:
 			settings[key] = saved_settings[key]
 
 
-func get_bet_level(mode_id: String) -> int:
-	return int(bet_levels.get(mode_id, 1))
+## Single global bet level shared across all modes (Single / Triple /
+## Five / Ten / Ultra VP / Spin). Picking a bet in one mode applies
+## everywhere on the next scene load. `mode_id` is kept in the signature
+## for call-site compatibility but ignored — the per-mode `bet_levels`
+## dict is mirrored to the same global value for save-file legacy.
+func get_bet_level(_mode_id: String = "") -> int:
+	return bet_level
 
 
-func set_bet_level(mode_id: String, level: int) -> void:
-	bet_levels[mode_id] = level
-	bet_level = level  # keep legacy field in sync
+func set_bet_level(_mode_id: String, level: int) -> void:
+	bet_level = level
+	# Mirror into every known per-mode slot so any legacy reader sees
+	# the same global value — no mode "remembers" its own stale bet.
+	for key in bet_levels:
+		bet_levels[key] = level
 	save_game()
 
 

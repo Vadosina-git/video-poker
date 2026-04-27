@@ -44,7 +44,17 @@ func _load_translations() -> void:
 		_strings[code] = langs[code]
 
 
+## When true, current_code is pinned to DEFAULT_CODE ("en") regardless of
+## SaveManager.language or OS locale. Used during App Store Review to guarantee
+## no Russian/Spanish UI slips into reviewer screenshots.
+## To re-enable multi-language: flip to false.
+const FORCE_ENGLISH := true
+
+
 func _apply_initial_language() -> void:
+	if FORCE_ENGLISH:
+		current_code = DEFAULT_CODE
+		return
 	var saved: String = SaveManager.language
 	if saved == "" or saved == "system":
 		current_code = _detect_system_language()
@@ -67,6 +77,8 @@ func _detect_system_language() -> String:
 ## Persist a new language choice and reload localized text everywhere.
 ## Pass "system" to fall back to the OS-detected language.
 func set_language(code: String) -> void:
+	if FORCE_ENGLISH:
+		return  # no-op while locked to English for App Store Review
 	SaveManager.language = code
 	SaveManager.save_game()
 	if code == "" or code == "system":

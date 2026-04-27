@@ -6,13 +6,20 @@ extends Node
 ## bets don't over-trigger the animation. Single source of truth.
 
 
-const GLYPH_PATH := "res://assets/big_win/glyphs_big_win/"
 const COUNTER_DURATION := 4.0
 const COUNTER_HEIGHT := 130  # px tall glyphs
 
 var _glyphs: Dictionary = {}
+var _glyphs_theme_id: String = ""  # which theme cache was built for
 var _overlay: Control = null
 var _tap_ready := false
+
+
+## Returns the path for a Big Win asset under the active theme's folder
+## (assets/themes/<id>/big_win/<rel>). Each theme is expected to ship its
+## own copy of every asset; there is no shared fallback.
+func _theme_big_win_path(rel: String) -> String:
+	return ThemeManager.theme_folder() + "big_win/" + rel
 
 
 ## Classify via ConfigManager, then show if the payout qualifies.
@@ -75,7 +82,7 @@ func show_win(host: Node, amount: int, level: String = "big") -> void:
 
 	# 4) Decorative pattern behind the title.
 	var pattern := TextureRect.new()
-	pattern.texture = load("res://assets/big_win/big_win_pattern.png")
+	pattern.texture = load(_theme_big_win_path("big_win_pattern.png"))
 	pattern.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pattern.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	pattern.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -83,7 +90,7 @@ func show_win(host: Node, amount: int, level: String = "big") -> void:
 	overlay.add_child(pattern)
 
 	# 4b) Title image "BIG WIN" / "HUGE WIN".
-	var title_path := "res://assets/big_win/huge_win.png" if level == "huge" else "res://assets/big_win/big_win.png"
+	var title_path := _theme_big_win_path("huge_win.png" if level == "huge" else "big_win.png")
 	var title := TextureRect.new()
 	title.texture = load(title_path)
 	title.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -204,8 +211,13 @@ func _dismiss() -> void:
 
 
 func _load_glyphs() -> void:
-	if not _glyphs.is_empty():
+	# Cache is keyed by the theme id — if the player switched themes since
+	# the last Big Win, we need to reload from the new theme's folder.
+	var current_theme: String = ThemeManager.current_id
+	if not _glyphs.is_empty() and current_theme == _glyphs_theme_id:
 		return
+	_glyphs.clear()
+	_glyphs_theme_id = current_theme
 	var names := {
 		"0": "glyph_0.png", "1": "glyph_1.png", "2": "glyph_2.png",
 		"3": "glyph_3.png", "4": "glyph_4.png", "5": "glyph_5.png",
@@ -214,7 +226,7 @@ func _load_glyphs() -> void:
 		"chip": "glyph_chip.png", "K": "glyph_K.png", "M": "glyph_M.png",
 	}
 	for key in names:
-		var path: String = GLYPH_PATH + names[key]
+		var path: String = _theme_big_win_path("glyphs/" + names[key])
 		if ResourceLoader.exists(path):
 			_glyphs[key] = load(path)
 
@@ -268,21 +280,31 @@ func _update_counter(box: HBoxContainer, value: int) -> void:
 	var visible_color := Color(1, 0.95, 0.25, 1)
 	var hidden_color := Color(1, 0.95, 0.25, 0.0)
 	var text := SaveManager.format_money(value)
-	# Slot 0 = chip (always visible). Slots 1..N — right-aligned digits.
-	# Leading slots stay hidden to keep the number right-justified against
-	# the final width, so already-visible digits don't shift as the value
-	# gains more characters.
+	# Layout strategy: total width stays fixed (final amount) so the
+	# already-visible digits don't shift as the count grows. The chip is
+	# glued to the LEFT of the leftmost visible digit — its slot index
+	# moves left as the number gains characters, never leaving a gap.
+	#
+	# Slot map for total_slots = N+1, current digit count = D:
+	#   pad        = N - D                  (hidden leading slots)
+	#   slots 0..pad-1     → hidden
+	#   slot  pad          → chip
+	#   slots pad+1..pad+D → digits left→right
 	var digit_slots: int = _counter_total_slots - 1
 	var pad: int = digit_slots - text.length()
+	var chip_idx: int = pad  # one slot to the left of first digit
 	for i in _counter_slots.size():
 		var tr: TextureRect = _counter_slots[i]
 		if not is_instance_valid(tr):
 			continue
-		if i == 0:
+		if i == chip_idx:
 			tr.texture = _glyphs.get("chip", null)
 			tr.modulate = visible_color
 			continue
-		var text_idx: int = (i - 1) - pad
+		if i < chip_idx:
+			tr.modulate = hidden_color
+			continue
+		var text_idx: int = i - chip_idx - 1
 		if text_idx < 0 or text_idx >= text.length():
 			tr.modulate = hidden_color
 			continue

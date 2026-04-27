@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "id": "classic",
+  "display_name": "Classic",
+  "colors": {
+    "bg_main": "#0A1A36",
+    "grid_bg": "#0A1A36",
+    "grid_bg_top": "#07132A",
+    "grid_bg_bottom": "#4A8CC8",
+    "grid_border": "#FFEC00",
+    "topbar_bg": "#000000",
+    "topbar_border": "#FFEC00",
+    "topbar_text": "#FFFFFF",
+    "topbar_text_outline": "#000000",
+    "footer_bg": "#000000",
+    "footer_border": "#FFEC00",
+    "sidebar_bg": "#0A1A36",
+    "sidebar_border": "#FFEC00",
+    "sidebar_text": "#AAB8CC",
+    "sidebar_active_bg": "#1E3A5F",
+    "sidebar_active_text": "#FFEC00",
+    "sidebar_btn_bg": "#0A1A36",
+    "sidebar_btn_border": "#FFEC00",
+    "panel_bg": "#0A1A36",
+    "panel_border": "#FFEC00",
+    "cash_pill_bg": "#000000",
+    "cash_pill_border": "#FFEC00",
+    "cash_pill_text": "#FFFFFF",
+    "title_text": "#FFFFFF",
+    "title_outline": "#000000",
+    "button_primary_bg": "#FFEC00",
+    "button_primary_text": "#0A1A36",
+    "button_primary_border": "#FFEC00",
+    "button_primary_shadow": "#CCBB00",
+    "button_danger_bg": "#1E3A5F",
+    "button_danger_border": "#FFEC00",
+    "button_danger_shadow": "#000000",
+    "button_danger_text": "#FFFFFF",
+    "gift_bg": "#1E3A5F",
+    "gift_border": "#FFEC00",
+    "body_text": "#FFFFFF",
+    "dim_text": "#AAB8CC",
+    "popup_bg": "#0A1A36",
+    "popup_border": "#FFEC00",
+    "popup_title_text": "#FFEC00",
+    "popup_body_text": "#FFFFFF",
+    "popup_dim": "#0000008C"
+  },
+  "sizes": {
+    "border_width": 2,
+    "corner_radius": 8,
+    "button_shadow_offset": 0,
+    "button_corner_radius": 10,
+    "tile_corner_radius": 10,
+    "grid_border_width": 0,
+    "popup_corner_radius": 12,
+    "popup_border_width": 3
+  },
+  "assets": {
+    "font": "",
+    "card_path": "res://assets/themes/classic/cards/",
+    "spin_card_path": "res://assets/themes/classic/cards/spin/"
+  },
+  "background_gradient": {
+    "type": "radial",
+    "stops": [
+      [0.0, "#006EBF"],
+      [0.18, "#0064AE"],
+      [0.54, "#004B82"],
+      [1.0, "#002642"]
+    ]
+  },
+  "background_overlay_gradient": {
+    "type": "linear",
+    "from": [0.0, 0.5],
+    "to": [0.0, 1.0],
+    "stops": [
+      [0.0, "#0069A5", 0.0],
+      [1.0, "#013654", 1.0]
+    ]
+  },
+  "pattern": {
+    "enabled": false
+  },
+  "tiles": {
+    "display": "icon",
+    "min_size": [320, 269]
+  }
+}

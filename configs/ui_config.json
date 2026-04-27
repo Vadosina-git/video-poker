@@ -9,5 +9,6 @@
   "control_bar_padding_px": 12,
   "multihand_badge_height_px": 32,
   "multihand_badge_line_spacing_px": 2,
-  "ultra_info_panel_fixed_height_px": 120
+  "ultra_info_panel_fixed_height_px": 120,
+  "hero_banner_enabled": false
 }

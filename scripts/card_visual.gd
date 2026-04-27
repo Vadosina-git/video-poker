@@ -38,7 +38,7 @@ func _ready() -> void:
 	gui_input.connect(_on_gui_input)
 
 	# Load card back
-	_card_back_texture = load("res://assets/cards/card_back.png")
+	_card_back_texture = load(ThemeManager.card_path() + "card_back.png")
 
 	# Create HELD indicator
 	var held_container := Control.new()
@@ -54,7 +54,7 @@ func _ready() -> void:
 
 	# Background: held_rect.svg
 	var held_tex_rect := TextureRect.new()
-	var held_tex_path := "res://assets/textures/held_rect.svg"
+	var held_tex_path := "res://assets/themes/classic/controls/held_rect.svg"
 	if ResourceLoader.exists(held_tex_path):
 		held_tex_rect.texture = load(held_tex_path)
 	held_tex_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
@@ -82,17 +82,17 @@ func _get_card_texture_path() -> String:
 	if card_data == null:
 		return ""
 	if card_data.is_joker():
-		var joker_path := "res://assets/cards/card_vp_joker_red.png"
+		var joker_path := ThemeManager.card_path() + "card_vp_joker_red.png"
 		if ResourceLoader.exists(joker_path):
 			return joker_path
-		return "res://assets/cards/card_vp_joker_black.png"
+		return ThemeManager.card_path() + "card_vp_joker_black.png"
 	# Wild deuces use special wild sprites
 	if wild and card_data.rank == CardData.Rank.TWO:
 		var suit_code: String = SUIT_CODES.get(card_data.suit, "")
-		return "res://assets/cards/card_vp_wild%s.png" % suit_code
+		return ThemeManager.card_path() + "card_vp_wild%s.png" % suit_code
 	var rank_code: String = RANK_CODES.get(card_data.rank, "")
 	var suit_code: String = SUIT_CODES.get(card_data.suit, "")
-	return "res://assets/cards/card_vp_%s%s.png" % [rank_code, suit_code]
+	return ThemeManager.card_path() + "card_vp_%s%s.png" % [rank_code, suit_code]
 
 
 func set_card(p_card: CardData, animate: bool = false, p_wild: bool = false) -> void:

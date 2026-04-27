@@ -32,12 +32,18 @@ var _bet_amount_btn: Button
 var _speed_btn: Button
 var _back_btn: Button
 var _see_pays_btn: Button
+var _double_btn: Button
 var _win_label: Label
 var _win_cd: Dictionary
 var _balance_label: Label
 var _balance_cd: Dictionary
 var _bet_display_label: Label
 var _bet_display_cd: Dictionary
+# Glyph height for the bottom-row WIN / TOTAL BET / BALANCE displays.
+# Classic = 16; supercell sub-script bumps to 32 in `_ready` BEFORE
+# super._ready() so each `create_currency_display(_info_glyph_h, …)`
+# uses the larger size on first render.
+var _info_glyph_h: int = 16
 
 # Grid: 3 rows × 5 cols of TextureRect
 var _card_rects: Array = [[], [], []]  # _card_rects[row][col]
@@ -73,7 +79,7 @@ const SPEED_CONFIGS := [
 ]
 
 # Card path helpers — spin poker uses square SVG cards from cards_spin/
-const SPIN_CARD_DIR := "res://assets/cards/cards_spin/"
+var SPIN_CARD_DIR: String = ThemeManager.spin_card_path()
 const SUIT_CODES := {
 	CardData.Suit.HEARTS: "h", CardData.Suit.DIAMONDS: "d",
 	CardData.Suit.CLUBS: "c", CardData.Suit.SPADES: "s",
@@ -175,8 +181,7 @@ func _build_ui() -> void:
 	root_vbox.add_theme_constant_override("separation", 2)
 	add_child(root_vbox)
 
-	var bold := SystemFont.new()
-	bold.font_weight = 700
+	var bold: Font = _themed_bold_font()
 
 	# ── Top: [exit icon] [title centered]
 	var title_bar := HBoxContainer.new()
@@ -357,7 +362,7 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_win_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_label.gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_win_label)
-	_win_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_win_cd = SaveManager.create_currency_display(_info_glyph_h, COL_YELLOW)
 	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_cd["box"].gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_win_cd["box"])
@@ -369,7 +374,7 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_bet_display_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_bet_display_label.gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_bet_display_label)
-	_bet_display_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_bet_display_cd = SaveManager.create_currency_display(_info_glyph_h, COL_YELLOW)
 	_bet_display_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_bet_display_cd["box"].gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_bet_display_cd["box"])
@@ -385,7 +390,7 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_label.gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_balance_label)
-	_balance_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_balance_cd = SaveManager.create_currency_display(_info_glyph_h, COL_YELLOW)
 	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_cd["box"].gui_input.connect(_on_credits_toggle)
 	info_row.add_child(_balance_cd["box"])
@@ -398,11 +403,11 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	root_vbox.add_child(btn_row)
 
 	# Match multi-hand's button texture set for visual consistency.
-	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_yellow.svg") else null
-	var tex_blue := load("res://assets/textures/btn_blue.svg") if ResourceLoader.exists("res://assets/textures/btn_blue.svg") else null
-	var tex_green := load("res://assets/textures/btn_rect_green.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_green.svg") else null
-	var tex_panel := load("res://assets/textures/btn_panel11.svg") if ResourceLoader.exists("res://assets/textures/btn_panel11.svg") else null
-	var tex_panel_w := load("res://assets/textures/btn_panel11-1.svg") if ResourceLoader.exists("res://assets/textures/btn_panel11-1.svg") else null
+	var tex_yellow := load("res://assets/themes/classic/controls/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/themes/classic/controls/btn_rect_yellow.svg") else null
+	var tex_blue := load("res://assets/themes/classic/controls/btn_blue.svg") if ResourceLoader.exists("res://assets/themes/classic/controls/btn_blue.svg") else null
+	var tex_green := load("res://assets/themes/classic/controls/btn_rect_blue.svg") if ResourceLoader.exists("res://assets/themes/classic/controls/btn_rect_blue.svg") else null
+	var tex_panel := load("res://assets/themes/classic/controls/btn_panel11.svg") if ResourceLoader.exists("res://assets/themes/classic/controls/btn_panel11.svg") else null
+	var tex_panel_w := load("res://assets/themes/classic/controls/btn_panel11-1.svg") if ResourceLoader.exists("res://assets/themes/classic/controls/btn_panel11-1.svg") else null
 
 	_see_pays_btn = Button.new()
 	_see_pays_btn.text = Translations.tr_key("spin.see_pays")
@@ -415,6 +420,17 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_style_btn(_bet_amount_btn, tex_blue, Color.WHITE, 13, 90, 36)
 	_bet_amount_btn.pressed.connect(_on_bet_amount_pressed)
 	btn_row.add_child(_bet_amount_btn)
+
+	# DOUBLE — enabled only in IDLE / WIN_DISPLAY when last payout > 0.
+	# Built BEFORE the DEAL/SPIN button so it sits to its left in the row
+	# (matching single / multi-hand layout).
+	_double_btn = Button.new()
+	_double_btn.text = Translations.tr_key("game.double")
+	_style_btn(_double_btn, tex_yellow, COL_BTN_TEXT, 13, 90, 36)
+	_double_btn.disabled = true
+	_double_btn.pressed.connect(_on_double_pressed)
+	_double_btn.visible = bool(ConfigManager.init_config.get("show_double_button", true))
+	btn_row.add_child(_double_btn)
 
 	_deal_draw_btn = Button.new()
 	_deal_draw_btn.text = "DEAL\nSPIN"
@@ -435,6 +451,19 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_style_btn(_speed_btn, tex_panel_w, Color.WHITE, 12, 80, 36)
 	_speed_btn.pressed.connect(_on_speed_pressed)
 	btn_row.add_child(_speed_btn)
+
+
+## Returns the active theme's display font (LilitaOne for supercell) or
+## a SystemFont(weight=700) fallback for classic. Used by every popup,
+## badge and hint label so a theme switch propagates to dynamically-built
+## UI without per-call branches.
+func _themed_bold_font() -> Font:
+	var f: Font = ThemeManager.font()
+	if f != null:
+		return f
+	var sf := SystemFont.new()
+	sf.font_weight = 700
+	return sf
 
 
 func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_w: int, min_h: int) -> void:
@@ -463,6 +492,11 @@ func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_
 	btn.add_theme_color_override("font_color", text_col)
 	btn.add_theme_color_override("font_hover_color", text_col)
 	btn.add_theme_color_override("font_pressed_color", text_col)
+	# Active theme's display font on every classic-built button so a
+	# theme switch propagates to all chrome without per-call branches.
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		btn.add_theme_font_override("font", theme_font)
 	btn.custom_minimum_size = Vector2(min_w, min_h)
 	_add_press_effect(btn)
 
@@ -483,8 +517,11 @@ func _make_line_ribbon(line_idx: int, flip: bool) -> Control:
 	var color: Color = SpinPokerManager.LINE_COLORS[line_idx]
 	var container := Control.new()
 	container.custom_minimum_size = Vector2(38, 18)
-	# Ribbon background
-	var ribbon_path := "res://assets/textures/spin_ribbon.svg"
+	# Ribbon background — pick theme-specific texture if shipped, else
+	# fall back to the classic ribbon shape (modulated by line color).
+	var theme_ribbon := ThemeManager.theme_folder() + "controls/spin_ribbon.svg"
+	var ribbon_path := theme_ribbon if ResourceLoader.exists(theme_ribbon) \
+		else "res://assets/themes/classic/controls/spin_ribbon.svg"
 	if ResourceLoader.exists(ribbon_path):
 		var tex_rect := TextureRect.new()
 		tex_rect.texture = load(ribbon_path)
@@ -496,16 +533,21 @@ func _make_line_ribbon(line_idx: int, flip: bool) -> Control:
 			tex_rect.flip_h = true
 		tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		container.add_child(tex_rect)
-	# Number text
+	# Number text — theme font if available (LilitaOne for supercell),
+	# else classic SystemFont bold so the existing skin doesn't shift.
 	var lbl := Label.new()
 	lbl.text = "%d" % (line_idx + 1)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_size_override("font_size", 10)
 	lbl.add_theme_color_override("font_color", Color.WHITE)
-	var bold := SystemFont.new()
-	bold.font_weight = 700
-	lbl.add_theme_font_override("font", bold)
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		lbl.add_theme_font_override("font", theme_font)
+	else:
+		var bold := SystemFont.new()
+		bold.font_weight = 700
+		lbl.add_theme_font_override("font", bold)
 	lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.add_child(lbl)
@@ -577,7 +619,7 @@ func _build_held_indicators() -> void:
 
 		# Background: held_rect.svg
 		var held_tex_rect := TextureRect.new()
-		var held_tex_path := "res://assets/textures/held_rect.svg"
+		var held_tex_path := "res://assets/themes/classic/controls/held_rect.svg"
 		if ResourceLoader.exists(held_tex_path):
 			held_tex_rect.texture = load(held_tex_path)
 		held_tex_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
@@ -592,9 +634,7 @@ func _build_held_indicators() -> void:
 		held_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		held_text.add_theme_font_size_override("font_size", 13)
 		held_text.add_theme_color_override("font_color", Color("3F2A00"))
-		var hbold := SystemFont.new()
-		hbold.font_weight = 700
-		held_text.add_theme_font_override("font", hbold)
+		held_text.add_theme_font_override("font", _themed_bold_font())
 		held_text.set_anchors_preset(Control.PRESET_FULL_RECT)
 		container.add_child(held_text)
 
@@ -1225,6 +1265,9 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 		_set_win_dimmed()
 		_status_label.text = Translations.tr_key("spin.game_over")
 		_game_pays_label.visible = false
+	# Enable DOUBLE only when there's a payout to risk.
+	if _double_btn != null and is_instance_valid(_double_btn):
+		_double_btn.disabled = total_payout <= 0
 
 
 func _highlight_all_winning() -> void:
@@ -1306,12 +1349,43 @@ func _show_win_badge(w: Dictionary) -> void:
 	_win_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_win_badge.z_index = 10
 
-	var label := Label.new()
-	label.text = "%s\n%d" % [w["hand_name"], payout_coins]
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 14)
-	label.add_theme_color_override("font_color", Color.WHITE)
-	_win_badge.add_child(label)
+	var theme_font: Font = ThemeManager.font()
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
+
+	if is_supercell:
+		# Supercell badge — hand name + chip glyph + amount stacked, so
+		# the win value reads as actual coins (with chip icon) rather
+		# than a bare integer like classic's "{name}\n{N}".
+		var vbox := VBoxContainer.new()
+		vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		vbox.add_theme_constant_override("separation", 1)
+		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_win_badge.add_child(vbox)
+
+		var name_lab := Label.new()
+		name_lab.text = w["hand_name"]
+		name_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_lab.add_theme_font_size_override("font_size", 14)
+		name_lab.add_theme_color_override("font_color", Color.WHITE)
+		if theme_font != null:
+			name_lab.add_theme_font_override("font", theme_font)
+		vbox.add_child(name_lab)
+
+		var cd: Dictionary = SaveManager.create_currency_display(16, Color.WHITE)
+		cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
+		SaveManager.set_currency_value(cd, SaveManager.format_short(payout_coins))
+		vbox.add_child(cd["box"])
+	else:
+		var label := Label.new()
+		label.text = "%s\n%d" % [w["hand_name"], payout_coins]
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 14)
+		label.add_theme_color_override("font_color", Color.WHITE)
+		# Theme font (LilitaOne for supercell) — the badge cycles through
+		# winning lines so the once-at-_ready walker can't reach it.
+		if theme_font != null:
+			label.add_theme_font_override("font", theme_font)
+		_win_badge.add_child(label)
 
 	_win_badge.modulate.a = 0.0
 	add_child(_win_badge)
@@ -1399,6 +1473,10 @@ func _flash_balance_red() -> void:
 # ─── BUTTON HANDLERS ─────────────────────────────────────────────────
 
 func _on_deal_draw_pressed() -> void:
+	# Block DEAL while a double round is mid-flight — the player must
+	# either pick a card or close the popup first.
+	if _in_double:
+		return
 	VibrationManager.vibrate("button_press")
 	if _animating:
 		_rush = true
@@ -1412,6 +1490,9 @@ func _on_deal_draw_pressed() -> void:
 			_flash_balance_red()
 			_show_bet_picker()
 			return
+	# Disable DOUBLE while a fresh round is in flight.
+	if _double_btn != null and is_instance_valid(_double_btn):
+		_double_btn.disabled = true
 	_manager.deal_or_draw()
 
 
@@ -1516,14 +1597,14 @@ func _set_win_dimmed() -> void:
 	_win_label.text = Translations.tr_key("game.win_label")
 	_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 	var show_chip: bool = not _balance_show_depth
-	SaveManager.set_currency_value(_win_cd, _format_win(_last_total_payout), 16, Color(0.7, 0.7, 0.4), show_chip)
+	SaveManager.set_currency_value(_win_cd, _format_win(_last_total_payout), _info_glyph_h, Color(0.7, 0.7, 0.4), show_chip)
 	_win_cd["box"].visible = true
 
 
 func _animate_win_increment(from: int, to: int) -> void:
 	_stop_win_increment()
 	var show_chip: bool = not _balance_show_depth
-	SaveManager.set_currency_value(_win_cd, _format_win(from), 16, COL_YELLOW, show_chip)
+	SaveManager.set_currency_value(_win_cd, _format_win(from), _info_glyph_h, COL_YELLOW, show_chip)
 	if from == to:
 		return
 	_win_increment_tween = create_tween()
@@ -1596,8 +1677,7 @@ func _show_depth_tooltip() -> void:
 	vbox.add_theme_constant_override("separation", 14)
 	panel.add_child(vbox)
 
-	var bold := SystemFont.new()
-	bold.font_weight = 700
+	var bold: Font = _themed_bold_font()
 	var title := Label.new()
 	title.text = Translations.tr_key("game_depth.title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1611,11 +1691,12 @@ func _show_depth_tooltip() -> void:
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.add_theme_font_size_override("font_size", 16)
 	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.add_theme_font_override("font", bold)
 	vbox.add_child(msg)
 
 	var ok_btn := Button.new()
 	ok_btn.text = Translations.tr_key("common.got_it")
-	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
+	var tex_y := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
 	_style_btn(ok_btn, tex_y, COL_BTN_TEXT, 18, 140, 44)
 	ok_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ok_btn.pressed.connect(func() -> void:
@@ -1632,7 +1713,12 @@ func _update_bet_display(bet: int) -> void:
 		var credits_total: int = SpinPokerManager.NUM_LINES * bet
 		SaveManager.set_currency_value(_bet_display_cd, str(credits_total), 0, Color(-1, 0, 0), false)
 	else:
-		SaveManager.set_currency_value(_bet_display_cd, SaveManager.format_auto(total, 80, 16))
+		# Pass the live glyph height so format_auto's width estimate
+		# matches the actual rendered chip+digits — at supercell's 32px
+		# the full integer wouldn't fit the same 80px slot that classic's
+		# 16px did, so the formatter falls back to the abbreviated form
+		# earlier (e.g. "12.5K" instead of "12,500").
+		SaveManager.set_currency_value(_bet_display_cd, SaveManager.format_auto(total, 80, _info_glyph_h))
 
 
 var _bet_btn_cd: Dictionary
@@ -1724,7 +1810,7 @@ func _show_bet_picker() -> void:
 	grid.add_theme_constant_override("v_separation", 10)
 	vbox.add_child(grid)
 
-	var tex_y := load("res://assets/textures/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_yellow.svg") else null
+	var tex_y := load("res://assets/themes/classic/controls/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/themes/classic/controls/btn_rect_yellow.svg") else null
 	for amount in BET_AMOUNTS:
 		var btn := Button.new()
 		btn.text = ""
@@ -1764,6 +1850,9 @@ func _show_paytable() -> void:
 	if _paytable_overlay:
 		_paytable_overlay.queue_free()
 	_stop_paytable_cycle()
+
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
+
 	_paytable_overlay = Control.new()
 	_paytable_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_paytable_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1773,7 +1862,7 @@ func _show_paytable() -> void:
 	# Dim overlay
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.85)
+	dim.color = ThemeManager.popup_dim_color() if is_supercell else Color(0, 0, 0, 0.85)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	dim.gui_input.connect(func(ev: InputEvent) -> void:
 		if ev is InputEventMouseButton and ev.pressed:
@@ -1781,20 +1870,35 @@ func _show_paytable() -> void:
 	)
 	_paytable_overlay.add_child(dim)
 
-	var bold := SystemFont.new()
-	bold.font_weight = 700
+	var bold: Font
+	if is_supercell:
+		bold = ThemeManager.font()
+	if bold == null:
+		var sf := SystemFont.new()
+		sf.font_weight = 700
+		bold = sf
 
 	# Top section: title + rules (scrollable if needed)
 	var top_panel := PanelContainer.new()
-	var tp_style := StyleBoxFlat.new()
-	tp_style.bg_color = Color(0.02, 0.02, 0.12, 0.9)
-	tp_style.set_border_width_all(2)
-	tp_style.border_color = COL_YELLOW
-	tp_style.set_corner_radius_all(8)
-	tp_style.content_margin_left = 20
-	tp_style.content_margin_right = 20
-	tp_style.content_margin_top = 10
-	tp_style.content_margin_bottom = 10
+	var tp_style: StyleBoxFlat
+	if is_supercell:
+		tp_style = ThemeManager.make_popup_stylebox()
+		# Tighter content margins than default popup so the spin top
+		# panel doesn't dwarf the mini grid below it.
+		tp_style.content_margin_left = 20
+		tp_style.content_margin_right = 20
+		tp_style.content_margin_top = 10
+		tp_style.content_margin_bottom = 10
+	else:
+		tp_style = StyleBoxFlat.new()
+		tp_style.bg_color = Color(0.02, 0.02, 0.12, 0.9)
+		tp_style.set_border_width_all(2)
+		tp_style.border_color = COL_YELLOW
+		tp_style.set_corner_radius_all(8)
+		tp_style.content_margin_left = 20
+		tp_style.content_margin_right = 20
+		tp_style.content_margin_top = 10
+		tp_style.content_margin_bottom = 10
 	top_panel.add_theme_stylebox_override("panel", tp_style)
 	top_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	top_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -1811,9 +1915,12 @@ func _show_paytable() -> void:
 	var title := Label.new()
 	title.text = Translations.tr_key("spin.info_title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 20)
-	title.add_theme_color_override("font_color", COL_YELLOW)
-	title.add_theme_font_override("font", bold)
+	if is_supercell:
+		ThemeManager.style_popup_title(title, 20)
+	else:
+		title.add_theme_font_size_override("font_size", 20)
+		title.add_theme_color_override("font_color", COL_YELLOW)
+		title.add_theme_font_override("font", bold)
 	top_vbox.add_child(title)
 
 	var rules := Label.new()
@@ -1821,14 +1928,21 @@ func _show_paytable() -> void:
 	rules.add_theme_font_size_override("font_size", 13)
 	rules.add_theme_color_override("font_color", Color.WHITE)
 	rules.autowrap_mode = TextServer.AUTOWRAP_WORD
+	if is_supercell:
+		var f_rules: Font = ThemeManager.font()
+		if f_rules != null:
+			rules.add_theme_font_override("font", f_rules)
 	top_vbox.add_child(rules)
 
 	var bet_info := Label.new()
 	bet_info.text = Translations.tr_key("spin.info_bet")
 	bet_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	bet_info.add_theme_font_size_override("font_size", 14)
-	bet_info.add_theme_color_override("font_color", COL_YELLOW)
-	bet_info.add_theme_font_override("font", bold)
+	if is_supercell:
+		ThemeManager.style_popup_title(bet_info, 14)
+	else:
+		bet_info.add_theme_font_size_override("font_size", 14)
+		bet_info.add_theme_color_override("font_color", COL_YELLOW)
+		bet_info.add_theme_font_override("font", bold)
 	top_vbox.add_child(bet_info)
 
 	# Mini grid copy with card backs (centered)
@@ -1973,6 +2087,10 @@ func _show_paytable() -> void:
 		line_btn.add_theme_stylebox_override("pressed", lp)
 		line_btn.add_theme_font_size_override("font_size", 12)
 		line_btn.add_theme_color_override("font_color", Color.WHITE)
+		if is_supercell:
+			var f_btn: Font = ThemeManager.font()
+			if f_btn != null:
+				line_btn.add_theme_font_override("font", f_btn)
 		line_btn.pivot_offset = Vector2(22, 16)
 		var idx := li
 		line_btn.pressed.connect(func() -> void:
@@ -1982,16 +2100,34 @@ func _show_paytable() -> void:
 		_paytable_line_btns.append(line_btn)
 		btn_container.add_child(line_btn)
 
-	# X close button (top-right)
+	# X close button (top-right) — supercell uses the same yellow square
+	# as the bet picker close affordance for consistency.
 	var close_btn := Button.new()
 	close_btn.text = "X"
-	close_btn.custom_minimum_size = Vector2(40, 40)
-	var cs := StyleBoxFlat.new()
-	cs.bg_color = Color(0.5, 0.1, 0.1)
-	cs.set_corner_radius_all(20)
-	close_btn.add_theme_stylebox_override("normal", cs)
-	close_btn.add_theme_font_size_override("font_size", 20)
-	close_btn.add_theme_color_override("font_color", Color.WHITE)
+	close_btn.custom_minimum_size = Vector2(48 if is_supercell else 40, 48 if is_supercell else 40)
+	if is_supercell:
+		var sb_close := StyleBoxFlat.new()
+		sb_close.bg_color = ThemeManager.color("button_primary_bg", Color("FFCC2E"))
+		sb_close.border_color = ThemeManager.color("button_primary_border", Color("152033"))
+		sb_close.set_border_width_all(3)
+		sb_close.set_corner_radius_all(12)
+		sb_close.anti_aliasing = true
+		close_btn.add_theme_stylebox_override("normal", sb_close)
+		close_btn.add_theme_stylebox_override("hover", sb_close)
+		close_btn.add_theme_stylebox_override("pressed", sb_close)
+		close_btn.add_theme_stylebox_override("focus", sb_close)
+		close_btn.add_theme_font_size_override("font_size", 26)
+		close_btn.add_theme_color_override("font_color", ThemeManager.color("button_primary_text", Color("2A1F00")))
+		var f_close: Font = ThemeManager.font()
+		if f_close != null:
+			close_btn.add_theme_font_override("font", f_close)
+	else:
+		var cs := StyleBoxFlat.new()
+		cs.bg_color = Color(0.5, 0.1, 0.1)
+		cs.set_corner_radius_all(20)
+		close_btn.add_theme_stylebox_override("normal", cs)
+		close_btn.add_theme_font_size_override("font_size", 20)
+		close_btn.add_theme_color_override("font_color", Color.WHITE)
 	close_btn.pressed.connect(func() -> void:
 		_close_paytable_overlay()
 	)
@@ -2095,6 +2231,9 @@ func _highlight_line_in_overlay(line_idx: int) -> void:
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl.add_theme_font_size_override("font_size", 11)
 		lbl.add_theme_color_override("font_color", Color.WHITE)
+		var theme_font: Font = ThemeManager.font()
+		if theme_font != null:
+			lbl.add_theme_font_override("font", theme_font)
 		_paytable_badge.add_child(lbl)
 		_paytable_badge.modulate.a = 0.0
 		_paytable_overlay.add_child(_paytable_badge)
@@ -2132,3 +2271,339 @@ func _draw_paytable_line() -> void:
 		points.append(local_pos)
 	if points.size() >= 2:
 		_paytable_line_draw.draw_polyline(points, color, 4.0, true)
+
+
+# ─── DOUBLE OR NOTHING ───────────────────────────────────────────────
+# Spin's double round runs entirely inside a self-contained popup with
+# its own 5-card row (1 dealer + 4 player picks) — the main 3×5 reel
+# grid stays untouched. Wager is the most recent total payout; player
+# picks a card; rank > dealer doubles, == returns wager, < loses it.
+var _double_overlay: Control = null
+var _double_panel_cards: Array = []  # 5 TextureRect for the popup
+var _double_cards: Array = []
+var _double_dealer_card: CardData = null
+var _in_double: bool = false
+var _double_warned: bool = false
+var _double_amount: int = 0
+var _double_status_label: Label = null
+
+
+func _on_double_pressed() -> void:
+	_double_amount = _last_total_payout
+	if _double_amount <= 0:
+		return
+	if not _double_warned:
+		_show_double_warning()
+	else:
+		_open_double_table()
+
+
+func _show_double_warning() -> void:
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
+	_double_overlay = Control.new()
+	_double_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_double_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_double_overlay.z_index = 60
+	add_child(_double_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = ThemeManager.popup_dim_color() if is_supercell else Color(0, 0, 0, 0.7)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_double_overlay.add_child(dim)
+
+	var panel := PanelContainer.new()
+	var ps: StyleBoxFlat
+	if is_supercell:
+		ps = ThemeManager.make_popup_stylebox()
+	else:
+		ps = StyleBoxFlat.new()
+		ps.bg_color = Color("07107A")
+		ps.set_border_width_all(3)
+		ps.border_color = COL_YELLOW
+		ps.set_corner_radius_all(12)
+		ps.content_margin_left = 30
+		ps.content_margin_right = 30
+		ps.content_margin_top = 20
+		ps.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(560, 0)
+	_double_overlay.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = Translations.tr_key("double.title")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if is_supercell:
+		ThemeManager.style_popup_title(title, 28)
+	else:
+		title.add_theme_font_size_override("font_size", 26)
+		title.add_theme_color_override("font_color", COL_YELLOW)
+	vbox.add_child(title)
+
+	var doubled := _double_amount * 2
+	var msg := Label.new()
+	msg.text = Translations.tr_key("double.msg_fmt",
+			[SaveManager.format_money(_double_amount),
+			 SaveManager.format_money(doubled)])
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD
+	if is_supercell:
+		ThemeManager.style_popup_body(msg, 20)
+	else:
+		msg.add_theme_font_size_override("font_size", 18)
+		msg.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(msg)
+
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 20)
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(btns)
+
+	var no_btn := Button.new()
+	no_btn.text = Translations.tr_key("common.no")
+	no_btn.custom_minimum_size = Vector2(140, 60)
+	_apply_double_btn_style(no_btn, is_supercell, false)
+	no_btn.pressed.connect(func() -> void: _hide_double_overlay())
+	btns.add_child(no_btn)
+
+	var yes_btn := Button.new()
+	yes_btn.text = Translations.tr_key("common.yes")
+	yes_btn.custom_minimum_size = Vector2(140, 60)
+	_apply_double_btn_style(yes_btn, is_supercell, true)
+	yes_btn.pressed.connect(func() -> void:
+		_double_warned = true
+		_hide_double_overlay()
+		_open_double_table()
+	)
+	btns.add_child(yes_btn)
+
+
+func _apply_double_btn_style(btn: Button, supercell: bool, primary: bool) -> void:
+	if supercell:
+		var sb := StyleBoxFlat.new()
+		if primary:
+			sb.bg_color = ThemeManager.color("button_primary_bg", Color("FFCC2E"))
+			sb.border_color = ThemeManager.color("button_primary_border", Color("152033"))
+			btn.add_theme_color_override("font_color", ThemeManager.color("button_primary_text", Color("2A1F00")))
+		else:
+			sb.bg_color = ThemeManager.color("button_secondary_bg", Color("452C82"))
+			sb.border_color = ThemeManager.color("button_secondary_border", Color("0A2915"))
+			btn.add_theme_color_override("font_color", Color.WHITE)
+		sb.set_border_width_all(3)
+		sb.set_corner_radius_all(14)
+		sb.anti_aliasing = true
+		btn.add_theme_stylebox_override("normal", sb)
+		btn.add_theme_stylebox_override("hover", sb)
+		btn.add_theme_stylebox_override("pressed", sb)
+		btn.add_theme_stylebox_override("focus", sb)
+		btn.add_theme_font_size_override("font_size", 22)
+		var f: Font = ThemeManager.font()
+		if f != null:
+			btn.add_theme_font_override("font", f)
+	else:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = COL_YELLOW if primary else Color("452C82")
+		sb.set_corner_radius_all(8)
+		btn.add_theme_stylebox_override("normal", sb)
+		btn.add_theme_color_override("font_color", Color("2A1708") if primary else Color.WHITE)
+		btn.add_theme_font_size_override("font_size", 20)
+
+
+func _open_double_table() -> void:
+	_in_double = true
+	_double_btn.disabled = true
+	_deal_draw_btn.disabled = true
+
+	# Risk the wager.
+	SaveManager.deduct_credits(_double_amount)
+	_update_balance(SaveManager.credits)
+
+	# Build a fresh 52-card deck (no jokers / wilds) and pre-roll 5 cards.
+	var deck := Deck.new(52)
+	_double_cards = deck.deal_hand()
+	_double_dealer_card = _double_cards[0]
+
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
+	_double_overlay = Control.new()
+	_double_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_double_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_double_overlay.z_index = 60
+	add_child(_double_overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = ThemeManager.popup_dim_color() if is_supercell else Color(0, 0, 0, 0.7)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	_double_overlay.add_child(dim)
+
+	var panel := PanelContainer.new()
+	var ps: StyleBoxFlat
+	if is_supercell:
+		ps = ThemeManager.make_popup_stylebox()
+	else:
+		ps = StyleBoxFlat.new()
+		ps.bg_color = Color("07107A")
+		ps.set_border_width_all(3)
+		ps.border_color = COL_YELLOW
+		ps.set_corner_radius_all(12)
+		ps.content_margin_left = 30
+		ps.content_margin_right = 30
+		ps.content_margin_top = 20
+		ps.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", ps)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(720, 0)
+	_double_overlay.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = Translations.tr_key("double.title")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if is_supercell:
+		ThemeManager.style_popup_title(title, 28)
+	else:
+		title.add_theme_font_size_override("font_size", 26)
+		title.add_theme_color_override("font_color", COL_YELLOW)
+	vbox.add_child(title)
+
+	_double_status_label = Label.new()
+	_double_status_label.text = Translations.tr_key("double.pick_card")
+	_double_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if is_supercell:
+		ThemeManager.style_popup_body(_double_status_label, 20)
+	else:
+		_double_status_label.add_theme_font_size_override("font_size", 18)
+		_double_status_label.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(_double_status_label)
+
+	# Card row — 5 TextureRects, dealer face-up, picks face-down.
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(row)
+	_double_panel_cards.clear()
+
+	for i in 5:
+		var ct := TextureRect.new()
+		ct.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ct.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		ct.custom_minimum_size = Vector2(110, 154)
+		ct.mouse_filter = Control.MOUSE_FILTER_STOP if i > 0 else Control.MOUSE_FILTER_IGNORE
+		var path: String
+		if i == 0:
+			path = _get_card_path(_double_cards[0])
+		else:
+			path = SPIN_CARD_DIR + "card_back_spin.svg"
+		if ResourceLoader.exists(path):
+			ct.texture = load(path)
+		row.add_child(ct)
+		if i > 0:
+			ct.gui_input.connect(_on_double_panel_card_input.bind(i))
+		_double_panel_cards.append(ct)
+
+	# Footer: just a CLOSE button. Resolves win in-place above the row.
+	var close_btn := Button.new()
+	close_btn.text = Translations.tr_key("common.x")
+	close_btn.custom_minimum_size = Vector2(120, 50)
+	_apply_double_btn_style(close_btn, is_supercell, false)
+	close_btn.pressed.connect(func() -> void:
+		# Manual close before pick = forfeit (keep deducted wager).
+		_end_double()
+	)
+	var footer := HBoxContainer.new()
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	footer.add_child(close_btn)
+	vbox.add_child(footer)
+
+
+func _on_double_panel_card_input(event: InputEvent, idx: int) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	if not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if idx == 0 or idx >= _double_cards.size():
+		return
+	# Disable further picks.
+	for i in _double_panel_cards.size():
+		_double_panel_cards[i].mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Reveal pick.
+	var pick: CardData = _double_cards[idx]
+	var path: String = _get_card_path(pick)
+	if ResourceLoader.exists(path):
+		_double_panel_cards[idx].texture = load(path)
+	await get_tree().create_timer(0.5).timeout
+
+	var player_rank: int = pick.rank as int
+	var dealer_rank: int = _double_dealer_card.rank as int
+
+	if player_rank > dealer_rank:
+		# Win — accumulate the wager (×2) and pay it out. Close the popup
+		# and return to the main spin screen with both DOUBLE and DEAL
+		# buttons active so the player chooses (mirrors classic single's
+		# semantics: cards revealed → status updated → player decides).
+		_double_amount *= 2
+		_last_total_payout = _double_amount
+		VibrationManager.vibrate("double_win")
+		SaveManager.add_credits(_double_amount)
+		_update_balance(SaveManager.credits)
+		# Reflect the new accumulated win on the main WIN label so the
+		# player can read it after the popup closes.
+		_set_win_active(_double_amount)
+		_double_status_label.text = Translations.tr_key("double.win_doubled_fmt",
+				[SaveManager.format_money(_double_amount)])
+		await get_tree().create_timer(1.0).timeout
+		if not is_instance_valid(_double_overlay):
+			return
+		_hide_double_overlay()
+		# Stay in WIN_DISPLAY semantics — DOUBLE eligible (player can
+		# risk the new accumulated amount), DEAL eligible (collect).
+		_in_double = false
+		if _double_btn != null and is_instance_valid(_double_btn):
+			_double_btn.disabled = false
+		_deal_draw_btn.disabled = false
+	elif player_rank == dealer_rank:
+		# Tie — return the wagered amount, no further double rounds.
+		SaveManager.add_credits(_double_amount)
+		_update_balance(SaveManager.credits)
+		_double_status_label.text = Translations.tr_key("double.tie")
+		_double_amount = 0
+		await get_tree().create_timer(1.0).timeout
+		_end_double()
+	else:
+		# Lose — wager already deducted on _open_double_table; just clear
+		# the WIN label so the player sees zero, then close.
+		VibrationManager.vibrate("double_lose")
+		_double_status_label.text = Translations.tr_key("double.lose")
+		_double_amount = 0
+		_last_total_payout = 0
+		_set_win_dimmed()
+		await get_tree().create_timer(1.0).timeout
+		_end_double()
+
+
+func _end_double() -> void:
+	_in_double = false
+	_double_amount = 0
+	_double_btn.disabled = true
+	_deal_draw_btn.disabled = false
+	_hide_double_overlay()
+
+
+func _hide_double_overlay() -> void:
+	if _double_overlay:
+		_double_overlay.queue_free()
+		_double_overlay = null
+	_double_panel_cards.clear()
+	_double_status_label = null

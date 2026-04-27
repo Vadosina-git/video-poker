@@ -1,0 +1,128 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/themes/supercell/game_multi_supercell.gd" id="1"]
+
+[node name="MultiHandGame" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="Background" type="Control" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleBar" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+
+[node name="BackButton" type="Button" parent="VBoxContainer/TitleBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "◄"
+
+[node name="GameTitle" type="Label" parent="VBoxContainer/TitleBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "TRIPLE PLAY"
+
+[node name="HandsArea" type="VBoxContainer" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ExtraHandsRect" type="Control" parent="VBoxContainer/HandsArea"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PrimaryRow" type="HBoxContainer" parent="VBoxContainer/HandsArea"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="BottomSection" type="VBoxContainer" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="InfoRow" type="HBoxContainer" parent="VBoxContainer/BottomSection"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="WinLabel" type="Label" parent="VBoxContainer/BottomSection/InfoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "WIN: 0"
+
+[node name="TotalBetLabel" type="Label" parent="VBoxContainer/BottomSection/InfoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "TOTAL BET: 15"
+
+[node name="InfoSpacer" type="Control" parent="VBoxContainer/BottomSection/InfoRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BalanceLabel" type="Label" parent="VBoxContainer/BottomSection/InfoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BALANCE: 1000"
+
+[node name="TopUpButton" type="Button" parent="VBoxContainer/BottomSection/InfoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+"
+
+[node name="BottomBar" type="HBoxContainer" parent="VBoxContainer/BottomSection"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SpeedButton" type="Button" parent="VBoxContainer/BottomSection/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "SPEED"
+
+[node name="HandsButton" type="Button" parent="VBoxContainer/BottomSection/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "3 HANDS"
+
+[node name="BetAmountButton" type="Button" parent="VBoxContainer/BottomSection/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "$1"
+
+[node name="BetButton" type="Button" parent="VBoxContainer/BottomSection/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BET"
+
+[node name="BetMaxButton" type="Button" parent="VBoxContainer/BottomSection/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BET MAX"
+
+[node name="DealDrawButton" type="Button" parent="VBoxContainer/BottomSection/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "DEAL"
+
+[node name="BottomPad" type="Control" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 4)

@@ -322,13 +322,13 @@ func _apply_theme() -> void:
 	_build_button_groups.call_deferred()
 
 	# Button textures
-	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg")
-	var tex_pill := load("res://assets/textures/btn_pill_yellow.svg")
-	var tex_green := load("res://assets/textures/btn_rect_green.svg")
-	var tex_blue := load("res://assets/textures/btn_blue.svg")
+	var tex_yellow := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
+	var tex_pill := load("res://assets/themes/classic/controls/btn_pill_yellow.svg")
+	var tex_green := load("res://assets/themes/classic/controls/btn_rect_blue.svg")
+	var tex_blue := load("res://assets/themes/classic/controls/btn_blue.svg")
 
 	# Buttons
-	var tex_info := load("res://assets/textures/info_button.svg")
+	var tex_info := load("res://assets/themes/classic/controls/info_button.svg")
 	_style_button_texture(_info_btn, tex_info, Color.BLACK, 22, 52, 52)
 	_style_button_texture(_speed_btn, tex_yellow, COL_BTN_TEXT, 18, 140, 52)
 	_style_button_texture(_double_btn, tex_yellow, COL_BTN_TEXT, 18, 120, 52)
@@ -406,6 +406,11 @@ func _build_button_groups() -> void:
 	# DOUBLE button before DEAL
 	_bottom_bar.add_child(_double_btn)
 	_bottom_bar.move_child(_double_btn, _deal_draw_btn.get_index())
+
+	# Config-gated visibility (init_config.json). Defaults true if unset so
+	# developer builds keep buttons; App Store Review build has both false.
+	_speed_btn.visible = bool(ConfigManager.init_config.get("show_speed_button", true))
+	_double_btn.visible = bool(ConfigManager.init_config.get("show_double_button", true))
 
 
 # --- Speed ---
@@ -599,7 +604,7 @@ func _show_depth_tooltip() -> void:
 
 	var ok_btn := Button.new()
 	ok_btn.text = Translations.tr_key("common.got_it")
-	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
+	var tex_y := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
 	_style_button_texture(ok_btn, tex_y, COL_BTN_TEXT, 18, 140, 44)
 	ok_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ok_btn.pressed.connect(func() -> void:
@@ -935,7 +940,14 @@ func _on_credit_animation_done() -> void:
 	_unlock_buttons()
 	if _game_manager.last_win > 0:
 		_double_btn.disabled = false
-		_double_amount = _game_manager.last_win
+		# Initialize the wager pool from the FRESH draw payout only; while a
+		# double round is in flight `_double_amount` already holds the
+		# accumulated risk (e.g. 2× / 4× after consecutive wins) and must not
+		# be rolled back to the original draw amount — otherwise the next
+		# double round would deduct the original wager instead of the
+		# accumulated winnings.
+		if not _in_double:
+			_double_amount = _game_manager.last_win
 
 
 func _delay_unlock_buttons() -> void:
@@ -1008,7 +1020,7 @@ func _create_overlay(text: String) -> void:
 
 	_win_overlay = PanelContainer.new()
 
-	var msg_bar_path := "res://assets/textures/MessegBar.svg"
+	var msg_bar_path := "res://assets/themes/classic/controls/MessegBar.svg"
 	if ResourceLoader.exists(msg_bar_path):
 		var tex := load(msg_bar_path) as Texture2D
 		var style := StyleBoxTexture.new()
@@ -1262,7 +1274,7 @@ func _show_bet_picker() -> void:
 	grid.add_theme_constant_override("v_separation", 12)
 	vbox.add_child(grid)
 
-	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg")
+	var tex_yellow := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
 
 	for amount in BET_AMOUNTS:
 		var btn := Button.new()
@@ -1376,7 +1388,7 @@ func _legacy_show_shop_unused() -> void:
 	grid.add_theme_constant_override("v_separation", 14)
 	vbox.add_child(grid)
 
-	var tex_green := load("res://assets/textures/btn_rect_green.svg")
+	var tex_green := load("res://assets/themes/classic/controls/btn_rect_blue.svg")
 
 	for amount in SHOP_AMOUNTS:
 		var item := VBoxContainer.new()
@@ -1681,8 +1693,8 @@ func _show_double_warning() -> void:
 	btns.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(btns)
 
-	var tex_green := load("res://assets/textures/btn_rect_green.svg")
-	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg")
+	var tex_green := load("res://assets/themes/classic/controls/btn_rect_blue.svg")
+	var tex_yellow := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
 
 	var no_btn := Button.new()
 	no_btn.text = Translations.tr_key("common.no")

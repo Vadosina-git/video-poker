@@ -4,7 +4,7 @@ extends RefCounted
 ## Shared top bar setup: exit icon + title + optional info button.
 ## Call from any game mode to get consistent styling.
 
-const EXIT_ICON_PATH := "res://assets/textures/table_exit.svg"
+const EXIT_ICON_PATH := "res://assets/themes/classic/controls/table_exit.svg"
 const LEFT_MARGIN := 160  # align with controlbar side_m
 
 
@@ -46,15 +46,21 @@ static func show_exit_confirm(parent: Control, on_leave: Callable) -> Control:
 	dim.create_tween().tween_property(dim, "color:a", 0.6, 0.22)
 
 	var panel := PanelContainer.new()
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color("000086")
-	ps.set_border_width_all(3)
-	ps.border_color = Color.WHITE
-	ps.set_corner_radius_all(12)
-	ps.content_margin_left = 32
-	ps.content_margin_right = 32
-	ps.content_margin_top = 24
-	ps.content_margin_bottom = 24
+	# Theme-aware chrome only for the supercell skin — classic stays on
+	# its historical hard-coded #000086 to preserve the bit-for-bit look.
+	var ps: StyleBoxFlat
+	if ThemeManager.current_id == "supercell":
+		ps = ThemeManager.make_popup_stylebox()
+	else:
+		ps = StyleBoxFlat.new()
+		ps.bg_color = Color("000086")
+		ps.set_border_width_all(3)
+		ps.border_color = Color.WHITE
+		ps.set_corner_radius_all(12)
+		ps.content_margin_left = 32
+		ps.content_margin_right = 32
+		ps.content_margin_top = 24
+		ps.content_margin_bottom = 24
 	panel.add_theme_stylebox_override("panel", ps)
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -105,8 +111,8 @@ static func show_exit_confirm(parent: Control, on_leave: Callable) -> Control:
 	btns.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(btns)
 
-	var tex_y := load("res://assets/textures/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_yellow.svg") else null
-	var tex_g := load("res://assets/textures/btn_rect_green.svg") if ResourceLoader.exists("res://assets/textures/btn_rect_green.svg") else null
+	var tex_y := load("res://assets/themes/classic/controls/btn_rect_yellow.svg") if ResourceLoader.exists("res://assets/themes/classic/controls/btn_rect_yellow.svg") else null
+	var tex_g := load("res://assets/themes/classic/controls/btn_rect_blue.svg") if ResourceLoader.exists("res://assets/themes/classic/controls/btn_rect_blue.svg") else null
 
 	var stay_btn := Button.new()
 	stay_btn.text = Translations.tr_key("game.exit_stay")

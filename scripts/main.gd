@@ -8,62 +8,19 @@ var _paytables: Dictionary = {}
 var _loader_active: bool = false
 
 const LOADER_DURATION := 2.0
+# Supercell skin shows the loader/splash a bit longer so the trainer
+# branding has time to read. Classic stays on the historical 2.0s.
+const LOADER_DURATION_SUPERCELL := 3.0
 
 
 func _ready() -> void:
-	RenderingServer.set_default_clear_color(Color(0.0, 0.0, 0.527, 1.0))
+	# Keep classic's deep-blue clear color as the default; supercell paints
+	# its own background, so it won't notice this value either way.
+	RenderingServer.set_default_clear_color(Color(0, 0, 0.527, 1))
 	LobbyScene = load("res://scenes/lobby/lobby.tscn")
 	GameScene = load("res://scenes/game.tscn")
 	_paytables = Paytable.load_all()
-	await _show_splash()
 	_show_lobby()
-
-
-## Fake splash-screen loader shown for `splash_duration_sec` (configurable).
-## Extends Godot's native boot splash — same background color + spinner chip —
-## so the transition feels seamless for the player.
-func _show_splash() -> void:
-	var duration: float = float(ConfigManager.init_config.get("splash_duration_sec", 4.0))
-	if duration <= 0.0:
-		return
-
-	var splash := Control.new()
-	splash.set_anchors_preset(Control.PRESET_FULL_RECT)
-	splash.z_index = 4096
-	add_child(splash)
-
-	var bg := ColorRect.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.0, 0.0, 0.527, 1.0)
-	splash.add_child(bg)
-
-	# Logo image — same as boot_splash so transition is invisible.
-	var logo := TextureRect.new()
-	logo.texture = load("res://assets/textures/logo_splash.png")
-	logo.set_anchors_preset(Control.PRESET_CENTER)
-	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	logo.custom_minimum_size = Vector2(360, 360)
-	logo.size = Vector2(360, 360)
-	logo.pivot_offset = Vector2(180, 180)
-	logo.position = Vector2(-180, -260)
-	splash.add_child(logo)
-
-	# Spinning chip below the logo.
-	var spinner_wrap := CenterContainer.new()
-	spinner_wrap.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	spinner_wrap.offset_top = -180
-	spinner_wrap.offset_bottom = -40
-	splash.add_child(spinner_wrap)
-	var spinner := _create_spinner()
-	spinner_wrap.add_child(spinner)
-
-	await get_tree().create_timer(duration).timeout
-
-	var fade := splash.create_tween()
-	fade.tween_property(splash, "modulate:a", 0.0, 0.4).set_ease(Tween.EASE_IN)
-	fade.tween_callback(splash.queue_free)
-	await fade.finished
 
 
 func _show_lobby() -> void:
@@ -92,7 +49,8 @@ func _on_machine_selected(variant_id: String) -> void:
 	# Fade loader in
 	loader.modulate.a = 0.0
 	loader.create_tween().tween_property(loader, "modulate:a", 1.0, 0.27)
-	await get_tree().create_timer(LOADER_DURATION).timeout
+	var dur: float = LOADER_DURATION_SUPERCELL if ThemeManager.current_id == "supercell" else LOADER_DURATION
+	await get_tree().create_timer(dur).timeout
 	_loader_active = false
 	# Load the target scene BEFORE fading out the loader so we don't flash
 	_load_game_scene(variant_id)
@@ -110,8 +68,10 @@ func _load_game_scene(variant_id: String) -> void:
 	var ultra_vp: bool = SaveManager.ultra_vp
 
 	if SaveManager.spin_poker:
-		# Spin Poker mode
-		var spin_scene := load("res://scenes/spin_poker_game.tscn")
+		# Spin Poker mode — route by theme first.
+		var spin_theme_path := "res://scenes/themes/%s/spin_poker_game.tscn" % ThemeManager.current_id
+		var spin_path := spin_theme_path if ResourceLoader.exists(spin_theme_path) else "res://scenes/spin_poker_game.tscn"
+		var spin_scene := load(spin_path)
 		if spin_scene:
 			var spin_game: Control = spin_scene.instantiate()
 			spin_game.setup(variant)
@@ -119,14 +79,13 @@ func _load_game_scene(variant_id: String) -> void:
 			_make_full_rect(spin_game)
 			_current_scene = spin_game
 			spin_game.back_to_lobby.connect(_show_lobby)
-			# No fade-in — spin_poker handles its own reveal via the ready-cover
-			# overlay (otherwise the scene's fade makes everything translucent,
-			# including the cover, revealing the grid mid-setup).
 			return
 
 	if hand_count > 1 or ultra_vp:
-		# Multi-hand mode
-		var multi_scene := load("res://scenes/multi_hand_game.tscn")
+		# Multi-hand / Ultra VP — route by theme first.
+		var multi_theme_path := "res://scenes/themes/%s/multi_hand_game.tscn" % ThemeManager.current_id
+		var multi_path := multi_theme_path if ResourceLoader.exists(multi_theme_path) else "res://scenes/multi_hand_game.tscn"
+		var multi_scene := load(multi_path)
 		if multi_scene:
 			var multi_game: Control = multi_scene.instantiate()
 			multi_game.setup(variant, hand_count, ultra_vp)
@@ -137,14 +96,25 @@ func _load_game_scene(variant_id: String) -> void:
 			_fade_in_scene(multi_game)
 			return
 
-	# Single hand mode (default)
-	var game: Control = GameScene.instantiate()
+	# Single hand mode — route to per-theme scene if the active skin
+	# ships its own layout under scenes/themes/<id>/game.tscn, else
+	# fall back to the classic scene at scenes/game.tscn. This keeps
+	# new skins fully isolated from the existing classic UI.
+	var single_scene: PackedScene = _get_single_hand_scene()
+	var game: Control = single_scene.instantiate()
 	game.setup(variant)
 	add_child(game)
 	_make_full_rect(game)
 	_current_scene = game
 	game.back_to_lobby.connect(_show_lobby)
 	_fade_in_scene(game)
+
+
+func _get_single_hand_scene() -> PackedScene:
+	var theme_path := "res://scenes/themes/%s/game.tscn" % ThemeManager.current_id
+	if ResourceLoader.exists(theme_path):
+		return load(theme_path)
+	return GameScene
 
 
 func _create_variant(variant_id: String, pt: Paytable) -> BaseVariant:
@@ -208,18 +178,25 @@ func _create_loader() -> Control:
 
 
 func _create_spinner() -> Control:
-	var size_px: float = 128.0
-	var spinner := TextureRect.new()
-	spinner.texture = load("res://assets/textures/loading_chip.png")
+	var size_px: float = 96.0
+	var spinner := Control.new()
 	spinner.custom_minimum_size = Vector2(size_px, size_px)
 	spinner.size = Vector2(size_px, size_px)
-	spinner.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	spinner.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	spinner.pivot_offset = Vector2(size_px * 0.5, size_px * 0.5)
+	spinner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	spinner.draw.connect(func() -> void:
+		var center := spinner.size * 0.5
+		var radius: float = spinner.size.x * 0.42
+		# Ring of 8 dots, leading dot fully opaque, trailing dots fade out.
+		# Visually a neutral loader — no chip / no suit imagery.
+		for i in 8:
+			var ang: float = TAU * float(i) / 8.0 - PI * 0.5
+			var p := center + Vector2(cos(ang), sin(ang)) * radius
+			var alpha: float = 0.25 + 0.75 * (float(i) / 7.0)
+			spinner.draw_circle(p, 7.0, Color(1, 1, 1, alpha))
+	)
 
-	# Continuous rotation: one full turn per 2 seconds with wavelike pacing
-	# (sine ease-in-out → accelerates from rest, peaks, decelerates back).
-	# .from(0) resets each loop iteration so subsequent turns aren't a no-op.
+	# Continuous rotation: one full turn per 2 seconds with wavelike pacing.
 	var tw := spinner.create_tween()
 	tw.set_loops()
 	tw.tween_property(spinner, "rotation", TAU, 2.0) \

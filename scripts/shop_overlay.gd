@@ -138,7 +138,10 @@ func _build_overlay() -> void:
 
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	row.add_theme_constant_override("separation", 18)
+	# Stretch to scroll viewport width so ALIGNMENT_CENTER actually centers
+	# the cards instead of hugging content to the left edge.
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 32)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	scroll.add_child(row)
 
@@ -307,7 +310,7 @@ func _rebuild_gift_content(ready: bool) -> void:
 		child.queue_free()
 
 	if ready:
-		_gift_icon.texture = load("res://assets/shop/gift_box_ready_icon.png")
+		_gift_icon.texture = _gift_box_texture(true)
 		var collect := Label.new()
 		collect.text = "COLLECT!"
 		collect.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -323,7 +326,7 @@ func _rebuild_gift_content(ready: bool) -> void:
 		amount_hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_gift_label_area.add_child(amount_hb)
 
-		var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+		var chip_tex: Texture2D = SaveManager.get_chip_texture()
 		if chip_tex:
 			var chip := TextureRect.new()
 			chip.texture = chip_tex
@@ -342,7 +345,7 @@ func _rebuild_gift_content(ready: bool) -> void:
 		_set_chip_amount_text(amt, ConfigManager.get_gift_chips(), GIFT_BTN_W - 40)
 		amount_hb.add_child(amt)
 	else:
-		_gift_icon.texture = load("res://assets/shop/gift_box_icon.png")
+		_gift_icon.texture = _gift_box_texture(false)
 		var timer_label := Label.new()
 		timer_label.name = "Timer"
 		timer_label.text = "--H --M --S"
@@ -352,6 +355,21 @@ func _rebuild_gift_content(ready: bool) -> void:
 		timer_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 		timer_label.add_theme_constant_override("outline_size", 3)
 		_gift_label_area.add_child(timer_label)
+
+
+## Resolves the gift-box texture for the current skin. Each theme can ship
+## its own art at `assets/themes/<id>/icons/gift_box_icon.png` (idle) and
+## `gift_box_ready_icon.png` (ready). Falls back to the shared
+## `assets/shop/...` PNG when a theme doesn't override.
+func _gift_box_texture(ready: bool) -> Texture2D:
+	var icon_name: String = "gift_box_ready_icon" if ready else "gift_box_icon"
+	var theme_path: String = ThemeManager.ui_icon_path(icon_name)
+	if theme_path != "":
+		return load(theme_path)
+	var fallback: String = "res://assets/shop/%s.png" % icon_name
+	if ResourceLoader.exists(fallback):
+		return load(fallback)
+	return null
 
 
 func _is_gift_ready() -> bool:
@@ -562,7 +580,7 @@ func _build_chips_display(amount: int, font_size: int, color: Color) -> HBoxCont
 	num.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	num.add_theme_constant_override("outline_size", 3)
 	hb.add_child(num)
-	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex:
 		var chip := TextureRect.new()
 		chip.texture = chip_tex
@@ -644,7 +662,7 @@ func _build_extra_ribbon(bonus_chips: int, bg: Color) -> PanelContainer:
 	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	lab.add_theme_constant_override("outline_size", 3)
 	hb.add_child(lab)
-	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex:
 		var chip := TextureRect.new()
 		chip.texture = chip_tex
@@ -689,7 +707,7 @@ func _build_exchange_rate_row(coins_per_dollar: int) -> HBoxContainer:
 	n_label.add_theme_font_size_override("font_size", 22)
 	n_label.add_theme_color_override("font_color", Color("FFEC00"))
 	hb.add_child(n_label)
-	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex:
 		var chip := TextureRect.new()
 		chip.texture = chip_tex
@@ -775,7 +793,7 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 		return
 	var target_pos: Vector2 = pill_inner.global_position + pill_inner.size * 0.5
 
-	var chip_tex: Texture2D = load("res://assets/textures/glyphs/glyph_chip.svg")
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex == null:
 		_animate_balance_increment(old_credits, new_credits, 0.9)
 		return

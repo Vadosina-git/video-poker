@@ -40,6 +40,12 @@ var _depth_tooltip: Control = null
 var _bet_cd: Dictionary
 var _win_cd: Dictionary
 var _hold_hint_label: Label = null
+# Glyph height (in px) for the bottom-row currency displays — WIN /
+# TOTAL BET / BALANCE chip + digits. Classic uses 16; supercell sub-
+# script bumps this to 32 in `_ready` BEFORE super._ready() so every
+# `create_currency_display(_info_glyph_h, …)` call below picks up the
+# larger size on first render.
+var _info_glyph_h: int = 16
 
 # Primary hand (bottom row, interactive)
 var _primary_cards: Array = []  # Array of card_visual TextureRect
@@ -367,7 +373,7 @@ func _apply_theme() -> void:
 	_win_label.text = Translations.tr_key("game.win_label")
 	_win_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_label.gui_input.connect(_on_credits_toggle)
-	_win_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_win_cd = SaveManager.create_currency_display(_info_glyph_h, COL_YELLOW)
 	_win_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_win_cd["box"].gui_input.connect(_on_credits_toggle)
 	_info_row.add_child(_win_cd["box"])
@@ -378,7 +384,7 @@ func _apply_theme() -> void:
 	_total_bet_label.text = Translations.tr_key("game.total_bet")
 	_total_bet_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_total_bet_label.gui_input.connect(_on_credits_toggle)
-	_bet_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_bet_cd = SaveManager.create_currency_display(_info_glyph_h, COL_YELLOW)
 	_bet_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_bet_cd["box"].gui_input.connect(_on_credits_toggle)
 	_info_row.add_child(_bet_cd["box"])
@@ -389,12 +395,21 @@ func _apply_theme() -> void:
 	_balance_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_label.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_balance_label.gui_input.connect(_on_credits_toggle)
-	_balance_cd = SaveManager.create_currency_display(16, COL_YELLOW)
+	_balance_cd = SaveManager.create_currency_display(_info_glyph_h, COL_YELLOW)
 	_balance_cd["box"].mouse_filter = Control.MOUSE_FILTER_STOP
 	_balance_cd["box"].mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_balance_cd["box"].gui_input.connect(_on_credits_toggle)
 	_info_row.add_child(_balance_cd["box"])
 	_info_row.move_child(_balance_cd["box"], _balance_label.get_index() + 1)
+
+	# Wrap each (label, chip+digits) pair into a fixed slot — without
+	# this the row repacks every time the WIN / BALANCE chip count
+	# changes width (e.g. roll-up animation grows from "0" → "12,500"),
+	# which visibly nudges every other label sideways. Inside each slot
+	# the label sticks to the left edge and the currency display sticks
+	# to the right via an expanding spacer, so the label position stays
+	# pixel-locked while only the digits shift inside their own slot.
+	_install_info_row_slots()
 
 	# Top-up button — small yellow square
 	_topup_btn.add_theme_font_size_override("font_size", 18)
@@ -427,17 +442,17 @@ func _apply_theme() -> void:
 	_build_button_groups.call_deferred()
 
 	# Button textures
-	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg")
-	var tex_panel := load("res://assets/textures/btn_panel11.svg")
-	var tex_panel_w := load("res://assets/textures/btn_panel11-1.svg")
-	var tex_green := load("res://assets/textures/btn_rect_green.svg")
-	var tex_blue := load("res://assets/textures/btn_blue.svg")
-	var tex_gray := load("res://assets/textures/btn_panel11.svg")
+	var tex_yellow := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
+	var tex_panel := load("res://assets/themes/classic/controls/btn_panel11.svg")
+	var tex_panel_w := load("res://assets/themes/classic/controls/btn_panel11-1.svg")
+	var tex_green := load("res://assets/themes/classic/controls/btn_rect_blue.svg")
+	var tex_blue := load("res://assets/themes/classic/controls/btn_blue.svg")
+	var tex_gray := load("res://assets/themes/classic/controls/btn_panel11.svg")
 
 	var btn_h := 36
 
 	# Left group: INFO + SPEED
-	var tex_info := load("res://assets/textures/info_button.svg")
+	var tex_info := load("res://assets/themes/classic/controls/info_button.svg")
 	_style_btn(_info_btn, tex_info, Color.BLACK, 16, 40, btn_h)
 	_style_btn(_speed_btn, tex_panel_w, Color.WHITE, 13, 110, btn_h)
 
@@ -451,6 +466,143 @@ func _apply_theme() -> void:
 	# Right group: DOUBLE + DEAL
 	_style_btn(_double_btn, tex_yellow, COL_BTN_TEXT, 13, 90, btn_h)
 	_style_btn(_deal_draw_btn, tex_green, Color.WHITE, 18, 120, btn_h)
+
+
+## Restructures `_info_row` so each (Label, currency-display) pair lives
+## inside a tight slot. Final positioning rules:
+##   • WinSlot stays at the row's left edge (where it already was).
+##   • BetSlot is positioned at the EXACT horizontal center of the row.
+##   • BalanceSlot + TopUpButton stick together at the right edge as a
+##     single visual pair — Balance is anchored to the "+" button.
+## Layout: [WinSlot · spacer1 · BetSlot · spacer2 · BalanceWrap]
+## where spacer1 / spacer2 widths are computed dynamically so BetSlot's
+## center coincides with the row's horizontal center regardless of the
+## three slots' individual widths. Re-runs on row resize.
+func _install_info_row_slots() -> void:
+	# Drop the legacy InfoSpacer (between TotalBet and Balance) — the
+	# new spacers live between WIN/BET and BET/BALANCE.
+	var legacy_spacer: Node = _info_row.get_node_or_null("InfoSpacer")
+	if legacy_spacer != null:
+		_info_row.remove_child(legacy_spacer)
+		legacy_spacer.queue_free()
+	# Width reserved for chip + digits. 8× glyph height fits a 9-digit
+	# balance like "©999,999,999" at the active glyph size — 128px in
+	# classic, 256px in supercell.
+	var cd_min_w: int = int(_info_glyph_h * 8.0)
+	var win_slot := _make_info_slot("WinSlot", _win_label, _win_cd["box"], cd_min_w)
+	var bet_slot := _make_info_slot("BetSlot", _total_bet_label, _bet_cd["box"], cd_min_w)
+	var balance_slot := _make_info_slot("BalanceSlot", _balance_label, _balance_cd["box"], cd_min_w)
+	# InfoRow's separation applies between EVERY pair of children.
+	# Set it to 0 so BalanceSlot can sit flush against TopUpButton (the
+	# row keeps its visual gaps via the explicit spacer1/spacer2 widths
+	# instead — and via a small inline gap inside `BalanceWrap`).
+	_info_row.add_theme_constant_override("separation", 0)
+	# Wrap BalanceSlot + TopUpButton into one unit so they always move
+	# together as a "balance + action" cluster, and so the inner gap
+	# between them stays small (decoupled from the row's separation).
+	var balance_wrap := HBoxContainer.new()
+	balance_wrap.name = "BalanceWrap"
+	balance_wrap.add_theme_constant_override("separation", 8)
+	balance_wrap.mouse_filter = Control.MOUSE_FILTER_PASS
+	# Re-parent TopUpButton from InfoRow into the wrap, then add the
+	# balance slot before it. Order: [BalanceSlot, TopUpButton]
+	if _topup_btn.get_parent() != null:
+		_topup_btn.get_parent().remove_child(_topup_btn)
+	balance_wrap.add_child(balance_slot)
+	balance_wrap.add_child(_topup_btn)
+	# Spacers around BetSlot — sized in `_recenter_bet_slot` once labels
+	# have measured. EXPAND_FILL by default so the row still fills its
+	# parent if `_recenter_bet_slot` hasn't run yet.
+	var spacer1 := Control.new()
+	spacer1.name = "InfoSpacer1"
+	spacer1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer1.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var spacer2 := Control.new()
+	spacer2.name = "InfoSpacer2"
+	spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Final InfoRow order: [WinSlot, spacer1, BetSlot, spacer2, balance_wrap]
+	_info_row.add_child(win_slot)
+	_info_row.move_child(win_slot, 0)
+	_info_row.add_child(spacer1)
+	_info_row.move_child(spacer1, 1)
+	_info_row.add_child(bet_slot)
+	_info_row.move_child(bet_slot, 2)
+	_info_row.add_child(spacer2)
+	_info_row.move_child(spacer2, 3)
+	_info_row.add_child(balance_wrap)
+	_info_row.move_child(balance_wrap, 4)
+	# Defer the centering pass — labels need at least one frame to
+	# measure their actual size after the font override applies.
+	call_deferred("_recenter_bet_slot")
+	# Re-center on layout changes (orientation flip, hand-count switch
+	# rebuilding the row, etc.). Connect once.
+	if not _info_row.resized.is_connected(_recenter_bet_slot):
+		_info_row.resized.connect(_recenter_bet_slot)
+
+
+## Sets `InfoSpacer1` / `InfoSpacer2` widths so `BetSlot` ends up at the
+## exact horizontal center of `_info_row`. WinSlot keeps its left
+## anchor; BalanceWrap (Balance + TopUp) stays glued to the right.
+func _recenter_bet_slot() -> void:
+	if not is_inside_tree():
+		return
+	var spacer1: Control = _info_row.get_node_or_null("InfoSpacer1") as Control
+	var spacer2: Control = _info_row.get_node_or_null("InfoSpacer2") as Control
+	var win_slot: Control = _info_row.get_node_or_null("WinSlot") as Control
+	var bet_slot: Control = _info_row.get_node_or_null("BetSlot") as Control
+	var balance_wrap: Control = _info_row.get_node_or_null("BalanceWrap") as Control
+	if spacer1 == null or spacer2 == null or win_slot == null \
+			or bet_slot == null or balance_wrap == null:
+		return
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	# Use natural minimum sizes (independent of HBox stretching) so the
+	# math is stable even before the row has finished sizing.
+	var row_w: float = _info_row.size.x
+	var win_w: float = win_slot.get_combined_minimum_size().x
+	var bet_w: float = bet_slot.get_combined_minimum_size().x
+	var wrap_w: float = balance_wrap.get_combined_minimum_size().x
+	# spacer1 = (row_w / 2) - WinSlot - BetSlot/2
+	# spacer2 = (row_w / 2) - BetSlot/2 - BalanceWrap
+	var s1: float = row_w * 0.5 - win_w - bet_w * 0.5
+	var s2: float = row_w * 0.5 - bet_w * 0.5 - wrap_w
+	spacer1.size_flags_horizontal = Control.SIZE_FILL
+	spacer2.size_flags_horizontal = Control.SIZE_FILL
+	spacer1.custom_minimum_size.x = maxf(0.0, s1)
+	spacer2.custom_minimum_size.x = maxf(0.0, s2)
+
+
+func _make_info_slot(slot_name: String, label: Label, cd_box: Control, cd_min_w: int) -> HBoxContainer:
+	var slot := HBoxContainer.new()
+	slot.name = slot_name
+	# Slot has a FIXED minimum width but shrink-center horizontally —
+	# its position in the row is decided by the row's flow (WIN+BET on
+	# the left, BALANCE+TopUp on the right). Inside, the chip+digits sit
+	# tight against the label (no gap-then-stuck-right look); any
+	# leftover width is absorbed by an expanding spacer at the slot's
+	# right edge so digit growth never pushes neighbouring slots.
+	slot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	slot.add_theme_constant_override("separation", 8)
+	# Detach label + cd from their previous parent (InfoRow) and reparent
+	# into the slot.
+	if label.get_parent() != null:
+		label.get_parent().remove_child(label)
+	slot.add_child(label)
+	if cd_box.get_parent() != null:
+		cd_box.get_parent().remove_child(cd_box)
+	# cd_box is itself the fixed-width "value cell": chip+digits are
+	# LEFT-aligned inside it (they hug the label), and the cell's
+	# fixed `custom_minimum_size.x = cd_min_w` reserves enough room for
+	# the longest expected value. When content is shorter than cd_min_w
+	# the empty padding sits on the cell's right edge — no trailing
+	# spacer needed since the cell itself absorbs the variation.
+	cd_box.custom_minimum_size.x = cd_min_w
+	if cd_box is BoxContainer:
+		(cd_box as BoxContainer).alignment = BoxContainer.ALIGNMENT_BEGIN
+	slot.add_child(cd_box)
+	return slot
 
 
 func _build_button_groups() -> void:
@@ -471,6 +623,25 @@ func _build_button_groups() -> void:
 	# DOUBLE button before DEAL
 	_bottom_bar.add_child(_double_btn)
 	_bottom_bar.move_child(_double_btn, _deal_draw_btn.get_index())
+
+	# Config-gated visibility (init_config.json). Defaults true if unset.
+	_speed_btn.visible = bool(ConfigManager.init_config.get("show_speed_button", true))
+	# DOUBLE is shown under both classic and supercell now (was supercell-
+	# hidden previously); visibility still respects the config flag.
+	_double_btn.visible = bool(ConfigManager.init_config.get("show_double_button", true))
+
+
+## Returns the active theme's display font (LilitaOne for supercell) when
+## one is configured, else a SystemFont with weight 700 — preserves the
+## classic look while letting skinned themes inherit their own font on
+## every dynamically-built popup / badge / hint label.
+func _themed_bold_font() -> Font:
+	var f: Font = ThemeManager.font()
+	if f != null:
+		return f
+	var sf := SystemFont.new()
+	sf.font_weight = 700
+	return sf
 
 
 func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_w: int, min_h: int) -> void:
@@ -498,6 +669,12 @@ func _style_btn(btn: Button, tex: Texture2D, text_col: Color, font_sz: int, min_
 	btn.add_theme_color_override("font_color", text_col)
 	btn.add_theme_color_override("font_hover_color", text_col)
 	btn.add_theme_color_override("font_pressed_color", text_col)
+	# Inherit the active theme's display font so supercell / future skins
+	# take effect on every classic-built button without each caller
+	# remembering to set it.
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		btn.add_theme_font_override("font", theme_font)
 	btn.custom_minimum_size = Vector2(min_w, min_h)
 	# 1.2: Press effect
 	btn.pivot_offset = btn.size / 2
@@ -960,8 +1137,7 @@ func _show_depth_tooltip() -> void:
 	vbox.add_theme_constant_override("separation", 14)
 	panel.add_child(vbox)
 
-	var bold := SystemFont.new()
-	bold.font_weight = 700
+	var bold: Font = _themed_bold_font()
 	var title := Label.new()
 	title.text = Translations.tr_key("game_depth.title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -975,11 +1151,12 @@ func _show_depth_tooltip() -> void:
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.add_theme_font_size_override("font_size", 16)
 	msg.add_theme_color_override("font_color", Color.WHITE)
+	msg.add_theme_font_override("font", bold)
 	vbox.add_child(msg)
 
 	var ok_btn := Button.new()
 	ok_btn.text = Translations.tr_key("common.got_it")
-	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
+	var tex_y := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
 	_style_btn(ok_btn, tex_y, COL_BTN_TEXT, 18, 140, 44)
 	ok_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ok_btn.pressed.connect(func() -> void:
@@ -1005,11 +1182,15 @@ func _update_bet_display(bet: int) -> void:
 func _flash_bet_display() -> void:
 	if _bet_flash_tween:
 		_bet_flash_tween.kill()
-	SaveManager.set_currency_value(_bet_cd, "", 20, COL_YELLOW)
+	# Flash up to a slightly larger glyph then settle back to the base
+	# `_info_glyph_h` — keeps supercell's 32px scale intact (peak ≈ 40)
+	# instead of resetting to classic's hardcoded 20 / 16.
+	var flash_h: int = int(_info_glyph_h * 1.25)
+	SaveManager.set_currency_value(_bet_cd, "", flash_h, COL_YELLOW)
 	_bet_flash_tween = create_tween()
 	_bet_flash_tween.tween_interval(0.4)
 	_bet_flash_tween.tween_callback(func() -> void:
-		SaveManager.set_currency_value(_bet_cd, "", 16, COL_YELLOW)
+		SaveManager.set_currency_value(_bet_cd, "", _info_glyph_h, COL_YELLOW)
 	)
 
 const MIN_GAME_DEPTH := 30
@@ -1107,9 +1288,7 @@ func _show_hold_hint() -> void:
 	_hold_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hold_hint_label.add_theme_font_size_override("font_size", 18)
 	_hold_hint_label.add_theme_color_override("font_color", COL_YELLOW)
-	var bold := SystemFont.new()
-	bold.font_weight = 700
-	_hold_hint_label.add_theme_font_override("font", bold)
+	_hold_hint_label.add_theme_font_override("font", _themed_bold_font())
 	_hold_hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hold_hint_label.z_index = 20
 	add_child(_hold_hint_label)
@@ -1174,7 +1353,7 @@ func _flash_balance_red() -> void:
 
 func _show_mini_held(mini: MiniHandDisplay) -> void:
 	# Show held cards face-up using mini's own _get_card_path (wild-aware)
-	var back_tex: Texture2D = load("res://assets/cards/card_back.png")
+	var back_tex: Texture2D = load(ThemeManager.card_path() + "card_back.png")
 	for i in 5:
 		if _manager.held[i]:
 			mini.show_card_at(i, _manager.primary_hand[i], false)
@@ -1993,8 +2172,7 @@ func _build_info_card() -> void:
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_info_card.add_child(vbox)
 
-	var bold := SystemFont.new()
-	bold.font_weight = 700
+	var bold: Font = _themed_bold_font()
 
 	# Title: ultra_logo image (replaces "ULTRA VP" text)
 	var title_image := TextureRect.new()
@@ -2024,6 +2202,7 @@ func _build_info_card() -> void:
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
 	desc.add_theme_font_size_override("font_size", 15)
 	desc.add_theme_color_override("font_color", Color.WHITE)
+	desc.add_theme_font_override("font", bold)
 	desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(desc)
 
@@ -2129,11 +2308,14 @@ func _animate_credits(target: int) -> void:
 		_credit_tween.kill()
 	var start := _displayed_credits if _displayed_credits >= 0 else target
 	_displayed_credits = start
-	# Highlight balance during roll-up
+	# Highlight balance during roll-up — pulse glyphs slightly larger
+	# (1.25× base) so the count-up reads as a deliberate beat, then
+	# `_on_credit_animation_done` settles them back to `_info_glyph_h`.
+	var pulse_h: int = int(_info_glyph_h * 1.25)
 	if _balance_show_depth:
-		SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE, false)
+		SaveManager.set_currency_value(_balance_cd, "", pulse_h, Color.WHITE, false)
 	else:
-		SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE)
+		SaveManager.set_currency_value(_balance_cd, "", pulse_h, Color.WHITE)
 	_credit_tween = create_tween()
 	var dur := 2.1 if _ultra_vp else 1.4
 	_credit_tween.tween_method(_update_credit_display, start, target, dur).set_ease(Tween.EASE_OUT)
@@ -2153,7 +2335,8 @@ func _update_credit_display(value: int) -> void:
 
 
 func _on_credit_animation_done() -> void:
-	SaveManager.set_currency_value(_balance_cd, "", 16, COL_YELLOW)
+	# Settle the balance glyphs back to the base height after the pulse.
+	SaveManager.set_currency_value(_balance_cd, "", _info_glyph_h, COL_YELLOW)
 	_unlock_buttons()
 	# Enable double if there was a total win
 	var total_payout := 0
@@ -2161,7 +2344,12 @@ func _on_credit_animation_done() -> void:
 		total_payout += int(r["payout"])
 	if total_payout > 0:
 		_double_btn.disabled = false
-		_double_amount = total_payout
+		# Only seed the wager pool from the FRESH total payout; while a
+		# double round is in flight `_double_amount` already holds the
+		# accumulated risk and must not be reset to the original draw
+		# total, otherwise the next double round deducts the wrong amount.
+		if not _in_double:
+			_double_amount = total_payout
 		# G.4: Pulse balance for 3 seconds after win
 		_pulse_balance(3.0)
 
@@ -2191,14 +2379,14 @@ func _set_win_dimmed() -> void:
 	_win_label.text = Translations.tr_key("game.win_label")
 	_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
 	var show_chip: bool = not _balance_show_depth
-	SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), 16, Color(0.7, 0.7, 0.4), show_chip)
+	SaveManager.set_currency_value(_win_cd, _format_win(_last_win_amount), _info_glyph_h, Color(0.7, 0.7, 0.4), show_chip)
 	_win_cd["box"].visible = true
 
 
 func _animate_win_increment(from: int, to: int) -> void:
 	_stop_win_increment()
 	var show_chip: bool = not _balance_show_depth
-	SaveManager.set_currency_value(_win_cd, _format_win(from), 16, COL_YELLOW, show_chip)
+	SaveManager.set_currency_value(_win_cd, _format_win(from), _info_glyph_h, COL_YELLOW, show_chip)
 	if from == to:
 		return
 	_win_increment_tween = create_tween()
@@ -2290,13 +2478,13 @@ const RANK_CODES := {
 
 func _get_card_path(card: CardData) -> String:
 	if card.is_joker():
-		return "res://assets/cards/card_vp_joker_red.png"
+		return ThemeManager.card_path() + "card_vp_joker_red.png"
 	if _variant.is_wild_card(card) and card.rank == CardData.Rank.TWO:
 		var s: String = SUIT_CODES.get(card.suit, "")
-		return "res://assets/cards/card_vp_wild%s.png" % s
+		return ThemeManager.card_path() + "card_vp_wild%s.png" % s
 	var r: String = RANK_CODES.get(card.rank, "")
 	var s: String = SUIT_CODES.get(card.suit, "")
-	return "res://assets/cards/card_vp_%s%s.png" % [r, s]
+	return ThemeManager.card_path() + "card_vp_%s%s.png" % [r, s]
 
 
 # --- Bet picker ---
@@ -2363,7 +2551,7 @@ func _show_bet_picker() -> void:
 	grid.add_theme_constant_override("v_separation", 10)
 	vbox.add_child(grid)
 
-	var tex_y := load("res://assets/textures/btn_rect_yellow.svg")
+	var tex_y := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
 	for amount in BET_AMOUNTS:
 		var btn := Button.new()
 		btn.text = ""
@@ -2429,15 +2617,21 @@ func _legacy_show_shop_unused() -> void:
 	_shop_overlay.add_child(dim)
 
 	var panel := PanelContainer.new()
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color("000086")
-	panel_style.set_border_width_all(3)
-	panel_style.border_color = COL_YELLOW
-	panel_style.set_corner_radius_all(12)
-	panel_style.content_margin_left = 28
-	panel_style.content_margin_right = 28
-	panel_style.content_margin_top = 20
-	panel_style.content_margin_bottom = 20
+	# Supercell-themed popup chrome when active; classic keeps its hard-
+	# coded blue panel verbatim so the legacy look is bit-preserved.
+	var panel_style: StyleBoxFlat
+	if ThemeManager.current_id == "supercell":
+		panel_style = ThemeManager.make_popup_stylebox()
+	else:
+		panel_style = StyleBoxFlat.new()
+		panel_style.bg_color = Color("000086")
+		panel_style.set_border_width_all(3)
+		panel_style.border_color = COL_YELLOW
+		panel_style.set_corner_radius_all(12)
+		panel_style.content_margin_left = 28
+		panel_style.content_margin_right = 28
+		panel_style.content_margin_top = 20
+		panel_style.content_margin_bottom = 20
 	panel.add_theme_stylebox_override("panel", panel_style)
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -2461,7 +2655,7 @@ func _legacy_show_shop_unused() -> void:
 	grid.add_theme_constant_override("v_separation", 14)
 	vbox.add_child(grid)
 
-	var tex_green := load("res://assets/textures/btn_rect_green.svg")
+	var tex_green := load("res://assets/themes/classic/controls/btn_rect_blue.svg")
 
 	for amount in SHOP_AMOUNTS:
 		var item := VBoxContainer.new()
@@ -2500,6 +2694,8 @@ func _show_info() -> void:
 		_info_overlay.queue_free()
 		_info_overlay = null
 
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
+
 	_info_overlay = Control.new()
 	_info_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_info_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2510,7 +2706,7 @@ func _show_info() -> void:
 
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.85)
+	dim.color = ThemeManager.popup_dim_color() if is_supercell else Color(0, 0, 0, 0.85)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	dim.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed:
@@ -2518,50 +2714,106 @@ func _show_info() -> void:
 	)
 	_info_overlay.add_child(dim)
 
+	# Supercell wraps content in a centered popup panel (purple/yellow
+	# stylebox). Classic puts the scroll container directly on dim.
+	var scroll_parent: Control = _info_overlay
+	var scroll_offset_left: int = 60
+	var scroll_offset_right: int = -60
+	var scroll_offset_top: int = 20
+	var scroll_offset_bottom: int = -20
+	if is_supercell:
+		var popup_panel := PanelContainer.new()
+		popup_panel.name = "SupercellInfoPanel"
+		popup_panel.add_theme_stylebox_override("panel", ThemeManager.make_popup_stylebox())
+		popup_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+		popup_panel.offset_left = 40
+		popup_panel.offset_right = -40
+		popup_panel.offset_top = 40
+		popup_panel.offset_bottom = -40
+		_info_overlay.add_child(popup_panel)
+		scroll_parent = popup_panel
+		scroll_offset_left = 0
+		scroll_offset_right = 0
+		scroll_offset_top = 0
+		scroll_offset_bottom = 0
+
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = 60
-	scroll.offset_right = -60
-	scroll.offset_top = 20
-	scroll.offset_bottom = -20
-	_info_overlay.add_child(scroll)
+	if scroll_parent == _info_overlay:
+		scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+		scroll.offset_left = scroll_offset_left
+		scroll.offset_right = scroll_offset_right
+		scroll.offset_top = scroll_offset_top
+		scroll.offset_bottom = scroll_offset_bottom
+	scroll_parent.add_child(scroll)
 
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 16)
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(content)
 
-	# Close button
+	# Close button — supercell variant uses a yellow square with the same
+	# big black "X" as the bet picker close affordance.
 	var close_btn := Button.new()
 	close_btn.text = "X"
-	close_btn.add_theme_font_size_override("font_size", 24)
-	close_btn.add_theme_color_override("font_color", Color.WHITE)
-	var close_style := StyleBoxFlat.new()
-	close_style.bg_color = Color(0.5, 0.1, 0.1, 0.8)
-	close_style.set_corner_radius_all(4)
-	close_btn.add_theme_stylebox_override("normal", close_style)
-	close_btn.custom_minimum_size = Vector2(40, 40)
 	close_btn.size_flags_horizontal = Control.SIZE_SHRINK_END
 	close_btn.pressed.connect(_hide_info)
+	if is_supercell:
+		close_btn.custom_minimum_size = Vector2(48, 48)
+		close_btn.add_theme_font_size_override("font_size", 26)
+		close_btn.add_theme_color_override("font_color", ThemeManager.color("button_primary_text", Color("2A1F00")))
+		var sb_close := StyleBoxFlat.new()
+		sb_close.bg_color = ThemeManager.color("button_primary_bg", Color("FFCC2E"))
+		sb_close.border_color = ThemeManager.color("button_primary_border", Color("152033"))
+		sb_close.set_border_width_all(3)
+		sb_close.set_corner_radius_all(12)
+		sb_close.anti_aliasing = true
+		close_btn.add_theme_stylebox_override("normal", sb_close)
+		close_btn.add_theme_stylebox_override("hover", sb_close)
+		close_btn.add_theme_stylebox_override("pressed", sb_close)
+		close_btn.add_theme_stylebox_override("focus", sb_close)
+		var f_close: Font = ThemeManager.font()
+		if f_close != null:
+			close_btn.add_theme_font_override("font", f_close)
+	else:
+		close_btn.add_theme_font_size_override("font_size", 24)
+		close_btn.add_theme_color_override("font_color", Color.WHITE)
+		var close_style := StyleBoxFlat.new()
+		close_style.bg_color = Color(0.5, 0.1, 0.1, 0.8)
+		close_style.set_corner_radius_all(4)
+		close_btn.add_theme_stylebox_override("normal", close_style)
+		close_btn.custom_minimum_size = Vector2(40, 40)
 	content.add_child(close_btn)
 
-	var bold := SystemFont.new()
-	bold.font_weight = 700
+	var bold: Font = ThemeManager.font() if is_supercell else null
+	if bold == null:
+		var sf := SystemFont.new()
+		sf.font_weight = 700
+		bold = sf
 
 	# Title
 	var title := Label.new()
 	title.text = Translations.tr_key("info.title_ultra_vp") if _ultra_vp else Translations.tr_key("info.title_multi")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
-	title.add_theme_color_override("font_color", Color("FFEC00"))
-	title.add_theme_font_override("font", bold)
+	if is_supercell:
+		ThemeManager.style_popup_title(title, 26)
+	else:
+		title.add_theme_font_size_override("font_size", 28)
+		title.add_theme_color_override("font_color", Color("FFEC00"))
+		title.add_theme_font_override("font", bold)
 	content.add_child(title)
 
-	# Rules text — RichTextLabel with dark backdrop
+	# Rules text — RichTextLabel with dark backdrop. Supercell uses a
+	# subtle yellow-bordered tinted panel matching the popup chrome.
 	var rules_panel := PanelContainer.new()
 	var rp_style := StyleBoxFlat.new()
-	rp_style.bg_color = Color(0.1, 0.1, 0.4, 0.7)
-	rp_style.set_corner_radius_all(8)
+	if is_supercell:
+		rp_style.bg_color = Color(0, 0, 0, 0.35)
+		rp_style.border_color = ThemeManager.color("popup_border", Color("FFEC00"))
+		rp_style.set_border_width_all(2)
+		rp_style.set_corner_radius_all(10)
+	else:
+		rp_style.bg_color = Color(0.1, 0.1, 0.4, 0.7)
+		rp_style.set_corner_radius_all(8)
 	rp_style.content_margin_left = 20
 	rp_style.content_margin_right = 20
 	rp_style.content_margin_top = 12
@@ -2572,13 +2824,21 @@ func _show_info() -> void:
 	rules.bbcode_enabled = true
 	rules.fit_content = true
 	rules.scroll_active = false
-	rules.add_theme_font_size_override("normal_font_size", 16)
+	rules.add_theme_font_size_override("normal_font_size", 14 if is_supercell else 16)
 	rules.add_theme_color_override("default_color", Color.WHITE)
+	if is_supercell:
+		var f_rules: Font = ThemeManager.font()
+		if f_rules != null:
+			rules.add_theme_font_override("normal_font", f_rules)
+			rules.add_theme_font_override("bold_font", f_rules)
+			rules.add_theme_font_override("italics_font", f_rules)
+			rules.add_theme_font_override("bold_italics_font", f_rules)
 	var rules_key := "info.rules_ultra_vp" if _ultra_vp else "info.rules_multi"
 	var rules_text: String = Translations.tr_key(rules_key)
 	if "[color" not in rules_text:
+		var hl_color := "#FFEC00" if is_supercell else "#00FF88"
 		for kw in ["DEAL", "DRAW", "HOLD", "MAX BET", "Ultra VP", "РУКИ"]:
-			rules_text = rules_text.replace(kw, "[color=#00FF88]%s[/color]" % kw)
+			rules_text = rules_text.replace(kw, "[color=%s]%s[/color]" % [hl_color, kw])
 	rules.text = "[center]%s[/center]" % rules_text
 	rules_panel.add_child(rules)
 
@@ -2587,9 +2847,12 @@ func _show_info() -> void:
 		var mt := Label.new()
 		mt.text = Translations.tr_key("info.multiplier_table")
 		mt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		mt.add_theme_font_size_override("font_size", 22)
-		mt.add_theme_color_override("font_color", Color("FFEC00"))
-		mt.add_theme_font_override("font", bold)
+		if is_supercell:
+			ThemeManager.style_popup_title(mt, 20)
+		else:
+			mt.add_theme_font_size_override("font_size", 22)
+			mt.add_theme_color_override("font_color", Color("FFEC00"))
+			mt.add_theme_font_override("font", bold)
 		content.add_child(mt)
 
 		var table := GridContainer.new()
@@ -2601,8 +2864,8 @@ func _show_info() -> void:
 		for header_key in ["info.col_winning_hand", "info.col_next_multiplier"]:
 			var lbl := Label.new()
 			lbl.text = Translations.tr_key(header_key)
-			lbl.add_theme_font_size_override("font_size", 15)
-			lbl.add_theme_color_override("font_color", Color("FFEC00"))
+			lbl.add_theme_font_size_override("font_size", 14 if is_supercell else 15)
+			lbl.add_theme_color_override("font_color", ThemeManager.color("popup_title_text", Color("FFEC00")) if is_supercell else Color("FFEC00"))
 			lbl.add_theme_font_override("font", bold)
 			table.add_child(lbl)
 
@@ -2634,9 +2897,15 @@ func _show_info() -> void:
 			for cell in row_data:
 				var cell_panel := PanelContainer.new()
 				var cs := StyleBoxFlat.new()
-				cs.bg_color = Color(0.08, 0.08, 0.2, 0.5)
-				cs.set_border_width_all(1)
-				cs.border_color = Color(0.3, 0.3, 0.5)
+				if is_supercell:
+					cs.bg_color = Color(0, 0, 0, 0.40)
+					cs.set_border_width_all(1)
+					cs.border_color = ThemeManager.color("popup_border", Color("FFEC00"))
+					cs.set_corner_radius_all(6)
+				else:
+					cs.bg_color = Color(0.08, 0.08, 0.2, 0.5)
+					cs.set_border_width_all(1)
+					cs.border_color = Color(0.3, 0.3, 0.5)
 				cs.content_margin_left = 8
 				cs.content_margin_right = 8
 				cs.content_margin_top = 3
@@ -2644,8 +2913,12 @@ func _show_info() -> void:
 				cell_panel.add_theme_stylebox_override("panel", cs)
 				var lbl := Label.new()
 				lbl.text = cell
-				lbl.add_theme_font_size_override("font_size", 14)
-				lbl.add_theme_color_override("font_color", row_col)
+				lbl.add_theme_font_size_override("font_size", 13 if is_supercell else 14)
+				lbl.add_theme_color_override("font_color", Color.WHITE if is_supercell else row_col)
+				if is_supercell:
+					var f_cell: Font = ThemeManager.font()
+					if f_cell != null:
+						lbl.add_theme_font_override("font", f_cell)
 				cell_panel.add_child(lbl)
 				table.add_child(cell_panel)
 		table.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -2671,6 +2944,7 @@ func _on_double_pressed() -> void:
 
 
 func _show_double_warning() -> void:
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
 	_double_overlay = Control.new()
 	_double_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_double_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -2679,20 +2953,24 @@ func _show_double_warning() -> void:
 
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.7)
+	dim.color = ThemeManager.popup_dim_color() if is_supercell else Color(0, 0, 0, 0.7)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	_double_overlay.add_child(dim)
 
 	var panel := PanelContainer.new()
-	var ps := StyleBoxFlat.new()
-	ps.bg_color = Color("07107A")
-	ps.set_border_width_all(3)
-	ps.border_color = COL_YELLOW
-	ps.set_corner_radius_all(12)
-	ps.content_margin_left = 30
-	ps.content_margin_right = 30
-	ps.content_margin_top = 20
-	ps.content_margin_bottom = 20
+	var ps: StyleBoxFlat
+	if is_supercell:
+		ps = ThemeManager.make_popup_stylebox()
+	else:
+		ps = StyleBoxFlat.new()
+		ps.bg_color = Color("07107A")
+		ps.set_border_width_all(3)
+		ps.border_color = COL_YELLOW
+		ps.set_corner_radius_all(12)
+		ps.content_margin_left = 30
+		ps.content_margin_right = 30
+		ps.content_margin_top = 20
+		ps.content_margin_bottom = 20
 	panel.add_theme_stylebox_override("panel", ps)
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -2706,8 +2984,11 @@ func _show_double_warning() -> void:
 	var title := Label.new()
 	title.text = Translations.tr_key("double.title")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 26)
-	title.add_theme_color_override("font_color", COL_YELLOW)
+	if is_supercell:
+		ThemeManager.style_popup_title(title, 28)
+	else:
+		title.add_theme_font_size_override("font_size", 26)
+		title.add_theme_color_override("font_color", COL_YELLOW)
 	vbox.add_child(title)
 
 	var doubled := _double_amount * 2
@@ -2718,16 +2999,22 @@ func _show_double_warning() -> void:
 	vbox.add_child(msg_row)
 	var lbl1 := Label.new()
 	lbl1.text = Translations.tr_key("double.you_won")
-	lbl1.add_theme_font_size_override("font_size", 20)
-	lbl1.add_theme_color_override("font_color", Color.WHITE)
+	if is_supercell:
+		ThemeManager.style_popup_body(lbl1, 20)
+	else:
+		lbl1.add_theme_font_size_override("font_size", 20)
+		lbl1.add_theme_color_override("font_color", Color.WHITE)
 	msg_row.add_child(lbl1)
 	var cd1 := SaveManager.create_currency_display(20, COL_YELLOW)
 	SaveManager.set_currency_value(cd1, SaveManager.format_money(_double_amount))
 	msg_row.add_child(cd1["box"])
 	var lbl2 := Label.new()
 	lbl2.text = Translations.tr_key("double.double_to")
-	lbl2.add_theme_font_size_override("font_size", 20)
-	lbl2.add_theme_color_override("font_color", Color.WHITE)
+	if is_supercell:
+		ThemeManager.style_popup_body(lbl2, 20)
+	else:
+		lbl2.add_theme_font_size_override("font_size", 20)
+		lbl2.add_theme_color_override("font_color", Color.WHITE)
 	msg_row.add_child(lbl2)
 	var cd2 := SaveManager.create_currency_display(20, COL_YELLOW)
 	SaveManager.set_currency_value(cd2, SaveManager.format_money(doubled))
@@ -2738,12 +3025,15 @@ func _show_double_warning() -> void:
 	btns.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(btns)
 
-	var tex_green := load("res://assets/textures/btn_rect_green.svg")
-	var tex_yellow := load("res://assets/textures/btn_rect_yellow.svg")
+	var tex_green := load("res://assets/themes/classic/controls/btn_rect_blue.svg")
+	var tex_yellow := load("res://assets/themes/classic/controls/btn_rect_yellow.svg")
 
 	var no_btn := Button.new()
 	no_btn.text = Translations.tr_key("common.no")
-	_style_btn(no_btn, tex_yellow, COL_BTN_TEXT, 22, 120, 44)
+	if is_supercell:
+		_apply_supercell_double_btn_style(no_btn, false)
+	else:
+		_style_btn(no_btn, tex_yellow, COL_BTN_TEXT, 22, 120, 44)
 	no_btn.pressed.connect(func() -> void:
 		_hide_double_overlay()
 	)
@@ -2751,13 +3041,44 @@ func _show_double_warning() -> void:
 
 	var yes_btn := Button.new()
 	yes_btn.text = Translations.tr_key("common.yes")
-	_style_btn(yes_btn, tex_green, Color.WHITE, 22, 120, 44)
+	if is_supercell:
+		_apply_supercell_double_btn_style(yes_btn, true)
+	else:
+		_style_btn(yes_btn, tex_green, Color.WHITE, 22, 120, 44)
 	yes_btn.pressed.connect(func() -> void:
 		_double_warned = true
 		_hide_double_overlay()
 		_start_double()
 	)
 	btns.add_child(yes_btn)
+
+
+## Supercell-styled YES/NO button — primary = yellow plate (positive
+## action), secondary = purple plate (cancel). Same chrome the other
+## supercell popups (bet picker, info close) use, kept inline here so
+## classic multi has a single point of theme awareness for the warning.
+func _apply_supercell_double_btn_style(btn: Button, primary: bool) -> void:
+	var sb := StyleBoxFlat.new()
+	if primary:
+		sb.bg_color = ThemeManager.color("button_primary_bg", Color("FFCC2E"))
+		sb.border_color = ThemeManager.color("button_primary_border", Color("152033"))
+		btn.add_theme_color_override("font_color", ThemeManager.color("button_primary_text", Color("2A1F00")))
+	else:
+		sb.bg_color = ThemeManager.color("button_secondary_bg", Color("452C82"))
+		sb.border_color = ThemeManager.color("button_secondary_border", Color("0A2915"))
+		btn.add_theme_color_override("font_color", Color.WHITE)
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(14)
+	sb.anti_aliasing = true
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_stylebox_override("hover", sb)
+	btn.add_theme_stylebox_override("pressed", sb)
+	btn.add_theme_stylebox_override("focus", sb)
+	btn.custom_minimum_size = Vector2(140, 56)
+	btn.add_theme_font_size_override("font_size", 22)
+	var f: Font = ThemeManager.font()
+	if f != null:
+		btn.add_theme_font_override("font", f)
 
 
 func _start_double() -> void:
@@ -2878,18 +3199,50 @@ func _show_primary_result(hand_name: String, multiplier: int, badge_color: Color
 	_primary_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_primary_result_overlay.custom_minimum_size.x = _primary_container.size.x * 0.33
 
-	var label := Label.new()
-	if active_mult > 1:
-		var total := active_mult * multiplier
-		label.text = "%s\n%d x %d = %d" % [hand_name, active_mult, multiplier, total]
-	else:
-		label.text = "%s\nX%d" % [hand_name, multiplier]
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 18)
 	# Orange tint when an Ultra VP multiplier is applied to this hand.
 	var base_color: Color = Color("FFA040") if active_mult > 1 else Color.WHITE
-	label.add_theme_color_override("font_color", base_color)
-	_primary_result_overlay.add_child(label)
+	# Theme font (LilitaOne for supercell) — the badge is rebuilt every
+	# round so the once-at-_ready font walker can't reach it.
+	var theme_font: Font = ThemeManager.font()
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
+
+	if is_supercell:
+		# Supercell shows the actual coin payout (chip glyph + value)
+		# instead of the per-coin multiplier "X25" used by classic.
+		# Total coins = multiplier × denomination × active_mult.
+		var vbox := VBoxContainer.new()
+		vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		vbox.add_theme_constant_override("separation", 2)
+		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_primary_result_overlay.add_child(vbox)
+
+		var name_lab := Label.new()
+		name_lab.text = hand_name
+		name_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_lab.add_theme_font_size_override("font_size", 18)
+		name_lab.add_theme_color_override("font_color", base_color)
+		if theme_font != null:
+			name_lab.add_theme_font_override("font", theme_font)
+		vbox.add_child(name_lab)
+
+		var coins: int = multiplier * SaveManager.denomination * maxi(active_mult, 1)
+		var cd: Dictionary = SaveManager.create_currency_display(20, base_color)
+		cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
+		SaveManager.set_currency_value(cd, SaveManager.format_short(coins))
+		vbox.add_child(cd["box"])
+	else:
+		var label := Label.new()
+		if active_mult > 1:
+			var total := active_mult * multiplier
+			label.text = "%s\n%d x %d = %d" % [hand_name, active_mult, multiplier, total]
+		else:
+			label.text = "%s\nX%d" % [hand_name, multiplier]
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 18)
+		label.add_theme_color_override("font_color", base_color)
+		if theme_font != null:
+			label.add_theme_font_override("font", theme_font)
+		_primary_result_overlay.add_child(label)
 
 	# Start hidden so the overlay never shows at (0,0) before it's positioned.
 	_primary_result_overlay.visible = false
@@ -3078,6 +3431,11 @@ func _make_badge(hand_name: String, multiplier: int, border_color: Color) -> Pan
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 15)
 	label.add_theme_color_override("font_color", Color.WHITE)
+	# Inherit the active theme's display font on every paytable badge so
+	# bet-level / hand changes don't strip the skin's typeface.
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		label.add_theme_font_override("font", theme_font)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	badge.add_child(label)
 	return badge
@@ -3094,12 +3452,16 @@ func _update_paytable_badges() -> void:
 		# Jackpot highlight: top hand at max bet
 		if i == 0 and _manager.bet == 5:
 			_badge_labels[i].add_theme_color_override("font_color", Color("FF4444"))
-			var bold := SystemFont.new()
-			bold.font_weight = 700
-			_badge_labels[i].add_theme_font_override("font", bold)
+			_badge_labels[i].add_theme_font_override("font", _themed_bold_font())
 		else:
 			_badge_labels[i].add_theme_color_override("font_color", Color.WHITE)
-			_badge_labels[i].remove_theme_font_override("font")
+			# Re-apply theme font (without the bold variant) — `remove_*`
+			# alone would reveal the engine default for supercell.
+			var theme_font: Font = ThemeManager.font()
+			if theme_font != null:
+				_badge_labels[i].add_theme_font_override("font", theme_font)
+			else:
+				_badge_labels[i].remove_theme_font_override("font")
 
 
 ## Blink the Label text toward bright yellow for 3 cycles. Preserves and

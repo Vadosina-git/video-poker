@@ -1,12 +1,13 @@
 {
   "version": 1,
   "starting_balance": 20000,
-  "default_speed": 2,
+  "default_speed": 1,
+  "show_speed_button": true,
+  "show_double_button": true,
   "default_denomination": 1,
   "default_mode": "single_play",
   "default_machine": "jacks_or_better",
   "default_locale": "en",
   "tutorial_enabled": true,
-  "first_gift_delay_hours": 0,
-  "splash_duration_sec": 0
+  "first_gift_delay_hours": 0
 }

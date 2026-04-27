@@ -82,3 +82,8 @@ vertical_scroll_mode = 0
 unique_name_in_owner = true
 layout_mode = 2
 columns = 5
+
+[node name="Footer" type="HBoxContainer" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(0, 90)

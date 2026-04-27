@@ -146,5 +146,15 @@ else
     echo "• $PBXPROJ already patched (no Apple Distribution overrides)"
 fi
 
+# -- 5. Force home-screen app name: Godot writes the old
+# "Video Poker — Classic Edition" into INFOPLIST_KEY_CFBundleDisplayName.
+# Replace with the current trainer-style name.
+if grep -q 'INFOPLIST_KEY_CFBundleDisplayName = "Video Poker — Classic Edition"' "$PBXPROJ"; then
+    sed -i '' 's/INFOPLIST_KEY_CFBundleDisplayName = "Video Poker — Classic Edition"/INFOPLIST_KEY_CFBundleDisplayName = "Video Poker Trainer"/g' "$PBXPROJ"
+    echo "✓ Patched $PBXPROJ (CFBundleDisplayName → Video Poker Trainer)"
+else
+    echo "• $PBXPROJ CFBundleDisplayName already patched"
+fi
+
 echo ""
 echo "iOS export patched. Now open build/ios/VideoPoker.xcodeproj in Xcode."

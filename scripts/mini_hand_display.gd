@@ -51,7 +51,7 @@ func show_hand(hand: Array[CardData]) -> void:
 
 func show_back() -> void:
 	_face_up = [false, false, false, false, false]
-	var back_path := "res://assets/cards/card_back.png"
+	var back_path := ThemeManager.card_path() + "card_back.png"
 	if ResourceLoader.exists(back_path):
 		var back_tex := load(back_path)
 		for tex in _card_textures:
@@ -90,7 +90,7 @@ func show_back_at(index: int, animate: bool = true) -> void:
 		return
 	_face_up[index] = false
 	var tex := _card_textures[index]
-	var back_path := "res://assets/cards/card_back.png"
+	var back_path := ThemeManager.card_path() + "card_back.png"
 	if animate:
 		var tween := tex.create_tween()
 		tex.pivot_offset = tex.size / 2
@@ -138,20 +138,54 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	var badge_w: float = minf(size.x * badge_width_ratio, 200.0)
 	_result_overlay.custom_minimum_size.x = badge_w
 
-	var label := Label.new()
-	if active_mult > 1:
-		var total := active_mult * multiplier
-		label.text = "%s\n%d x %d = %d" % [hand_name, active_mult, multiplier, total]
-	else:
-		label.text = "%s\nX%d" % [hand_name, multiplier]
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 12)
 	# Orange tint when an Ultra VP multiplier is applied to this hand — grabs
 	# the player's attention to signal "this hand has a multiplier".
 	var base_color: Color = Color("FFA040") if active_mult > 1 else Color.WHITE
-	label.add_theme_color_override("font_color", base_color)
-	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_result_overlay.add_child(label)
+	var theme_font: Font = ThemeManager.font()
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
+
+	if is_supercell:
+		# Supercell shows the actual coin payout (chip glyph + value)
+		# instead of the per-coin multiplier "X25" used by classic. Total
+		# coins for this hand = multiplier × denomination × active_mult.
+		var vbox := VBoxContainer.new()
+		vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		vbox.add_theme_constant_override("separation", 1)
+		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_result_overlay.add_child(vbox)
+
+		var name_lab := Label.new()
+		name_lab.text = hand_name
+		name_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_lab.add_theme_font_size_override("font_size", 12)
+		name_lab.add_theme_color_override("font_color", base_color)
+		if theme_font != null:
+			name_lab.add_theme_font_override("font", theme_font)
+		name_lab.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		vbox.add_child(name_lab)
+
+		var coins: int = multiplier * SaveManager.denomination * maxi(active_mult, 1)
+		var cd: Dictionary = SaveManager.create_currency_display(14, base_color)
+		cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
+		SaveManager.set_currency_value(cd, SaveManager.format_short(coins))
+		vbox.add_child(cd["box"])
+	else:
+		var label := Label.new()
+		if active_mult > 1:
+			var total := active_mult * multiplier
+			label.text = "%s\n%d x %d = %d" % [hand_name, active_mult, multiplier, total]
+		else:
+			label.text = "%s\nX%d" % [hand_name, multiplier]
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 12)
+		label.add_theme_color_override("font_color", base_color)
+		# Apply the active theme's display font (LilitaOne for supercell).
+		# The badge is built on each round so a recursive font walker run
+		# at scene _ready can't catch it — set it here directly.
+		if theme_font != null:
+			label.add_theme_font_override("font", theme_font)
+		label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		_result_overlay.add_child(label)
 
 	# Add offscreen, position, then move into place (visible=false won't work with blink tween)
 	var parent: Control = _overlay_parent if _overlay_parent else self
@@ -321,10 +355,10 @@ func reset_highlight() -> void:
 
 func _get_card_path(card: CardData) -> String:
 	if card.is_joker():
-		return "res://assets/cards/card_vp_joker_red.png"
+		return ThemeManager.card_path() + "card_vp_joker_red.png"
 	if _variant and _variant.is_wild_card(card) and card.rank == CardData.Rank.TWO:
 		var s: String = SUIT_CODES.get(card.suit, "")
-		return "res://assets/cards/card_vp_wild%s.png" % s
+		return ThemeManager.card_path() + "card_vp_wild%s.png" % s
 	var r: String = RANK_CODES.get(card.rank, "")
 	var s: String = SUIT_CODES.get(card.suit, "")
-	return "res://assets/cards/card_vp_%s%s.png" % [r, s]
+	return ThemeManager.card_path() + "card_vp_%s%s.png" % [r, s]

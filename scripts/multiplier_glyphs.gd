@@ -4,6 +4,10 @@ extends RefCounted
 ## Utility for building multiplier displays using glyph textures (SVG images)
 ## instead of plain text labels.
 
+## Classic / shared fallback used whenever the active theme doesn't ship
+## its own multiplier glyph pack. ThemeManager.multiplier_glyph_path()
+## handles the per-theme override; this constant only matters when the
+## ThemeManager autoload is unavailable (script tests, tooling).
 const GLYPH_DIR := "res://assets/textures/glyphs_multipliers/"
 
 
@@ -90,9 +94,30 @@ static func _clear(container: Control) -> void:
 		child.queue_free()
 
 
+## Look up `glyph_multi_<name>` in `dir`, preferring .png over .svg so a
+## theme that ships rastered glyphs takes precedence over an SVG of the
+## same name. Returns "" if neither exists.
+static func _resolve_glyph(dir: String, glyph_name: String) -> String:
+	var png := dir + "glyph_multi_%s.png" % glyph_name
+	if ResourceLoader.exists(png):
+		return png
+	var svg := dir + "glyph_multi_%s.svg" % glyph_name
+	if ResourceLoader.exists(svg):
+		return svg
+	return ""
+
+
 static func _add_glyph(parent: Control, glyph_name: String, height: float) -> void:
-	var path := GLYPH_DIR + "glyph_multi_%s.svg" % glyph_name
-	if not ResourceLoader.exists(path):
+	# Pull the active theme's glyph folder; PNG and SVG are both accepted
+	# (supercell ships PNG raster glyphs, classic uses SVG). If a specific
+	# glyph is missing in the theme pack, fall back to the classic shared
+	# set so partial theme packs (e.g. only digits replaced) still render
+	# the missing glyphs instead of disappearing.
+	var theme_dir: String = ThemeManager.multiplier_glyph_path()
+	var path: String = _resolve_glyph(theme_dir, glyph_name)
+	if path == "":
+		path = _resolve_glyph(GLYPH_DIR, glyph_name)
+	if path == "":
 		return
 	var tex := TextureRect.new()
 	tex.texture = load(path)
