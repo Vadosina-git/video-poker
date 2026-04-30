@@ -31,8 +31,14 @@ static func create_exit_button() -> Button:
 
 
 ## Show exit confirmation dialog. Returns the overlay Control (caller
-## connects back_to_lobby on confirm).
+## connects back_to_lobby on confirm). When configs/features.json ->
+## feature_flags.exit_confirm_dialog is false, skips the modal and
+## invokes on_leave immediately — exiting goes straight to the lobby.
 static func show_exit_confirm(parent: Control, on_leave: Callable) -> Control:
+	var cm: Node = Engine.get_main_loop().root.get_node_or_null("/root/ConfigManager")
+	if cm and not cm.is_feature_enabled("exit_confirm_dialog", true):
+		on_leave.call()
+		return null
 	var overlay := Control.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP

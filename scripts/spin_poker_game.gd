@@ -37,6 +37,8 @@ var _win_label: Label
 var _win_cd: Dictionary
 var _balance_label: Label
 var _balance_cd: Dictionary
+var _credit_tween: Tween = null
+var _displayed_credits: int = -1
 var _bet_display_label: Label
 var _bet_display_cd: Dictionary
 # Glyph height for the bottom-row WIN / TOTAL BET / BALANCE displays.
@@ -118,6 +120,7 @@ func _ready() -> void:
 	_current_denomination = _recommend_denomination()
 	SaveManager.denomination = _current_denomination
 	_update_balance(SaveManager.credits)
+	_displayed_credits = SaveManager.credits
 	_update_bet_display(_manager.bet)
 	_update_bet_amount_btn()
 	_update_speed_label()
@@ -336,7 +339,7 @@ func _resize_grid() -> void:
 	_position_shutters.call_deferred()
 
 
-func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
+func _build_bottom_bar(root_vbox: VBoxContainer, bold: Font) -> void:
 	# Status row: status left, game pays right (fixed height, no layout jumps)
 	var status_row := HBoxContainer.new()
 	status_row.add_theme_constant_override("separation", 16)
@@ -435,6 +438,7 @@ func _build_bottom_bar(root_vbox: VBoxContainer, bold: SystemFont) -> void:
 	_deal_draw_btn = Button.new()
 	_deal_draw_btn.text = "DEAL\nSPIN"
 	_style_btn(_deal_draw_btn, tex_green, Color.WHITE, 14, 100, 44)
+	_deal_draw_btn.add_to_group("no_disabled_sound")
 	_deal_draw_btn.pressed.connect(_on_deal_draw_pressed)
 	btn_row.add_child(_deal_draw_btn)
 
@@ -886,7 +890,8 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 			_set_card_texture(1, col, mid_row[col])
 		return
 
-	var filler_count := 20
+	SoundManager.play_sfx_loop("spin_reel", -20.0)
+	var filler_count: int = int(ConfigManager.get_animation("spin_filler_cards_count", 20.0))
 	var col_delay_ms: float = ConfigManager.get_animation("spin_reel_column_delay_ms", 300.0)
 	var bounce_px: float = ConfigManager.get_animation("spin_reel_bounce_px", 5.0)
 	var decel_ms: float = ConfigManager.get_animation("spin_reel_deceleration_ms", 800.0)
@@ -969,7 +974,7 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 	var target_y: float = 0.0
 
 	# Spin phase: scroll strips via timer with per-column staggered start + acceleration
-	var max_speed: float = cell_h * 0.6
+	var max_speed: float = cell_h * ConfigManager.get_animation("spin_reel_speed_factor", 0.6)
 	var accel_time: float = 0.5
 	var col_start_delay: float = 0.1
 	var spin_timer := Timer.new()
@@ -999,9 +1004,14 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 			strip.modulate = Color(1.0 - 0.15 * t, 1.0 - 0.15 * t, 1.0 - 0.1 * t)
 	)
 
-	# Wait for spin phase (or until rush)
-	if not _rush:
-		await get_tree().create_timer(base_ms / 1000.0).timeout
+	# Wait for spin phase — poll each frame so STOP can interrupt early
+	var end_time_ms: int = Time.get_ticks_msec() + int(base_ms)
+	while not _rush and Time.get_ticks_msec() < end_time_ms:
+		await get_tree().process_frame
+
+	# When STOP pressed mid-spin, use faster decel and tighter column gap
+	var actual_decel_ms: float = 280.0 if _rush else decel_ms
+	var actual_col_delay_ms: float = 70.0 if _rush else col_delay_ms
 
 	# Stop columns left to right with deceleration
 	var decel_distance: float = cell_h * 3
@@ -1009,12 +1019,11 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 		col_stopped[col] = true
 		var strip: Control = reel_clips[col].get_child(0)
 		strip.position.y = target_y - decel_distance
-		# Restore stretch + brightness during deceleration
 		var fx_tw := create_tween()
-		fx_tw.parallel().tween_property(strip, "scale:y", 1.0, decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
-		fx_tw.parallel().tween_property(strip, "modulate", Color.WHITE, decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
+		fx_tw.parallel().tween_property(strip, "scale:y", 1.0, actual_decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
+		fx_tw.parallel().tween_property(strip, "modulate", Color.WHITE, actual_decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
 		var tw := create_tween()
-		tw.tween_property(strip, "position:y", target_y - bounce_px, decel_ms / 1000.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(strip, "position:y", target_y - bounce_px, actual_decel_ms / 1000.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 		tw.tween_property(strip, "position:y", target_y, 0.1).set_ease(Tween.EASE_IN_OUT)
 		await tw.finished
 		_card_rects[1][col].modulate.a = 1.0
@@ -1023,8 +1032,9 @@ func _animate_spin_deal(mid_row: Array[CardData]) -> void:
 		SoundManager.play("spin_stop")
 		VibrationManager.vibrate("spin_stop")
 		if col < 4:
-			await get_tree().create_timer(col_delay_ms / 1000.0).timeout
+			await get_tree().create_timer(actual_col_delay_ms / 1000.0).timeout
 
+	SoundManager.stop_sfx_loop_if("spin_reel")
 	spin_timer.stop()
 	spin_timer.queue_free()
 
@@ -1068,10 +1078,11 @@ func _animate_spin_draw(grid: Array) -> void:
 				_set_card_texture(row, col, grid[row][col])
 		return
 
-	var filler_count := 20
+	var filler_count: int = int(ConfigManager.get_animation("spin_filler_cards_count", 20.0))
 	var col_delay_ms: float = ConfigManager.get_animation("spin_reel_column_delay_ms", 300.0)
 	var bounce_px: float = ConfigManager.get_animation("spin_reel_bounce_px", 5.0)
 	var decel_ms: float = ConfigManager.get_animation("spin_reel_deceleration_ms", 800.0)
+	SoundManager.play_sfx_loop("spin_reel", -20.0)
 	var random_paths := _build_random_card_paths(filler_count)
 	var reel_clips: Array = []  # null for held, Control for unheld
 
@@ -1156,7 +1167,7 @@ func _animate_spin_draw(grid: Array) -> void:
 	var target_y: float = 0.0  # targets at top of strip
 
 	# Spin phase with per-column staggered start + acceleration (cards move DOWN)
-	var max_speed: float = cell_h * 0.6
+	var max_speed: float = cell_h * ConfigManager.get_animation("spin_reel_speed_factor", 0.6)
 	var accel_time: float = 0.5
 	var col_start_delay: float = 0.1
 	var spin_timer := Timer.new()
@@ -1188,9 +1199,13 @@ func _animate_spin_draw(grid: Array) -> void:
 			strip.modulate = Color(1.0 - 0.15 * t, 1.0 - 0.15 * t, 1.0 - 0.1 * t)
 	)
 
-	# Wait for spin phase (or until rush)
-	if not _rush:
-		await get_tree().create_timer(base_ms / 1000.0).timeout
+	# Wait for spin phase — poll each frame so STOP can interrupt early
+	var end_time_ms: int = Time.get_ticks_msec() + int(base_ms)
+	while not _rush and Time.get_ticks_msec() < end_time_ms:
+		await get_tree().process_frame
+
+	var actual_decel_ms: float = 280.0 if _rush else decel_ms
+	var actual_col_delay_ms: float = 70.0 if _rush else col_delay_ms
 
 	# Stop columns left to right with deceleration
 	var decel_distance: float = cell_h * 3
@@ -1201,10 +1216,10 @@ func _animate_spin_draw(grid: Array) -> void:
 		var strip: Control = reel_clips[col].get_child(0)
 		strip.position.y = target_y - decel_distance
 		var fx_tw := create_tween()
-		fx_tw.parallel().tween_property(strip, "scale:y", 1.0, decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
-		fx_tw.parallel().tween_property(strip, "modulate", Color.WHITE, decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
+		fx_tw.parallel().tween_property(strip, "scale:y", 1.0, actual_decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
+		fx_tw.parallel().tween_property(strip, "modulate", Color.WHITE, actual_decel_ms / 1000.0).set_ease(Tween.EASE_OUT)
 		var tw := create_tween()
-		tw.tween_property(strip, "position:y", target_y - bounce_px, decel_ms / 1000.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(strip, "position:y", target_y - bounce_px, actual_decel_ms / 1000.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 		tw.tween_property(strip, "position:y", target_y, 0.1).set_ease(Tween.EASE_IN_OUT)
 		await tw.finished
 		for row in 3:
@@ -1214,8 +1229,9 @@ func _animate_spin_draw(grid: Array) -> void:
 		SoundManager.play("spin_stop")
 		VibrationManager.vibrate("spin_stop")
 		if col < 4:
-			await get_tree().create_timer(col_delay_ms / 1000.0).timeout
+			await get_tree().create_timer(actual_col_delay_ms / 1000.0).timeout
 
+	SoundManager.stop_sfx_loop_if("spin_reel")
 	spin_timer.stop()
 	spin_timer.queue_free()
 
@@ -1261,6 +1277,7 @@ func _on_lines_evaluated(results: Array, total_payout: int) -> void:
 		# BIG WIN / HUGE WIN overlay — normalize against total bet (all lines).
 		BigWinOverlay.show_if_qualifies(self, total_payout, _manager.get_total_bet())
 	else:
+		SoundManager.play("lose")
 		_last_total_payout = 0
 		_set_win_dimmed()
 		_status_label.text = Translations.tr_key("spin.game_over")
@@ -1437,21 +1454,24 @@ func _draw_lines() -> void:
 
 func _start_idle_blink_timer() -> void:
 	_stop_idle_blink()
+	if not ConfigManager.is_feature_enabled("deal_button_idle_blink", true):
+		return
 	if not _idle_timer:
 		_idle_timer = Timer.new()
 		_idle_timer.one_shot = true
 		_idle_timer.timeout.connect(_begin_deal_blink)
 		add_child(_idle_timer)
-	_idle_timer.start(5.0)
+	_idle_timer.start(ConfigManager.get_animation("deal_button_idle_blink_sec", 5.0))
 
 func _begin_deal_blink() -> void:
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
 	_idle_blink_tween = create_tween().set_loops()
+	var half_blink: float = ConfigManager.get_animation("deal_button_blink_interval_ms", 600.0) / 2000.0
 	for _i in 3:
-		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
-		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
-	_idle_blink_tween.tween_interval(5.0)
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, half_blink)
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, half_blink)
+	_idle_blink_tween.tween_interval(ConfigManager.get_animation("deal_button_idle_blink_sec", 5.0))
 
 func _stop_idle_blink() -> void:
 	if _idle_timer:
@@ -1547,7 +1567,14 @@ func _on_bet_changed(new_bet: int) -> void:
 
 
 func _on_credits_changed(new_credits: int) -> void:
-	_update_balance(new_credits)
+	if not _in_double and (
+		_manager.state == SpinPokerManager.State.WIN_DISPLAY or
+		_manager.state == SpinPokerManager.State.EVALUATING
+	):
+		_animate_credits(new_credits)
+	else:
+		_update_balance(new_credits)
+		_displayed_credits = new_credits
 
 
 # ─── UI UPDATES ───────────────────────────────────────────────────────
@@ -1576,6 +1603,35 @@ func _update_balance(credits: int) -> void:
 	else:
 		_balance_label.text = Translations.tr_key("game.balance")
 		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(credits), 0, Color(-1, 0, 0), true)
+
+
+func _animate_credits(target: int) -> void:
+	if _credit_tween:
+		_credit_tween.kill()
+	var start := _displayed_credits if _displayed_credits >= 0 else target
+	_displayed_credits = start
+	SoundManager.play_sfx_loop("balance_increment")
+	_credit_tween = create_tween()
+	var dur: float = ConfigManager.get_animation("win_counter_multi_ms", 1400.0) / 1000.0
+	_credit_tween.tween_method(_update_credit_display, start, target, dur).set_ease(Tween.EASE_OUT)
+	_credit_tween.tween_callback(_on_credit_animation_done)
+
+
+func _update_credit_display(value: int) -> void:
+	_displayed_credits = value
+	if _balance_show_depth:
+		var denom: int = maxi(_current_denomination, 1)
+		_balance_label.text = Translations.tr_key("game.games")
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value / denom), 0, Color(-1, 0, 0), false)
+	else:
+		_balance_label.text = Translations.tr_key("game.balance")
+		SaveManager.set_currency_value(_balance_cd, SaveManager.format_money(value), 0, Color(-1, 0, 0), true)
+
+
+func _on_credit_animation_done() -> void:
+	SoundManager.stop_sfx_loop_if("balance_increment")
+	_update_balance(SaveManager.credits)
+	_displayed_credits = SaveManager.credits
 
 
 func _format_win(amount: int) -> String:
@@ -1607,10 +1663,13 @@ func _animate_win_increment(from: int, to: int) -> void:
 	SaveManager.set_currency_value(_win_cd, _format_win(from), _info_glyph_h, COL_YELLOW, show_chip)
 	if from == to:
 		return
+	SoundManager.play_sfx_loop("balance_increment")
 	_win_increment_tween = create_tween()
+	var dur: float = ConfigManager.get_animation("win_counter_multi_ms", 1400.0) / 1000.0
 	_win_increment_tween.tween_method(func(val: int) -> void:
 		SaveManager.set_currency_value(_win_cd, _format_win(val), 0, Color(-1, 0, 0), not _balance_show_depth)
-	, from, to, 1.4).set_ease(Tween.EASE_OUT)
+	, from, to, dur).set_ease(Tween.EASE_OUT)
+	_win_increment_tween.tween_callback(func() -> void: SoundManager.stop_sfx_loop_if("balance_increment"))
 
 
 func _stop_win_increment() -> void:
@@ -2543,7 +2602,7 @@ func _on_double_panel_card_input(event: InputEvent, idx: int) -> void:
 	var path: String = _get_card_path(pick)
 	if ResourceLoader.exists(path):
 		_double_panel_cards[idx].texture = load(path)
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(ConfigManager.get_animation("post_win_pause_sec", 0.5)).timeout
 
 	var player_rank: int = pick.rank as int
 	var dealer_rank: int = _double_dealer_card.rank as int
@@ -2555,6 +2614,7 @@ func _on_double_panel_card_input(event: InputEvent, idx: int) -> void:
 		# semantics: cards revealed → status updated → player decides).
 		_double_amount *= 2
 		_last_total_payout = _double_amount
+		SoundManager.play("double_win")
 		VibrationManager.vibrate("double_win")
 		SaveManager.add_credits(_double_amount)
 		_update_balance(SaveManager.credits)
@@ -2584,6 +2644,7 @@ func _on_double_panel_card_input(event: InputEvent, idx: int) -> void:
 	else:
 		# Lose — wager already deducted on _open_double_table; just clear
 		# the WIN label so the player sees zero, then close.
+		SoundManager.play("double_lose")
 		VibrationManager.vibrate("double_lose")
 		_double_status_label.text = Translations.tr_key("double.lose")
 		_double_amount = 0

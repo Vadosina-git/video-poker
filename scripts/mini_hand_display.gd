@@ -7,9 +7,50 @@ var _card_textures: Array[TextureRect] = []
 var _face_up: Array[bool] = [false, false, false, false, false]
 var _variant: BaseVariant = null
 var badge_width_ratio: float = 0.8  # can be overridden per layout
+# Hard cap on the result-badge width. The 100-hand layout sets this to a
+# very large value so the badge can stretch to the full hand width; other
+# modes keep 200 so wide hands don't get oversized badges.
+# When negative the badge is clamped to the visual hand width — used by
+# the 100-hand layout where the cards themselves are small.
+var badge_max_width: float = 200.0
+# 100-hand layout sets this so abbreviated names ("Quads", "RF", …) are
+# used regardless of card width — the badge would otherwise overflow.
+var force_short_names: bool = false
 var _mult_display: HBoxContainer = null
 var _next_mult_display: VBoxContainer = null
 var _active_mult_display: HBoxContainer = null
+var _card_w: int = 0  # tracked by set_card_size; used to pick short vs full hand name
+
+# Below this card pixel width, mini-hand badges switch to poker slang abbreviations.
+const SHORT_NAME_THRESHOLD := 45
+
+# Poker slang / standard abbreviations for mini-hand result badges.
+# Used when cards are too small to show the full translated name.
+# Keys match paytables.json hand keys (locale-independent).
+const SHORT_HAND_NAMES: Dictionary = {
+	"royal_flush":             "RF",
+	"natural_royal_flush":     "Nat RF",
+	"wild_royal_flush":        "Wild RF",
+	"straight_flush":          "SF",
+	"five_of_a_kind":          "Quints",
+	"four_deuces_joker":       "5 Wilds",
+	"four_deuces":             "4 Twos",
+	"four_aces":               "4 Aces",
+	"four_aces_with_234_kicker": "4A+",
+	"four_234_with_a234_kicker": "4 Low+",
+	"four_twos_threes_fours":  "4 Low",
+	"four_twos_tens":          "4 Mid",
+	"four_fives_kings":        "4 High",
+	"four_jqk":                "4 JQK",
+	"four_of_a_kind":          "Quads",
+	"full_house":              "Boat",
+	"flush":                   "Flush",
+	"straight":                "Str8",
+	"three_of_a_kind":         "Trips",
+	"two_pair":                "2 Pair",
+	"jacks_or_better":         "J+",
+	"kings_or_better":         "K+",
+}
 
 const SUIT_CODES := {
 	CardData.Suit.HEARTS: "h", CardData.Suit.DIAMONDS: "d",
@@ -37,6 +78,7 @@ func _ready() -> void:
 
 
 func set_card_size(w: int, h: int) -> void:
+	_card_w = w
 	for tex in _card_textures:
 		tex.custom_minimum_size = Vector2(w, h)
 
@@ -115,13 +157,16 @@ var _is_losing: bool = false
 func get_result_overlay() -> PanelContainer:
 	return _result_overlay
 
-func show_result(hand_name: String, multiplier: int, badge_color: Color = Color("FFEC00"), active_mult: int = 1) -> void:
+func show_result(hand_name: String, multiplier: int, badge_color: Color = Color("FFEC00"), active_mult: int = 1, hand_key: String = "") -> void:
 	hide_result()
 	if hand_name == "":
 		_is_losing = true
 		return
 	_is_losing = false
 	modulate = Color.WHITE
+	var use_short: bool = force_short_names or (_card_w > 0 and _card_w < SHORT_NAME_THRESHOLD)
+	if use_short and hand_key in SHORT_HAND_NAMES:
+		hand_name = SHORT_HAND_NAMES[hand_key]
 	_result_overlay = PanelContainer.new()
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.02, 0.02, 0.15, 0.85)
@@ -135,8 +180,15 @@ func show_result(hand_name: String, multiplier: int, badge_color: Color = Color(
 	_result_overlay.add_theme_stylebox_override("panel", style)
 	_result_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var badge_w: float = minf(size.x * badge_width_ratio, 200.0)
+	var hand_w: float = size.x
+	var cap: float = badge_max_width if badge_max_width > 0 else hand_w
+	var badge_w: float = minf(hand_w * badge_width_ratio, cap)
+	# Never wider than the hand itself.
+	badge_w = minf(badge_w, hand_w)
 	_result_overlay.custom_minimum_size.x = badge_w
+	# Keep the badge from outgrowing its hand even when text content is
+	# wider than `badge_w`. clip_contents trims the rendered overflow.
+	_result_overlay.clip_contents = true
 
 	# Orange tint when an Ultra VP multiplier is applied to this hand — grabs
 	# the player's attention to signal "this hand has a multiplier".
@@ -204,11 +256,14 @@ func _position_result_overlay() -> void:
 	var my_rect := get_global_rect()
 	var center := my_rect.get_center()
 	var ov_size := _result_overlay.get_combined_minimum_size()
-	# Clamp badge to hand bounds
 	var badge_x := center.x - ov_size.x / 2
 	var badge_y := center.y - ov_size.y / 2 + my_rect.size.y * 0.1
-	badge_x = clampf(badge_x, my_rect.position.x, my_rect.end.x - ov_size.x)
-	badge_y = clampf(badge_y, my_rect.position.y, my_rect.end.y - ov_size.y)
+	# Other layouts clamp the badge inside the hand rect. In 100-hand mode
+	# the cards are small and the badge can be taller than my_rect.size.y —
+	# clamping would collapse the y range and pin the badge to the top.
+	if badge_max_width >= 0:
+		badge_x = clampf(badge_x, my_rect.position.x, my_rect.end.x - ov_size.x)
+		badge_y = clampf(badge_y, my_rect.position.y, my_rect.end.y - ov_size.y)
 	_result_overlay.global_position = Vector2(badge_x, badge_y)
 
 

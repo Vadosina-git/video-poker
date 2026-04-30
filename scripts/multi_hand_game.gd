@@ -116,6 +116,7 @@ var _bet_picker_overlay: Control = null
 
 
 var _ultra_vp: bool = false
+var _hand_result_pitch: float = 1.0
 
 func setup(variant: BaseVariant, num_hands: int, p_ultra_vp: bool = false) -> void:
 	_variant = variant
@@ -173,6 +174,7 @@ func _ready() -> void:
 	_bet_btn.pressed.connect(_on_bet_one_pressed)
 	_bet_amount_btn.pressed.connect(_on_bet_amount_pressed)
 	_bet_max_btn.pressed.connect(_on_bet_max_pressed)
+	_deal_draw_btn.add_to_group("no_disabled_sound")
 	_deal_draw_btn.pressed.connect(_on_deal_draw_pressed)
 	_hands_btn.pressed.connect(_on_hands_pressed)
 	_topup_btn.pressed.connect(_show_shop)
@@ -224,8 +226,9 @@ func _play_entrance_animation() -> void:
 		badge_nodes.append(_right_badges)
 	for n in top_nodes + bottom_nodes + badge_nodes:
 		n.modulate.a = 0.0
-	# Extra frames so _position_badges (which awaits 2 frames) finishes and
+	# Extra frames so _position_badges (which awaits 3 frames) finishes and
 	# the badges' real positions are captured by the animation.
+	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -737,6 +740,13 @@ func _build_hands_area() -> void:
 		var mh: MiniHandDisplay = MiniHandScene.instantiate()
 		mh._variant = _variant
 		mh._overlay_parent = self
+		if _is_hundred_layout():
+			# Stretch badge to the visual hand width but never exceed it
+			# (badge_max_width = -1 → cap = hand width). Force short hand
+			# names so long ones like "Royal Flush" don't overflow.
+			mh.badge_width_ratio = 0.95
+			mh.badge_max_width = -1.0
+			mh.force_short_names = true
 		if _ultra_vp:
 			# Wrap in HBox with mult zone on the left
 			var wrap := HBoxContainer.new()
@@ -752,8 +762,8 @@ func _build_hands_area() -> void:
 
 	# No spacer in grid — we'll offset last row after sizing
 
-	# Size extra cards after layout settles
-	_size_extra_hands.call_deferred()
+	# Size extra cards after layout settles (two frames needed for container size)
+	_size_extra_hands_deferred()
 
 	# Primary hand — fixed row at bottom
 	_primary_container = primary_row
@@ -792,11 +802,26 @@ func _get_grid_cols() -> int:
 		9: return 3       # 10-hand: 9 extra → 3 columns, 3 rows
 		11: return 3      # 12-hand: 11 extra → 3 columns, 4 rows
 		24: return 5      # 25-hand: 24 extra → 5 columns, 5 rows
+		99: return 15     # 100-hand: 99 extra → 15 columns, 7 rows (last row 9 hands, centered)
 		_:
 			if num_extra <= 4: return 2
 			if num_extra <= 9: return 3
 			if num_extra <= 16: return 4
-			return 5
+			if num_extra <= 49: return 5
+			return 11
+
+
+## True for the 100-hand layout: side paytable badges hidden, full-width
+## mini-hand badges, instant flips, and the accumulated win-badge stack
+## around the primary hand.
+func _is_hundred_layout() -> bool:
+	return _num_hands == 100 and not _ultra_vp
+
+
+func _size_extra_hands_deferred() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_size_extra_hands()
 
 
 func _size_extra_hands() -> void:
@@ -828,8 +853,12 @@ func _size_extra_hands() -> void:
 	var use_overlap: bool = cols > 1  # No overlap for single-column (3-hand mode)
 
 	if use_overlap:
-		# Overlapping cards: total_w = card_w * 0.3 * 4 + card_w = card_w * 2.2
-		var max_card_w: int = int(cell_w / 2.2)
+		# Overlapping cards: total_w = card_w * 0.35 * 4 + card_w = card_w * 2.4
+		# 100-hand layout uses the strict 2.4 divisor so 15 columns fit
+		# the parent rect — other layouts keep the legacy 2.2 to preserve
+		# their existing card sizing.
+		var divisor: float = 2.4 if _is_hundred_layout() else 2.2
+		var max_card_w: int = int(cell_w / divisor)
 		if card_w > max_card_w:
 			card_w = max_card_w
 			card_h = int(card_w / 0.739)
@@ -864,10 +893,14 @@ func _size_extra_hands() -> void:
 	_extra_grid.add_theme_constant_override("h_separation", h_sep)
 	_extra_grid.add_theme_constant_override("v_separation", v_sep)
 
-	# Offset last row hands for centering if incomplete
+	# Offset last row hands for centering if incomplete. Shift each one
+	# by half of the empty cells in that row so the partial row sits
+	# symmetrically under the full rows above (e.g. 9-of-15 → shift by 3
+	# cells, leaving 3 empty on the left and 3 on the right).
 	var remainder: int = num_extra % cols
 	if remainder > 0 and remainder < cols:
-		var shift: float = (hand_vis_w + h_sep) / 2.0
+		var empty_cells: int = cols - remainder
+		var shift: float = (hand_vis_w + h_sep) * empty_cells / 2.0
 		# Last `remainder` displays are in the last row
 		var last_row_start: int = _extra_displays.size() - remainder
 		_center_last_row.call_deferred(last_row_start, remainder, shift)
@@ -909,9 +942,22 @@ func _update_speed_display() -> void:
 
 # --- Hand count cycling ---
 
-const HAND_COUNTS := [3, 5, 10, 12, 25]
+const HAND_COUNTS := [3, 5, 10, 12, 25, 100]
 const UX_HAND_COUNTS := [3, 5, 10]
 var _switching_hands: bool = false
+
+
+## Subset of HAND_COUNTS that the player is allowed to pick right now.
+## Honors UX_HAND_COUNTS for Ultra VP and the per-mode `hands_100_enabled`
+## flag from configs/lobby_order.json for non-Ultra play.
+func _available_hand_counts() -> Array:
+	if _ultra_vp:
+		return UX_HAND_COUNTS
+	var allowed: Array = HAND_COUNTS.duplicate()
+	if not ConfigManager.is_hands_100_enabled_for_mode(SaveManager.mode_id):
+		allowed.erase(100)
+	return allowed
+
 
 func _on_hands_pressed() -> void:
 	if _manager.state != MultiHandManager.State.IDLE and _manager.state != MultiHandManager.State.WIN_DISPLAY:
@@ -921,7 +967,7 @@ func _on_hands_pressed() -> void:
 	if _manager.state == MultiHandManager.State.WIN_DISPLAY:
 		_manager._to_idle()
 	# Cycle to next hand count
-	var counts: Array = UX_HAND_COUNTS if _ultra_vp else HAND_COUNTS
+	var counts: Array = _available_hand_counts()
 	var current_idx := counts.find(_num_hands)
 	var next_idx := (current_idx + 1) % counts.size() if current_idx >= 0 else 0
 	var new_count: int = counts[next_idx]
@@ -930,6 +976,11 @@ func _on_hands_pressed() -> void:
 
 func _switch_hand_count(new_count: int) -> void:
 	_switching_hands = true
+	# Remember whether we were in 100-hand layout before changing state.
+	# When the layout mode flips (acc-stack ↔ static columns) the badges
+	# need a full rebuild; otherwise we just refresh the multipliers like
+	# before so the side columns don't get repositioned mid-animation.
+	var was_hundred: bool = _is_hundred_layout()
 	# Save current UX state before switching
 	_save_ux_state()
 
@@ -955,6 +1006,7 @@ func _switch_hand_count(new_count: int) -> void:
 	# 3. Update state
 	_num_hands = new_count
 	SaveManager.hand_count = new_count
+	SaveManager.mode_hand_counts[SaveManager.mode_id] = new_count
 	SaveManager.save_game()
 	_hands_btn.text = Translations.tr_key("game.hands_n_fmt", [_num_hands])
 	_manager.setup(_variant, _num_hands, _ultra_vp)
@@ -994,6 +1046,13 @@ func _switch_hand_count(new_count: int) -> void:
 		var mh: MiniHandDisplay = MiniHandScene.instantiate()
 		mh._variant = _variant
 		mh._overlay_parent = self
+		if _is_hundred_layout():
+			# Stretch badge to the visual hand width but never exceed it
+			# (badge_max_width = -1 → cap = hand width). Force short hand
+			# names so long ones like "Royal Flush" don't overflow.
+			mh.badge_width_ratio = 0.95
+			mh.badge_max_width = -1.0
+			mh.force_short_names = true
 		if _ultra_vp:
 			var wrap := HBoxContainer.new()
 			wrap.add_theme_constant_override("separation", 4)
@@ -1012,6 +1071,13 @@ func _switch_hand_count(new_count: int) -> void:
 	_size_extra_hands()
 
 	# 6. Update displays
+	# Default path (non-100 ↔ non-100): just refresh the multipliers on
+	# the existing side columns, like before. We do NOT rebuild here
+	# because _position_badges reads grid.get_global_rect(), and the grid
+	# is currently scaled to 0.15 for the entry animation — rebuilding
+	# now would lock the badges to that shrunken rect.
+	# The cross-mode rebuild (acc-stack ↔ static columns) happens after
+	# the entry animation finishes, below.
 	_update_paytable_badges()
 	_current_denomination = _recommend_denomination()
 	SaveManager.denomination = _current_denomination
@@ -1031,6 +1097,11 @@ func _switch_hand_count(new_count: int) -> void:
 	# Bounce settle
 	tw_in.tween_property(_extra_grid, "scale", Vector2(1.0, 1.0), 0.06).set_ease(Tween.EASE_IN_OUT)
 	await tw_in.finished
+
+	# Now that the grid is at full scale, swap the badge model if the
+	# layout mode flipped between accumulated-stack and static columns.
+	if was_hundred != _is_hundred_layout():
+		_build_paytable_badges()
 
 	# Refresh multiplier labels for new layout
 	if _ultra_vp:
@@ -1182,26 +1253,21 @@ func _update_bet_display(bet: int) -> void:
 func _flash_bet_display() -> void:
 	if _bet_flash_tween:
 		_bet_flash_tween.kill()
-	# Flash up to a slightly larger glyph then settle back to the base
-	# `_info_glyph_h` — keeps supercell's 32px scale intact (peak ≈ 40)
-	# instead of resetting to classic's hardcoded 20 / 16.
-	var flash_h: int = int(_info_glyph_h * 1.25)
-	SaveManager.set_currency_value(_bet_cd, "", flash_h, COL_YELLOW)
+	SaveManager.set_currency_value(_bet_cd, "", _info_glyph_h, COL_YELLOW)
 	_bet_flash_tween = create_tween()
-	_bet_flash_tween.tween_interval(0.4)
+	_bet_flash_tween.tween_interval(ConfigManager.get_animation("bet_highlight_multi_ms", 400.0) / 1000.0)
 	_bet_flash_tween.tween_callback(func() -> void:
 		SaveManager.set_currency_value(_bet_cd, "", _info_glyph_h, COL_YELLOW)
 	)
-
-const MIN_GAME_DEPTH := 30
 
 func _recommend_denomination() -> int:
 	var balance := SaveManager.credits
 	var best: int = BET_AMOUNTS[0]
 	var max_bet: int = MultiHandManager.ULTRA_BET if _ultra_vp else MultiHandManager.MAX_BET
+	var min_depth: int = ConfigManager.get_min_game_depth()
 	for amount in BET_AMOUNTS:
 		# worst case total_bet = denomination * max_bet * num_hands
-		if balance / (amount * max_bet * _num_hands) >= MIN_GAME_DEPTH:
+		if balance / (amount * max_bet * _num_hands) >= min_depth:
 			best = amount
 		else:
 			break
@@ -1317,21 +1383,24 @@ func _hide_hold_hint() -> void:
 
 func _start_idle_blink_timer() -> void:
 	_stop_idle_blink()
+	if not ConfigManager.is_feature_enabled("deal_button_idle_blink", true):
+		return
 	if not _idle_timer:
 		_idle_timer = Timer.new()
 		_idle_timer.one_shot = true
 		_idle_timer.timeout.connect(_begin_deal_blink)
 		add_child(_idle_timer)
-	_idle_timer.start(5.0)
+	_idle_timer.start(ConfigManager.get_animation("deal_button_idle_blink_sec", 5.0))
 
 func _begin_deal_blink() -> void:
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
 	_idle_blink_tween = create_tween().set_loops()
+	var half_blink: float = ConfigManager.get_animation("deal_button_blink_interval_ms", 600.0) / 2000.0
 	for _i in 3:
-		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
-		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
-	_idle_blink_tween.tween_interval(5.0)
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, half_blink)
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, half_blink)
+	_idle_blink_tween.tween_interval(ConfigManager.get_animation("deal_button_idle_blink_sec", 5.0))
 
 func _stop_idle_blink() -> void:
 	if _idle_timer:
@@ -1369,6 +1438,15 @@ func _is_instant() -> bool:
 	return _get_flip_s() < 0.03
 
 
+## Extras flip animations are skipped entirely in the 100-hand layout —
+## 100 cards × ~200ms of flip is too much motion. The sequential per-card
+## delay is preserved by callers, so the deal still reads as a wave.
+func _extra_flip_animate() -> bool:
+	if _is_hundred_layout():
+		return false
+	return not _is_rushing()
+
+
 func _on_hands_dealt(primary_hand: Array[CardData]) -> void:
 	_animating = true
 	_rush_round = false
@@ -1376,6 +1454,10 @@ func _on_hands_dealt(primary_hand: Array[CardData]) -> void:
 	_hide_primary_result()
 	for mini in _extra_displays:
 		mini.hide_result()
+	# Wipe last round's accumulated badges before the new deal — the
+	# stacks rebuild as winning hands are revealed.
+	if _is_hundred_layout():
+		_reset_accumulated_badges()
 	var delay: float = _get_deal_ms() / 1000.0
 
 	# Flip ALL hands to back — column by column
@@ -1387,10 +1469,11 @@ func _on_hands_dealt(primary_hand: Array[CardData]) -> void:
 		_primary_cards[i].set_flip_duration(_get_flip_s())
 		if _primary_cards[i].face_up:
 			_primary_cards[i].flip_to_back()
+			SoundManager.play("flip")
 			did_flip = true
 		for mini in _extra_displays:
 			if mini.is_face_up_at(i):
-				mini.show_back_at(i, not _is_rushing())
+				mini.show_back_at(i, _extra_flip_animate())
 				did_flip = true
 		if did_flip:
 			if not _is_rushing():
@@ -1398,7 +1481,7 @@ func _on_hands_dealt(primary_hand: Array[CardData]) -> void:
 				await get_tree().create_timer(delay).timeout
 
 	if not _is_rushing():
-		await get_tree().create_timer(0.08).timeout
+		await get_tree().create_timer(ConfigManager.get_animation("card_deal_delay_ms", 80.0) / 1000.0).timeout
 	else:
 		await get_tree().create_timer(0.02).timeout
 
@@ -1407,7 +1490,7 @@ func _on_hands_dealt(primary_hand: Array[CardData]) -> void:
 		_primary_cards[i].set_flip_duration(0.0 if _is_rushing() else _get_flip_s())
 		_primary_cards[i].set_card(primary_hand[i], true, _variant.is_wild_card(primary_hand[i]))
 		if not _is_rushing():
-			SoundManager.play("deal")
+			SoundManager.play("flip")
 			VibrationManager.vibrate("card_deal")
 			if i < 4:
 				await get_tree().create_timer(delay).timeout
@@ -1434,14 +1517,15 @@ func _on_deal_draw_pressed() -> void:
 					SoundManager.play("flip")
 					await get_tree().create_timer(delay).timeout
 		if not _is_rushing():
-			await get_tree().create_timer(0.08).timeout
+			await get_tree().create_timer(ConfigManager.get_animation("card_draw_delay_ms", 80.0) / 1000.0).timeout
 		_manager.draw()
 	else:
 		if _manager.state == MultiHandManager.State.IDLE or _manager.state == MultiHandManager.State.WIN_DISPLAY:
 			var cost: int = _manager.bet * _num_hands * SaveManager.denomination
 			if cost > SaveManager.credits:
 				_flash_balance_red()
-				_show_shop()
+				if ConfigManager.is_feature_enabled("auto_shop_on_low_balance", true):
+					_show_shop()
 				return
 		# Ultra VP: show balance deduction visually, then animate multipliers, then deal
 		if _ultra_vp and _manager.bet == MultiHandManager.ULTRA_BET:
@@ -1459,6 +1543,7 @@ func _on_deal_draw_pressed() -> void:
 
 
 func _on_hands_drawn(all_hands: Array) -> void:
+	_hand_result_pitch = 1.0
 	var delay: float = _get_deal_ms() / 1000.0
 
 	# 1. Primary hand — card by card
@@ -1468,7 +1553,7 @@ func _on_hands_drawn(all_hands: Array) -> void:
 			_primary_cards[i].set_flip_duration(0.0 if _is_rushing() else _get_flip_s())
 			_primary_cards[i].set_card(primary[i], true, _variant.is_wild_card(primary[i]))
 			if not _is_rushing():
-				SoundManager.play("deal")
+				SoundManager.play("flip")
 				VibrationManager.vibrate("card_deal")
 				await get_tree().create_timer(delay).timeout
 
@@ -1484,8 +1569,13 @@ func _on_hands_drawn(all_hands: Array) -> void:
 		var p_active_m: int = 1
 		if _ultra_vp and _manager.hand_multipliers.size() > 0:
 			p_active_m = _manager.hand_multipliers[0]
+		SoundManager.play_with_pitch("hand_result", _hand_result_pitch)
+		_hand_result_pitch += 0.08
 		_show_primary_result(p_name, p_base, p_badge_color, p_active_m)
 		_primary_win_mask = _variant.get_hold_mask(primary, p_rank)
+		if _is_hundred_layout():
+			var p_key: String = _variant.get_paytable_key(p_rank)
+			_add_accumulated_win(p_key, p_name, p_base, p_badge_color)
 	# Primary-hand cards are NEVER dimmed (unlike extras). Always full brightness.
 	for ci in 5:
 		_primary_cards[ci].modulate = Color.WHITE
@@ -1509,25 +1599,48 @@ func _on_hands_drawn(all_hands: Array) -> void:
 				continue
 			var hand: Array = all_hands[h]
 			var mini: MiniHandDisplay = _extra_displays[idx]
+			# Identify the index of the last card we'll actually flip on
+			# this hand — used in 100-hand mode to play `flip_extra` only
+			# once per hand at speed level ≥ 1, sparing the player the
+			# 495-sound cacophony.
+			var last_unheld: int = -1
+			for j in 5:
+				if not _manager.held[j] and j < hand.size():
+					last_unheld = j
+			var collapse_sfx: bool = _is_hundred_layout() and _speed_level >= 1
 			for i in 5:
 				if not _manager.held[i] and i < hand.size():
-					mini.show_card_at(i, hand[i], not _is_rushing())
+					mini.show_card_at(i, hand[i], _extra_flip_animate())
 					if not _is_rushing():
-						await get_tree().create_timer(delay * 0.5).timeout
+						if not collapse_sfx or i == last_unheld:
+							SoundManager.play("flip_extra")
+						# 100-hand: keep a sliver of delay between cards
+						# (the wave) but compress it heavily so the full
+						# reveal of 99×5 cards stays under a few seconds.
+						var per_card: float = delay * (0.05 if _is_hundred_layout() else 0.5)
+						await get_tree().create_timer(per_card).timeout
 			if _is_rushing():
 				await get_tree().create_timer(0.03).timeout
 			# Show result immediately after this hand's cards are revealed
 			var hand_rank := _variant.evaluate(hand)
 			var payout: int = _variant.get_payout(hand_rank, _manager.bet) * SaveManager.denomination
 			var hand_name: String = _variant.get_hand_name(hand_rank)
+			var hand_key: String = _variant.get_paytable_key(hand_rank)
 			if payout > 0:
 				var base_mult: int = _variant.get_payout(hand_rank, _manager.bet)
 				var badge_color := _get_badge_color_for_hand(hand_name, hand_keys)
 				var active_m: int = 1
 				if _ultra_vp and (idx + 1) < _manager.hand_multipliers.size():
 					active_m = _manager.hand_multipliers[idx + 1]
-				mini.show_result(hand_name, base_mult, badge_color, active_m)
+				SoundManager.play_with_pitch("hand_result", _hand_result_pitch)
+				_hand_result_pitch += 0.08
+				mini.show_result(hand_name, base_mult, badge_color, active_m, hand_key)
 				mini.set_win_mask(_variant.get_hold_mask(hand, hand_rank))
+				# 100-hand: stack a paytable badge by the primary hand the
+				# moment this combination first appears; later occurrences
+				# only bump the count chip on the existing badge.
+				if _is_hundred_layout():
+					_add_accumulated_win(hand_key, hand_name, base_mult, badge_color)
 			else:
 				mini.show_result("", 0, Color.TRANSPARENT)
 				mini.set_win_mask([false, false, false, false, false])
@@ -1571,6 +1684,7 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 		# (Ultra VP — badges don't exist there).
 		_pulse_winning_badges(results)
 	else:
+		SoundManager.play("lose")
 		_last_win_amount = 0
 		_win_label.text = Translations.tr_key("game.win_label")
 		_win_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.4))
@@ -2158,6 +2272,7 @@ func _build_info_card() -> void:
 	_info_card.gui_input.connect(func(e: InputEvent) -> void:
 		if e is InputEventMouseButton:
 			if e.pressed:
+				SoundManager.play_with_pitch("button_press", randf_range(0.67, 0.97))
 				var tw := _info_card.create_tween()
 				tw.tween_property(_info_card, "scale", Vector2(0.93, 0.93), 0.05)
 			else:
@@ -2308,14 +2423,11 @@ func _animate_credits(target: int) -> void:
 		_credit_tween.kill()
 	var start := _displayed_credits if _displayed_credits >= 0 else target
 	_displayed_credits = start
-	# Highlight balance during roll-up — pulse glyphs slightly larger
-	# (1.25× base) so the count-up reads as a deliberate beat, then
-	# `_on_credit_animation_done` settles them back to `_info_glyph_h`.
-	var pulse_h: int = int(_info_glyph_h * 1.25)
 	if _balance_show_depth:
-		SaveManager.set_currency_value(_balance_cd, "", pulse_h, Color.WHITE, false)
+		SaveManager.set_currency_value(_balance_cd, "", _info_glyph_h, Color.WHITE, false)
 	else:
-		SaveManager.set_currency_value(_balance_cd, "", pulse_h, Color.WHITE)
+		SaveManager.set_currency_value(_balance_cd, "", _info_glyph_h, Color.WHITE)
+	SoundManager.play_sfx_loop("balance_increment")
 	_credit_tween = create_tween()
 	var dur := 2.1 if _ultra_vp else 1.4
 	_credit_tween.tween_method(_update_credit_display, start, target, dur).set_ease(Tween.EASE_OUT)
@@ -2335,6 +2447,7 @@ func _update_credit_display(value: int) -> void:
 
 
 func _on_credit_animation_done() -> void:
+	SoundManager.stop_sfx_loop_if("balance_increment")
 	# Settle the balance glyphs back to the base height after the pulse.
 	SaveManager.set_currency_value(_balance_cd, "", _info_glyph_h, COL_YELLOW)
 	_unlock_buttons()
@@ -2389,20 +2502,25 @@ func _animate_win_increment(from: int, to: int) -> void:
 	SaveManager.set_currency_value(_win_cd, _format_win(from), _info_glyph_h, COL_YELLOW, show_chip)
 	if from == to:
 		return
+	SoundManager.play_sfx_loop("balance_increment")
 	_win_increment_tween = create_tween()
+	var dur: float = ConfigManager.get_animation("win_counter_multi_ms", 1400.0) / 1000.0
 	_win_increment_tween.tween_method(func(val: int) -> void:
 		SaveManager.set_currency_value(_win_cd, _format_win(val), 0, Color(-1, 0, 0), not _balance_show_depth)
-	, from, to, 1.4).set_ease(Tween.EASE_OUT)
+	, from, to, dur).set_ease(Tween.EASE_OUT)
+	_win_increment_tween.tween_callback(func() -> void: SoundManager.stop_sfx_loop_if("balance_increment"))
 
 
 func _stop_win_increment() -> void:
 	if _win_increment_tween:
 		_win_increment_tween.kill()
 		_win_increment_tween = null
+	await get_tree().create_timer(ConfigManager.get_animation("post_win_pause_sec", 0.5)).timeout
+	_unlock_buttons()
 
 
 func _delay_unlock_buttons() -> void:
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(ConfigManager.get_animation("post_win_pause_sec", 0.5)).timeout
 	_unlock_buttons()
 
 
@@ -3110,7 +3228,7 @@ func _start_double() -> void:
 
 	# Show: dealer card face-up, 4 player cards face-down
 	for i in 5:
-		_primary_cards[i].set_flip_duration(0.15)
+		_primary_cards[i].set_flip_duration(ConfigManager.get_animation("double_card_flip_ms", 150.0) / 1000.0)
 		_primary_cards[i].set_held(false)
 		if i == 0:
 			_primary_cards[i].set_card(_double_cards[i], true)
@@ -3127,13 +3245,14 @@ func _on_double_card_picked(index: int) -> void:
 
 	var card: CardData = _double_cards[index]
 	_primary_cards[index].set_card(card, true)
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(ConfigManager.get_animation("post_win_pause_sec", 0.5)).timeout
 
 	var player_rank: int = card.rank as int
 	var dealer_rank: int = _double_dealer_card.rank as int
 
 	if player_rank > dealer_rank:
 		_double_amount *= 2
+		SoundManager.play("double_win")
 		VibrationManager.vibrate("double_win")
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
@@ -3153,6 +3272,7 @@ func _on_double_card_picked(index: int) -> void:
 		await _credit_tween.finished
 		_end_double()
 	else:
+		SoundManager.play("double_lose")
 		VibrationManager.vibrate("double_lose")
 		_last_win_amount = 0
 		_set_win_dimmed()
@@ -3299,6 +3419,12 @@ func _build_paytable_badges() -> void:
 	# Ultra VP — no badges
 	if _ultra_vp:
 		return
+	# 100-hand layout uses an accumulated stack around the primary hand
+	# instead of static side columns; the side columns would also leave no
+	# room for the wide grid we need.
+	if _is_hundred_layout():
+		_build_accumulated_badges()
+		return
 
 	var hand_keys := _variant.paytable.get_hand_order()
 	var total: int = hand_keys.size()
@@ -3361,10 +3487,33 @@ func _build_paytable_badges() -> void:
 
 func _position_badges() -> void:
 	await get_tree().process_frame
-	if not _extra_grid or not _left_badges or not _right_badges:
+	await get_tree().process_frame
+	if not _left_badges or not _right_badges:
+		return
+	var primary_rect := _primary_container.get_global_rect()
+
+	# 100-hand layout: stacks are tall fixed-size containers from the top
+	# of the screen down to the primary row's bottom. With ALIGNMENT_END,
+	# children pile up from the bottom — adding a new badge via
+	# move_child(_, 0) makes it appear above the existing pile without
+	# moving the older badges (the container itself never shifts).
+	if _is_hundred_layout():
+		var badge_w_h: float = 180.0
+		var bottom_y: float = primary_rect.end.y
+		# Tall container: from y=0 (top of the screen) to the bottom of
+		# the primary row. Plenty of room for the stack to grow upward.
+		var container_h: float = maxf(bottom_y, 1.0)
+		_left_badges.size = Vector2(badge_w_h, container_h)
+		_right_badges.size = Vector2(badge_w_h, container_h)
+		_left_badges.position = Vector2(primary_rect.position.x - badge_w_h - 8.0, 0.0)
+		_right_badges.position = Vector2(primary_rect.end.x + 8.0, 0.0)
+		_left_badges.visible = true
+		_right_badges.visible = true
+		return
+
+	if not _extra_grid:
 		return
 	var grid_rect := _extra_grid.get_global_rect()
-	var primary_rect := _primary_container.get_global_rect()
 	var top_y: float = grid_rect.position.y
 	var available_h: float = primary_rect.position.y - top_y
 
@@ -3442,6 +3591,10 @@ func _make_badge(hand_name: String, multiplier: int, border_color: Color) -> Pan
 
 
 func _update_paytable_badges() -> void:
+	# 100-hand layout: badges are filled in dynamically per round, so
+	# bet-change refreshes don't need to repaint anything here.
+	if _is_hundred_layout():
+		return
 	var bet_idx: int = clampi(_manager.bet - 1, 0, 4)
 	for i in _badge_labels.size():
 		var key: String = _badge_hand_keys[i]
@@ -3533,3 +3686,239 @@ func _clear_paytable_badges() -> void:
 	if _right_badges:
 		_right_badges.queue_free()
 		_right_badges = null
+	# Drop label references too — without this, switching to the 100-hand
+	# layout leaves the array pointing at freed Label nodes, which then
+	# crashes _pulse_winning_badges / _blink_label_yellow.
+	_badge_labels.clear()
+	_badge_hand_keys.clear()
+	_clear_acc_state()
+
+
+# ─── Accumulated paytable badges (100-hand layout) ─────────────────────
+#
+# In the 100-hand layout the static paytable columns are gone and badges
+# only appear as winning combinations come in. Each unique combination
+# gets a single badge stacked toward the primary hand; repeats add a
+# count chip. Sides alternate (left → right → left → …) so the stacks
+# stay balanced as new combinations arrive.
+
+var _acc_keys_order: Array = []                  # in insertion order
+var _acc_counts: Dictionary = {}                 # hand_key → int
+var _acc_badges: Dictionary = {}                 # hand_key → PanelContainer
+var _acc_count_labels: Dictionary = {}           # hand_key → Label
+var _acc_count_panels: Dictionary = {}           # hand_key → PanelContainer (the chip)
+var _acc_multipliers: Dictionary = {}            # hand_key → int (per-hand multiplier × denomination)
+var _acc_currency_displays: Dictionary = {}      # hand_key → currency dict (supercell skin only)
+
+
+func _reset_accumulated_badges() -> void:
+	if _left_badges:
+		for c in _left_badges.get_children():
+			c.queue_free()
+	if _right_badges:
+		for c in _right_badges.get_children():
+			c.queue_free()
+	_clear_acc_state()
+
+
+func _build_accumulated_badges() -> void:
+	_left_badges = VBoxContainer.new()
+	_left_badges.add_theme_constant_override("separation", 4)
+	# Children added via move_child(_, 0) appear at the top of the
+	# stack — newer combinations climb above older ones.
+	# ALIGNMENT_END pins children to the bottom of the container's free
+	# space. Combined with a tall fixed container (top of the area down
+	# to the primary row), this means existing badges never move when a
+	# new one is inserted at the top via move_child(_, 0) — only the
+	# new badge appears, every previous badge stays put.
+	_left_badges.alignment = BoxContainer.ALIGNMENT_END
+	_left_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# top_level=true detaches the container from this Control's layout —
+	# its `position` becomes a direct global coordinate, so we can pin it
+	# above the primary row without the parent's resizer stomping on it.
+	_left_badges.top_level = true
+	add_child(_left_badges)
+
+	_right_badges = VBoxContainer.new()
+	_right_badges.add_theme_constant_override("separation", 4)
+	_right_badges.alignment = BoxContainer.ALIGNMENT_END
+	_right_badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_right_badges.top_level = true
+	add_child(_right_badges)
+
+	_position_badges.call_deferred()
+
+
+func _clear_acc_state() -> void:
+	_acc_keys_order.clear()
+	_acc_counts.clear()
+	_acc_badges.clear()
+	_acc_count_labels.clear()
+	_acc_count_panels.clear()
+	_acc_multipliers.clear()
+	_acc_currency_displays.clear()
+
+
+## Register a winning hand on an extra row. New combinations get a fresh
+## badge alternating between left/right stacks; repeats only increment
+## the count chip on the existing badge.
+func _add_accumulated_win(hand_key: String, hand_name: String, multiplier: int, badge_color: Color) -> void:
+	if hand_key == "":
+		return
+	if not _is_hundred_layout():
+		return
+	if not _left_badges or not _right_badges:
+		return
+
+	if _acc_counts.has(hand_key):
+		_acc_counts[hand_key] = int(_acc_counts[hand_key]) + 1
+		_refresh_acc_count(hand_key)
+		return
+
+	# New combination — pick the side with fewer badges (left wins ties).
+	var goes_left: bool = _left_badges.get_child_count() <= _right_badges.get_child_count()
+	var target: VBoxContainer = _left_badges if goes_left else _right_badges
+	var badge := _make_accumulated_badge(hand_name, multiplier, badge_color, hand_key)
+	# Start invisible — VBox needs a frame after add_child to lay this
+	# badge out at its final y. We fade it in from there, no scaling, so
+	# it never appears at a transient position.
+	badge.modulate.a = 0.0
+	target.add_child(badge)
+	# Push to top of the stack so newer combinations sit above older ones.
+	target.move_child(badge, 0)
+
+	_acc_keys_order.append(hand_key)
+	_acc_counts[hand_key] = 1
+	_acc_badges[hand_key] = badge
+	_acc_multipliers[hand_key] = multiplier
+	_animate_acc_badge_in(badge)
+
+
+func _animate_acc_badge_in(badge: PanelContainer) -> void:
+	# Two frames so the VBox's layout has placed this badge at its real
+	# y. Only after that do we fade it in — no scale, no pivot tricks.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_instance_valid(badge):
+		return
+	var tw := badge.create_tween()
+	tw.tween_property(badge, "modulate:a", 1.0, 0.18)
+
+
+func _refresh_acc_count(hand_key: String) -> void:
+	var count: int = int(_acc_counts.get(hand_key, 1))
+	var label: Label = _acc_count_labels.get(hand_key, null)
+	var panel: PanelContainer = _acc_count_panels.get(hand_key, null)
+	if not label or not panel:
+		return
+	label.text = str(count)
+	# Always show the chip — even a single occurrence reads cleaner with
+	# an explicit "1" than with a missing chip on some badges only.
+	panel.visible = true
+	# Supercell: bump the cumulative coin total on this badge. The
+	# multiplier stored in _acc_multipliers is already the per-hand bet
+	# multiplier (ConfigManager.get_payout(rank, bet)), so the running
+	# total = multiplier × denomination × count.
+	var cd: Dictionary = _acc_currency_displays.get(hand_key, {})
+	if cd.has("box"):
+		var mult: int = int(_acc_multipliers.get(hand_key, 0))
+		var coins: int = mult * SaveManager.denomination * count
+		SaveManager.set_currency_value(cd, SaveManager.format_short(coins))
+
+
+func _make_accumulated_badge(hand_name: String, multiplier: int, border_color: Color, hand_key: String) -> PanelContainer:
+	var theme_font: Font = ThemeManager.font()
+	var is_supercell: bool = ThemeManager.current_id == "supercell"
+
+	var badge := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.05, 0.2, 0.92)
+	style.set_border_width_all(2)
+	style.border_color = border_color
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	# Classic skin halves the vertical padding so more accumulated badges
+	# fit into the side area when the 100-hand layout piles up wins.
+	style.content_margin_top = 6 if is_supercell else 3
+	style.content_margin_bottom = 6 if is_supercell else 3
+	badge.add_theme_stylebox_override("panel", style)
+	badge.custom_minimum_size.x = 180
+	badge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
+	var hbox := HBoxContainer.new()
+	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	hbox.add_theme_constant_override("separation", 8)
+	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_child(hbox)
+
+	if is_supercell:
+		# Supercell skin: badge shows hand name + chip glyph with coin
+		# total. The total grows as more hands hit the same combination
+		# (handled in _refresh_acc_count). Mirrors the per-hand result
+		# overlay's supercell branch so both reads consistently in coins.
+		var vbox := VBoxContainer.new()
+		vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		vbox.add_theme_constant_override("separation", 1)
+		vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hbox.add_child(vbox)
+
+		var name_lab := Label.new()
+		name_lab.text = hand_name
+		name_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_lab.add_theme_font_size_override("font_size", 14)
+		name_lab.add_theme_color_override("font_color", Color.WHITE)
+		if theme_font != null:
+			name_lab.add_theme_font_override("font", theme_font)
+		vbox.add_child(name_lab)
+
+		var coins_initial: int = multiplier * SaveManager.denomination
+		var cd: Dictionary = SaveManager.create_currency_display(14, Color.WHITE)
+		cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
+		SaveManager.set_currency_value(cd, SaveManager.format_short(coins_initial))
+		vbox.add_child(cd["box"])
+
+		_acc_currency_displays[hand_key] = cd
+	else:
+		var label := Label.new()
+		label.text = "%s\nX%d" % [hand_name, multiplier]
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 11)
+		label.add_theme_constant_override("line_spacing", 0)
+		label.add_theme_color_override("font_color", Color.WHITE)
+		if theme_font != null:
+			label.add_theme_font_override("font", theme_font)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hbox.add_child(label)
+
+	# Count chip — circular panel with bordered number, hidden until a
+	# second occurrence arrives.
+	var chip := PanelContainer.new()
+	var chip_style := StyleBoxFlat.new()
+	chip_style.bg_color = Color(0.05, 0.05, 0.2, 0.95)
+	chip_style.set_border_width_all(2)
+	chip_style.border_color = border_color
+	chip_style.set_corner_radius_all(20)
+	chip_style.content_margin_left = 6 if is_supercell else 4
+	chip_style.content_margin_right = 6 if is_supercell else 4
+	chip_style.content_margin_top = 2 if is_supercell else 1
+	chip_style.content_margin_bottom = 2 if is_supercell else 1
+	chip.add_theme_stylebox_override("panel", chip_style)
+	# Chip visible from the first occurrence so all badges read uniformly.
+	chip.visible = true
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var count_lab := Label.new()
+	count_lab.text = "1"
+	count_lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	count_lab.add_theme_font_size_override("font_size", 13 if is_supercell else 10)
+	count_lab.add_theme_color_override("font_color", Color.WHITE)
+	if theme_font != null:
+		count_lab.add_theme_font_override("font", theme_font)
+	chip.add_child(count_lab)
+	hbox.add_child(chip)
+
+	_acc_count_labels[hand_key] = count_lab
+	_acc_count_panels[hand_key] = chip
+	return badge

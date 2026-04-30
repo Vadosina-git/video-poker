@@ -1,6 +1,6 @@
 {
-  "version": 3,
-  "currency_icon": "chip",
+  "version": 4,
+  "_doc": "In-game shop / IAP packs. Currently all packs are FREE-tier (claim every cooldown_seconds), pending RevenueCat integration. iap_items[] are sorted by sort_order. Chip glyph comes from active theme (configs/themes/<id>.json -> assets.currency_chip), not from this file.",
   "images_path": "res://assets/shop/",
   "exchange_rate": {"coins_per_dollar": 100, "show_label": false},
   "iap_items": [
@@ -33,6 +33,16 @@
       "color_scheme": "blue",
       "top_badge_key": "shop.badge.big_gift",
       "image": "shop_pack_05.png"
+    },
+    {
+      "id": "pack_04",
+      "sort_order": 4,
+      "cooldown_seconds": 43200,
+      "chips": 50000,
+      "bonus_chips": 5000,
+      "color_scheme": "purple",
+      "top_badge_key": "shop.badge.most_popular",
+      "image": "shop_pack_04.png"
     }
   ]
 }

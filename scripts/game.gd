@@ -104,6 +104,7 @@ func _ready() -> void:
 	_bet_one_btn.pressed.connect(_game_manager.bet_one)
 	_bet_amount_btn.pressed.connect(_on_bet_amount_pressed)
 	_bet_max_btn.pressed.connect(_on_bet_max_pressed)
+	_deal_draw_btn.add_to_group("no_disabled_sound")
 	_deal_draw_btn.pressed.connect(_on_deal_draw_pressed)
 	_topup_btn.pressed.connect(_show_shop)
 
@@ -627,9 +628,9 @@ func _update_bet_display(bet: int) -> void:
 func _flash_bet_display() -> void:
 	if _bet_flash_tween:
 		_bet_flash_tween.kill()
-	SaveManager.set_currency_value(_bet_cd, "", 26, COL_YELLOW)
+	SaveManager.set_currency_value(_bet_cd, "", 22, COL_YELLOW)
 	_bet_flash_tween = create_tween()
-	_bet_flash_tween.tween_interval(0.8)
+	_bet_flash_tween.tween_interval(ConfigManager.get_animation("bet_highlight_single_ms", 800.0) / 1000.0)
 	_bet_flash_tween.tween_callback(func() -> void:
 		SaveManager.set_currency_value(_bet_cd, "", 22, Color.WHITE)
 	)
@@ -677,10 +678,13 @@ func _animate_win_increment(from: int, to: int) -> void:
 	SaveManager.set_currency_value(_win_cd, _format_win(from), 20, COL_YELLOW, show_chip)
 	if from == to:
 		return
+	SoundManager.play_sfx_loop("balance_increment")
 	_win_increment_tween = create_tween()
+	var dur: float = ConfigManager.get_animation("win_counter_single_ms", 2000.0) / 1000.0
 	_win_increment_tween.tween_method(func(val: int) -> void:
 		SaveManager.set_currency_value(_win_cd, _format_win(val), 0, Color(-1, 0, 0), show_chip)
-	, from, to, 2.0).set_ease(Tween.EASE_OUT)
+	, from, to, dur).set_ease(Tween.EASE_OUT)
+	_win_increment_tween.tween_callback(func() -> void: SoundManager.stop_sfx_loop_if("balance_increment"))
 
 
 func _stop_win_increment() -> void:
@@ -762,14 +766,15 @@ func _on_cards_dealt(dealt_hand: Array[CardData]) -> void:
 		if _card_visuals[i].face_up:
 			any_face_up = true
 			_card_visuals[i].flip_to_back()
+			SoundManager.play("flip")
 			if not instant:
 				await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
 	if any_face_up and not instant:
-		await get_tree().create_timer(0.08).timeout
+		await get_tree().create_timer(ConfigManager.get_animation("card_deal_delay_ms", 80.0) / 1000.0).timeout
 	for i in 5:
 		_card_visuals[i].set_flip_duration(_get_flip_s())
 		_card_visuals[i].set_card(dealt_hand[i], true, _variant.is_wild_card(dealt_hand[i]))
-		SoundManager.play("deal")
+		SoundManager.play("flip")
 		VibrationManager.vibrate("card_deal")
 		if not instant and i < 4:
 			await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
@@ -797,14 +802,14 @@ func _on_deal_draw_pressed() -> void:
 				if not instant:
 					await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
 		if not instant:
-			await get_tree().create_timer(0.08).timeout
+			await get_tree().create_timer(ConfigManager.get_animation("card_draw_delay_ms", 80.0) / 1000.0).timeout
 		_game_manager.draw()
 		# Deal new cards
 		for i in 5:
 			if not _game_manager.held[i]:
 				_card_visuals[i].set_flip_duration(_get_flip_s())
 				_card_visuals[i].set_card(_game_manager.hand[i], true, _variant.is_wild_card(_game_manager.hand[i]))
-				SoundManager.play("deal")
+				SoundManager.play("flip")
 				VibrationManager.vibrate("card_deal")
 				if not instant:
 					await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
@@ -818,7 +823,8 @@ func _on_deal_draw_pressed() -> void:
 			var cost: int = _game_manager.bet * _current_denomination
 			if cost > SaveManager.credits:
 				_flash_balance_red()
-				_show_shop()
+				if ConfigManager.is_feature_enabled("auto_shop_on_low_balance", true):
+					_show_shop()
 				return
 		_game_manager.deal_or_draw()
 
@@ -913,11 +919,11 @@ func _animate_credits(target: int) -> void:
 		_credit_tween.kill()
 	var start := _displayed_credits if _displayed_credits >= 0 else target
 	_displayed_credits = start
-	# Highlight balance during roll-up
 	if _balance_show_depth:
-		SaveManager.set_currency_value(_balance_cd, "", 22, COL_YELLOW, false)
+		SaveManager.set_currency_value(_balance_cd, "", 20, COL_YELLOW, false)
 	else:
-		SaveManager.set_currency_value(_balance_cd, "", 22, COL_YELLOW)
+		SaveManager.set_currency_value(_balance_cd, "", 20, COL_YELLOW)
+	SoundManager.play_sfx_loop("balance_increment")
 	_credit_tween = create_tween()
 	_credit_tween.tween_method(_update_credit_display, start, target, 2.0).set_ease(Tween.EASE_OUT)
 	_credit_tween.tween_callback(_on_credit_animation_done)
@@ -936,7 +942,8 @@ func _update_credit_display(value: int) -> void:
 
 
 func _on_credit_animation_done() -> void:
-	SaveManager.set_currency_value(_balance_cd, "", 18, Color.WHITE)
+	SoundManager.stop_sfx_loop_if("balance_increment")
+	SaveManager.set_currency_value(_balance_cd, "", 20, Color.WHITE)
 	_unlock_buttons()
 	if _game_manager.last_win > 0:
 		_double_btn.disabled = false
@@ -951,7 +958,7 @@ func _on_credit_animation_done() -> void:
 
 
 func _delay_unlock_buttons() -> void:
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(ConfigManager.get_animation("post_win_pause_sec", 0.5)).timeout
 	_unlock_buttons()
 
 
@@ -979,7 +986,6 @@ func _on_bet_max_pressed() -> void:
 	var old_bet := _game_manager.bet
 	_game_manager.bet = GameManager.MAX_BET
 	_game_manager.bet_changed.emit(_game_manager.bet)
-	SoundManager.play("bet")
 	# Sweep animation, then deal after it finishes
 	_paytable_display.sweep_to_max(old_bet)
 	await _paytable_display.sweep_finished
@@ -1118,6 +1124,7 @@ func _show_win_overlay(hand_name: String) -> void:
 
 
 func _show_lose_overlay() -> void:
+	SoundManager.play("lose")
 	_create_overlay(Translations.tr_key("game.try_again"))
 	# Blink: visible 2s, hidden 1s
 	await get_tree().process_frame
@@ -1149,14 +1156,13 @@ func _hide_win_overlay() -> void:
 
 # --- Bet Amount Picker ---
 
-const MIN_GAME_DEPTH := 30
-
 func _recommend_denomination() -> int:
 	var balance := SaveManager.credits
 	var best: int = BET_AMOUNTS[0]
+	var min_depth: int = ConfigManager.get_min_game_depth()
 	for amount in BET_AMOUNTS:
 		# worst case total_bet = denomination * max_bet * hands
-		if balance / (amount * GameManager.MAX_BET) >= MIN_GAME_DEPTH:
+		if balance / (amount * GameManager.MAX_BET) >= min_depth:
 			best = amount
 		else:
 			break
@@ -1191,22 +1197,25 @@ func _input(event: InputEvent) -> void:
 
 func _start_idle_blink_timer() -> void:
 	_stop_idle_blink()
+	if not ConfigManager.is_feature_enabled("deal_button_idle_blink", true):
+		return
 	if not _idle_timer:
 		_idle_timer = Timer.new()
 		_idle_timer.one_shot = true
 		_idle_timer.timeout.connect(_begin_deal_blink)
 		add_child(_idle_timer)
-	_idle_timer.start(5.0)
+	_idle_timer.start(ConfigManager.get_animation("deal_button_idle_blink_sec", 5.0))
 
 
 func _begin_deal_blink() -> void:
 	if _idle_blink_tween:
 		_idle_blink_tween.kill()
 	_idle_blink_tween = create_tween().set_loops()
+	var half_blink: float = ConfigManager.get_animation("deal_button_blink_interval_ms", 600.0) / 2000.0
 	for _i in 3:
-		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, 0.3)
-		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, 0.3)
-	_idle_blink_tween.tween_interval(5.0)
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 0.4, half_blink)
+		_idle_blink_tween.tween_property(_deal_draw_btn, "modulate:a", 1.0, half_blink)
+	_idle_blink_tween.tween_interval(ConfigManager.get_animation("deal_button_idle_blink_sec", 5.0))
 
 
 func _stop_idle_blink() -> void:
@@ -1736,7 +1745,7 @@ func _start_double() -> void:
 
 	# Show: dealer card face-up, 4 player cards face-down
 	for i in 5:
-		_card_visuals[i].set_flip_duration(0.15)
+		_card_visuals[i].set_flip_duration(ConfigManager.get_animation("double_card_flip_ms", 150.0) / 1000.0)
 		_card_visuals[i].set_held(false)
 		if i == 0:
 			_card_visuals[i].set_card(_double_cards[i], true)
@@ -1764,7 +1773,7 @@ func _on_double_card_picked(index: int) -> void:
 	# Reveal picked card
 	var card: CardData = _double_cards[index]
 	_card_visuals[index].set_card(card, true)
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(ConfigManager.get_animation("post_win_pause_sec", 0.5)).timeout
 
 	var player_rank: int = card.rank as int
 	var dealer_rank: int = _double_dealer_card.rank as int
@@ -1772,6 +1781,7 @@ func _on_double_card_picked(index: int) -> void:
 	if player_rank > dealer_rank:
 		# Win — double the amount
 		_double_amount *= 2
+		SoundManager.play("double_win")
 		VibrationManager.vibrate("double_win")
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
@@ -1793,6 +1803,7 @@ func _on_double_card_picked(index: int) -> void:
 		_end_double()
 	else:
 		# Lose
+		SoundManager.play("double_lose")
 		VibrationManager.vibrate("double_lose")
 		_set_status(Translations.tr_key("double.lose"))
 		_double_amount = 0

@@ -208,7 +208,8 @@ func _build_text_label() -> void:
 	var display_rtp: float = ThemeManager.machine_rtp(variant_id)
 	if display_rtp <= 0.0:
 		display_rtp = _rtp
-	var _show_rtp_pill: bool = ThemeManager.current_id == "classic"
+	var _show_rtp_pill: bool = ThemeManager.current_id == "classic" \
+		and ConfigManager.is_visible("show_rtp_in_machine_info", true)
 	if _show_rtp_pill and display_rtp > 0.0:
 		var rtp_row := HBoxContainer.new()
 		rtp_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -498,6 +499,7 @@ func _on_gui_input(event: InputEvent) -> void:
 			if _carousel_absorbed_swipe():
 				return
 			if event.global_position.distance_to(_press_pos) < TAP_MAX_DISTANCE:
+				SoundManager.play("button_press")
 				play_pressed.emit(variant_id)
 
 

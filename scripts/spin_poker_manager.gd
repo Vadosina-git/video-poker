@@ -219,10 +219,7 @@ func _evaluate_all() -> void:
 	if total_payout > 0:
 		SaveManager.add_credits(total_payout)
 		credits_changed.emit(SaveManager.credits)
-		SoundManager.play("win_small")
-	else:
-		SoundManager.play("lose")
-
+		SoundManager.play_with_pitch("win_small", randf_range(1.0, 1.2))
 	if SaveManager.credits <= 0:
 		SaveManager.credits = SaveManager.DEFAULT_CREDITS
 		SaveManager.save_game()

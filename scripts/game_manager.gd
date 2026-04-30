@@ -42,7 +42,6 @@ func bet_one() -> void:
 		bet = 1
 	else:
 		bet += 1
-	SoundManager.play("bet")
 	SaveManager.set_bet_level("single_play", bet)
 	bet_changed.emit(bet)
 
@@ -56,7 +55,6 @@ func bet_max() -> void:
 	SaveManager.set_bet_level("single_play", bet)
 	SaveManager.save_game()
 	bet_changed.emit(bet)
-	SoundManager.play("bet")
 	deal()
 
 
@@ -92,6 +90,10 @@ func on_deal_animation_complete() -> void:
 		if variant.is_wild_card(hand[i]):
 			held[i] = true
 
+	for h in held:
+		if h:
+			SoundManager.play("combination_found")
+			break
 	state = State.HOLDING
 	state_changed.emit(state)
 
@@ -134,14 +136,11 @@ func _evaluate() -> void:
 		SaveManager.add_credits(payout)
 		credits_changed.emit(SaveManager.credits)
 		if hand_rank == HandEvaluator.HandRank.ROYAL_FLUSH:
-			SoundManager.play("win_royal")
+			SoundManager.play_with_pitch("win_royal", randf_range(1.0, 1.2))
 		elif payout >= bet * SaveManager.denomination * 10:
-			SoundManager.play("win_big")
+			SoundManager.play_with_pitch("win_big", randf_range(1.0, 1.2))
 		else:
-			SoundManager.play("win_small")
-	else:
-		SoundManager.play("lose")
-
+			SoundManager.play_with_pitch("win_small", randf_range(1.0, 1.2))
 	# Reset credits if broke
 	if SaveManager.credits <= 0:
 		SaveManager.credits = SaveManager.DEFAULT_CREDITS

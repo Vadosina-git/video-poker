@@ -14,7 +14,9 @@ var shop: Dictionary = {}
 var gift: Dictionary = {}
 var sounds: Dictionary = {}
 var animations: Dictionary = {}
-var ui_config: Dictionary = {}
+var features: Dictionary = {}
+var vibration: Dictionary = {}
+var economy: Dictionary = {}
 
 
 func _ready() -> void:
@@ -26,7 +28,9 @@ func _ready() -> void:
 	gift = _load_json("gift.json", _default_gift())
 	sounds = _load_json("sounds.json", {})
 	animations = _load_json("animations.json", _default_animations())
-	ui_config = _load_json("ui_config.json", {})
+	features = _load_json("features.json", _default_features())
+	vibration = _load_json("vibration.json", _default_vibration())
+	economy = _load_json("economy.json", _default_economy())
 
 
 # ─── ACCESSORS ────────────────────────────────────────────────────────
@@ -86,6 +90,17 @@ func get_gift_chips() -> int:
 	return int(gift.get("chips_amount", 500))
 
 
+## Returns chip-cascade animation params for gift / shop claim.
+## Defaults match the historical hardcoded values.
+func get_claim_animation() -> Dictionary:
+	var a: Dictionary = gift.get("claim_animation", {})
+	return {
+		"chip_count": int(a.get("chip_count", 10)),
+		"stagger_step_sec": float(a.get("stagger_step_sec", 0.05)),
+		"travel_time_sec": float(a.get("travel_time_sec", 0.55)),
+	}
+
+
 func get_animation(key: String, default_val: float = 0.0) -> float:
 	return float(animations.get(key, default_val))
 
@@ -96,6 +111,107 @@ func get_shop_items() -> Array:
 
 func get_lobby_modes() -> Array:
 	return lobby_order.get("modes", [])
+
+
+## True when the lobby tab `mode_id` opts into the 100-hand layout.
+## The flag lives at the mode level in configs/lobby_order.json and lets a
+## designer hide the 100-hand option per tab without touching code.
+func is_hands_100_enabled_for_mode(mode_id: String) -> bool:
+	for m in get_lobby_modes():
+		if str(m.get("id", "")) == mode_id:
+			return bool(m.get("hands_100_enabled", false))
+	return false
+
+
+## ─── FEATURE FLAGS (configs/features.json) ───────────────────────────
+
+## Boolean feature flag from configs/features.json -> feature_flags.<key>.
+## Defaults to `default_val` when the file or key is missing.
+func is_feature_enabled(key: String, default_val: bool = true) -> bool:
+	var flags: Dictionary = features.get("feature_flags", {})
+	return bool(flags.get(key, default_val))
+
+
+## Boolean visibility flag from configs/features.json -> ui_visibility.<key>.
+func is_visible(key: String, default_val: bool = true) -> bool:
+	var vis: Dictionary = features.get("ui_visibility", {})
+	return bool(vis.get(key, default_val))
+
+
+## Default theme id from configs/features.json -> theme.default_theme.
+func get_default_theme() -> String:
+	var t: Dictionary = features.get("theme", {})
+	return str(t.get("default_theme", "classic"))
+
+
+# ─── VIBRATION (configs/vibration.json) ──────────────────────────────
+
+func get_vibration_duration_ms(event_name: String) -> int:
+	var ev: Dictionary = vibration.get("events", {})
+	return int(ev.get(event_name, 0))
+
+
+func is_heavy_vibration_event(event_name: String) -> bool:
+	var heavy: Array = vibration.get("heavy_events", [])
+	return event_name in heavy
+
+
+func get_vibration_heavy_pulse_count() -> int:
+	return int(vibration.get("heavy_pulse_count", 3))
+
+
+func get_vibration_heavy_gap_ms() -> int:
+	return int(vibration.get("heavy_inter_pulse_gap_ms", 50))
+
+
+# ─── ECONOMY (configs/economy.json) ──────────────────────────────────
+
+func get_min_game_depth() -> int:
+	var gd: Dictionary = economy.get("game_depth", {})
+	return int(gd.get("min_rounds_to_play", 30))
+
+
+func is_auto_shop_enabled() -> bool:
+	var a: Dictionary = economy.get("auto_shop", {})
+	return bool(a.get("trigger_below_min_bet", true))
+
+
+## Per-mode flag for double-or-nothing risk round.
+func is_double_enabled_for(mode_id: String) -> bool:
+	if not is_feature_enabled("double_or_nothing_enabled", true):
+		return false
+	var d: Dictionary = economy.get("double_or_nothing", {})
+	var key := "enabled_in_" + mode_id
+	# Map multi-hand variants to a single multi key.
+	if mode_id in ["triple_play", "five_play", "ten_play"]:
+		key = "enabled_in_multi"
+	if mode_id == "single_play":
+		key = "enabled_in_single"
+	return bool(d.get(key, true))
+
+
+# ─── INIT DEFAULTS (configs/init_config.json) ────────────────────────
+
+func get_default_locale() -> String:
+	return str(init_config.get("default_locale", "en"))
+
+
+func get_default_speed() -> int:
+	return int(init_config.get("default_speed", 1))
+
+
+func get_default_mode() -> String:
+	return str(init_config.get("default_mode", "single_play"))
+
+
+func get_default_machine() -> String:
+	return str(init_config.get("default_machine", "jacks_or_better"))
+
+
+## Per-mode index into balance.modes.<mode>.denominations for first-launch selection.
+func get_default_denomination_index(mode_id: String) -> int:
+	var mb := get_mode_balance(mode_id)
+	return int(mb.get("default_denomination_index", 0))
 
 
 func get_sound_file(event_name: String) -> String:
@@ -199,4 +315,54 @@ func _default_animations() -> Dictionary:
 		"deal_button_blink_interval_ms": 600,
 		"spin_reel_stop_delay_ms": 2000,
 		"spin_stop_inertia_ms": 700,
+	}
+
+
+func _default_features() -> Dictionary:
+	return {
+		"feature_flags": {
+			"age_gate_enabled": true,
+			"big_win_overlay_enabled": true,
+			"double_or_nothing_enabled": true,
+			"ultra_vp_enabled": true,
+			"spin_poker_enabled": true,
+			"multi_hand_enabled": true,
+			"auto_shop_on_low_balance": true,
+			"deal_button_idle_blink": true,
+			"vibration_default": true,
+			"sound_fx_default": true,
+		},
+		"ui_visibility": {},
+		"theme": {"default_theme": "classic", "allow_theme_switching": false, "available_themes": ["classic"]},
+		"debug": {},
+	}
+
+
+func _default_vibration() -> Dictionary:
+	return {
+		"events": {
+			"button_press": 10, "card_hold": 10, "bet_change": 10,
+			"card_deal": 15, "card_flip": 15,
+			"win_small": 30, "win_medium": 40, "win_large": 60,
+			"win_royal_flush": 100, "win_jackpot": 100,
+			"spin_reel": 8, "spin_stop": 20,
+			"double_win": 30, "double_lose": 20,
+			"gift_claim": 40, "multiplier_activate": 25,
+		},
+		"heavy_events": ["win_royal_flush", "win_jackpot"],
+		"heavy_pulse_count": 3,
+		"heavy_inter_pulse_gap_ms": 50,
+	}
+
+
+func _default_economy() -> Dictionary:
+	return {
+		"game_depth": {"min_rounds_to_play": 30, "show_depth_hint": true},
+		"auto_shop": {"trigger_below_min_bet": true},
+		"double_or_nothing": {
+			"enabled_in_single": true, "enabled_in_multi": true,
+			"enabled_in_spin_poker": true, "enabled_in_ultra_vp": true,
+		},
+		"min_bet_per_mode": {},
+		"max_bet_per_mode": {},
 	}

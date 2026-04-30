@@ -52,6 +52,7 @@
       "id": "triple_play",
       "label_key": "lobby.mode_triple_play",
       "enabled": true,
+      "hands_100_enabled": true,
       "machines": [
         {
           "id": "jacks_or_better",
@@ -99,6 +100,7 @@
       "id": "five_play",
       "label_key": "lobby.mode_five_play",
       "enabled": true,
+      "hands_100_enabled": true,
       "machines": [
         {
           "id": "jacks_or_better",
@@ -146,6 +148,7 @@
       "id": "ten_play",
       "label_key": "lobby.mode_ten_play",
       "enabled": true,
+      "hands_100_enabled": true,
       "machines": [
         {
           "id": "jacks_or_better",

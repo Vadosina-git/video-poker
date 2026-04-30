@@ -73,12 +73,14 @@ func _build_overlay() -> void:
 	_overlay.z_index = 100
 	_host.add_child(_overlay)
 
-	# Backdrop fades in.
+	# Backdrop fades in. Per-skin dim color via ThemeManager so the supercell
+	# purple haze appears under the shop overlay just like under popups.
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.05, 0.04, 0.22, 0.0)
+	var dim_target: Color = ThemeManager.popup_dim_color() if _is_supercell() else Color(0.05, 0.04, 0.22, 1.0)
+	bg.color = Color(dim_target.r, dim_target.g, dim_target.b, 0.0)
 	_overlay.add_child(bg)
-	bg.create_tween().tween_property(bg, "color:a", 1.0, 0.2)
+	bg.create_tween().tween_property(bg, "color:a", dim_target.a, 0.2)
 
 	# Slide-up + bounce open animation on the overlay as a whole.
 	var vp_size: Vector2 = _host.get_viewport_rect().size
@@ -93,17 +95,25 @@ func _build_overlay() -> void:
 	intro.tween_property(_overlay, "position:y", 0.0, 0.28) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
-	# Close X button.
+	# Close X button. In supercell — red danger-sticker with drop shadow;
+	# in classic — yellow round chip (legacy IGT look).
 	var close_btn := Button.new()
 	close_btn.text = "✕"
 	close_btn.custom_minimum_size = Vector2(64, 64)
 	close_btn.add_theme_font_size_override("font_size", 40)
-	close_btn.add_theme_color_override("font_color", Color.BLACK)
-	var cs := StyleBoxFlat.new()
-	cs.bg_color = Color("FFEC00")
-	cs.set_corner_radius_all(32)
-	cs.set_border_width_all(3)
-	cs.border_color = Color(0.35, 0.28, 0.0)
+	var close_fill: Color
+	var close_border: Color
+	var close_text: Color
+	if _is_supercell():
+		close_fill = ThemeManager.color("button_danger_bg", Color("E63946"))
+		close_border = ThemeManager.color("button_danger_border", Color("152033"))
+		close_text = ThemeManager.color("button_danger_text", Color.WHITE)
+	else:
+		close_fill = Color("FFEC00")
+		close_border = Color(0.35, 0.28, 0.0)
+		close_text = Color.BLACK
+	close_btn.add_theme_color_override("font_color", close_text)
+	var cs := _make_skin_sticker(close_fill, close_border, 32)
 	close_btn.add_theme_stylebox_override("normal", cs)
 	close_btn.add_theme_stylebox_override("hover", cs)
 	close_btn.add_theme_stylebox_override("pressed", cs)
@@ -188,6 +198,11 @@ func _build_overlay() -> void:
 	gift.offset_right = -24
 	gift.offset_bottom = -24
 
+	# Final pass: apply theme font (LilitaOne in supercell) to every
+	# Label/Button so all chrome reads in one design language without each
+	# helper having to inject the font itself.
+	_apply_theme_font_recursive(_overlay)
+
 
 func hide_shop() -> void:
 	if not is_instance_valid(_overlay):
@@ -215,15 +230,22 @@ func hide_shop() -> void:
 func _build_balance_pill() -> PanelContainer:
 	var pill := PanelContainer.new()
 	_cash_pill = pill
+	var bg_col: Color = ThemeManager.color("cash_pill_bg", Color(0.05, 0.03, 0.03)) if _is_supercell() else Color(0.05, 0.03, 0.03)
+	var border_col: Color = ThemeManager.color("cash_pill_border", Color("FFEC00")) if _is_supercell() else Color("FFEC00")
+	var text_col: Color = ThemeManager.color("cash_pill_text", Color.WHITE) if _is_supercell() else Color.WHITE
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.03, 0.03)
+	style.bg_color = bg_col
 	style.set_border_width_all(4)
-	style.border_color = Color("FFEC00")
+	style.border_color = border_col
 	style.set_corner_radius_all(28)
 	style.content_margin_left = 22
 	style.content_margin_right = 22
 	style.content_margin_top = 4
 	style.content_margin_bottom = 4
+	style.anti_aliasing = true
+	if _is_supercell():
+		style.shadow_color = Color(0, 0, 0, 0.45)
+		style.shadow_offset = Vector2(0, 4)
 	pill.add_theme_stylebox_override("panel", style)
 
 	var inner := HBoxContainer.new()
@@ -234,12 +256,12 @@ func _build_balance_pill() -> PanelContainer:
 	var cash_label := Label.new()
 	cash_label.text = Translations.tr_key("lobby.cash")
 	cash_label.add_theme_font_size_override("font_size", 30)
-	cash_label.add_theme_color_override("font_color", Color.WHITE)
+	cash_label.add_theme_color_override("font_color", text_col)
 	cash_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	cash_label.add_theme_constant_override("outline_size", 3)
 	inner.add_child(cash_label)
 
-	var cd := SaveManager.create_currency_display(32, Color.WHITE)
+	var cd := SaveManager.create_currency_display(32, text_col)
 	inner.add_child(cd["box"])
 	SaveManager.set_currency_value(cd, SaveManager.format_money(SaveManager.credits))
 	_cash_cd = cd
@@ -414,6 +436,14 @@ func _build_pack_card(item: Dictionary) -> PanelContainer:
 	card_style.content_margin_right = 12
 	card_style.content_margin_top = 12
 	card_style.content_margin_bottom = 12
+	card_style.anti_aliasing = true
+	if _is_supercell():
+		# Supercell pack tile — drop sticker shadow + dark outline so cards
+		# pop off the tinted backdrop the same way machine tiles do in lobby.
+		card_style.border_color = ThemeManager.color("panel_border", scheme["border"])
+		card_style.shadow_color = Color(0, 0, 0, 0.55)
+		card_style.shadow_offset = Vector2(0, 6)
+		card_style.set_corner_radius_all(int(ThemeManager.size("tile_corner_radius", 18)))
 	card.add_theme_stylebox_override("panel", card_style)
 
 	var vb := VBoxContainer.new()
@@ -550,21 +580,38 @@ func _fmt_countdown(seconds: int) -> String:
 
 
 func _apply_timed_btn_style(btn: Button, locked: bool) -> void:
-	var st := StyleBoxFlat.new()
-	st.set_corner_radius_all(22)
-	st.set_border_width_all(2)
-	if locked:
-		st.bg_color = Color(0.30, 0.30, 0.36)
-		st.border_color = Color(0.14, 0.14, 0.18)
+	var st: StyleBoxFlat
+	if _is_supercell():
+		# Supercell: yellow primary sticker (claim) / muted purple sticker (locked).
+		if locked:
+			var muted_fill: Color = ThemeManager.color("popup_bg", Color(0.30, 0.30, 0.36)).lightened(0.05)
+			var muted_border: Color = ThemeManager.color("button_primary_border", Color(0.14, 0.14, 0.18))
+			st = _make_skin_sticker(muted_fill, muted_border, 14)
+			btn.add_theme_color_override("font_color", ThemeManager.color("dim_text", Color(0.85, 0.85, 0.9)))
+		else:
+			var fill: Color = ThemeManager.color("button_primary_bg", Color("FFCC2E"))
+			var border: Color = ThemeManager.color("button_primary_border", Color("152033"))
+			st = _make_skin_sticker(fill, border, 14)
+			btn.add_theme_color_override("font_color", ThemeManager.color("button_primary_text", Color("2A1F00")))
+			btn.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.0))
 	else:
-		st.bg_color = Color(0.15, 0.80, 0.35)
-		st.border_color = Color(0.04, 0.40, 0.12)
+		st = StyleBoxFlat.new()
+		st.set_corner_radius_all(22)
+		st.set_border_width_all(2)
+		if locked:
+			st.bg_color = Color(0.30, 0.30, 0.36)
+			st.border_color = Color(0.14, 0.14, 0.18)
+		else:
+			st.bg_color = Color(0.15, 0.80, 0.35)
+			st.border_color = Color(0.04, 0.40, 0.12)
 	btn.add_theme_stylebox_override("normal", st)
 	btn.add_theme_stylebox_override("disabled", st)
 	btn.add_theme_stylebox_override("focus", st)
 	var hover := st.duplicate()
-	if not locked:
-		hover.bg_color = Color(0.20, 0.88, 0.40)
+	if not _is_supercell() and not locked:
+		(hover as StyleBoxFlat).bg_color = Color(0.20, 0.88, 0.40)
+	elif _is_supercell() and not locked:
+		(hover as StyleBoxFlat).bg_color = ThemeManager.color("button_primary_bg", Color("FFCC2E")).lightened(0.08)
 	btn.add_theme_stylebox_override("hover", hover)
 	btn.add_theme_stylebox_override("pressed", hover)
 
@@ -579,6 +626,10 @@ func _build_chips_display(amount: int, font_size: int, color: Color) -> HBoxCont
 	num.add_theme_color_override("font_color", color)
 	num.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	num.add_theme_constant_override("outline_size", 3)
+	# Shrink-center the Label inside HBox so its rect matches the visible
+	# text height (no descender padding stretching). Strike line at
+	# ctrl.size.y * 0.5 then passes through the digit centre.
+	num.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hb.add_child(num)
 	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex:
@@ -593,18 +644,44 @@ func _build_chips_display(amount: int, font_size: int, color: Color) -> HBoxCont
 
 
 func _add_strike_line(ctrl: Control) -> void:
+	# Compute strike y from the Label's actual font ascent — visible digit
+	# centre sits at (label_top + ascent / 2) regardless of font / theme /
+	# HBox padding. Chip glyph next to digits doesn't affect this position.
 	ctrl.draw.connect(func() -> void:
-		var y: float = ctrl.size.y * 0.55
-		ctrl.draw_line(Vector2(-2, y), Vector2(ctrl.size.x + 2, y), Color(1.0, 0.25, 0.25, 0.95), 3.0)
+		if ctrl.get_child_count() == 0:
+			return
+		var lab: Label = ctrl.get_child(0) as Label
+		if lab == null:
+			var fallback_y: float = ctrl.size.y * 0.5
+			ctrl.draw_line(Vector2(-2, fallback_y), Vector2(ctrl.size.x + 2, fallback_y),
+				Color(1.0, 0.25, 0.25, 0.95), 3.0)
+			return
+		var f: Font = lab.get_theme_font("font")
+		var fs: int = lab.get_theme_font_size("font_size")
+		if f == null:
+			f = ThemeDB.fallback_font
+		if fs <= 0:
+			fs = ThemeDB.fallback_font_size
+		var ascent: float = f.get_ascent(fs)
+		# Digit visual centre ≈ ascent/2 below label top. position.y is the
+		# Label's offset within the HBox after vertical shrink-centering.
+		var y: float = lab.position.y + ascent * 0.5
+		ctrl.draw_line(Vector2(-2, y), Vector2(ctrl.size.x + 2, y),
+			Color(1.0, 0.25, 0.25, 0.95), 3.0)
 	)
 
 
 func _build_bonus_banner(percent: int) -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var bonus_bg: Color = ThemeManager.color("button_primary_bg", Color("FFCC2E")) if _is_supercell() else Color("FFEC00")
 	var st := StyleBoxFlat.new()
-	st.bg_color = Color("FFEC00")
+	st.bg_color = bonus_bg
 	st.set_corner_radius_all(4)
+	if _is_supercell():
+		st.set_border_width_all(2)
+		st.border_color = ThemeManager.color("button_primary_border", Color("152033"))
+		st.anti_aliasing = true
 	st.content_margin_left = 10
 	st.content_margin_right = 10
 	st.content_margin_top = 4
@@ -614,7 +691,8 @@ func _build_bonus_banner(percent: int) -> PanelContainer:
 	lab.text = Translations.tr_key("shop.bonus_percent_fmt", [percent])
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lab.add_theme_font_size_override("font_size", 20)
-	lab.add_theme_color_override("font_color", Color.BLACK)
+	var bonus_text: Color = ThemeManager.color("button_primary_text", Color.BLACK) if _is_supercell() else Color.BLACK
+	lab.add_theme_color_override("font_color", bonus_text)
 	pc.add_child(lab)
 	return pc
 
@@ -623,9 +701,14 @@ func _build_top_ribbon(text: String) -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	pc.clip_contents = true
+	var ribbon_bg: Color = ThemeManager.color("button_primary_bg", Color("FFCC2E")) if _is_supercell() else Color("FFEC00")
 	var st := StyleBoxFlat.new()
-	st.bg_color = Color("FFEC00")
+	st.bg_color = ribbon_bg
 	st.set_corner_radius_all(6)
+	if _is_supercell():
+		st.set_border_width_all(2)
+		st.border_color = ThemeManager.color("button_primary_border", Color("152033"))
+		st.anti_aliasing = true
 	st.content_margin_left = 14
 	st.content_margin_right = 14
 	st.content_margin_top = 4
@@ -635,7 +718,8 @@ func _build_top_ribbon(text: String) -> PanelContainer:
 	lab.text = text
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lab.add_theme_font_size_override("font_size", 18)
-	lab.add_theme_color_override("font_color", Color.BLACK)
+	var ribbon_text: Color = ThemeManager.color("button_primary_text", Color.BLACK) if _is_supercell() else Color.BLACK
+	lab.add_theme_color_override("font_color", ribbon_text)
 	pc.add_child(lab)
 	_attach_shimmer_sweep(pc, 3.0, Color(1, 1, 1, 0.7))
 	return pc
@@ -679,17 +763,27 @@ func _build_buy_button() -> Button:
 	btn.custom_minimum_size = Vector2(0, 44)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.add_theme_font_size_override("font_size", 22)
-	btn.add_theme_color_override("font_color", Color.WHITE)
-	btn.add_theme_color_override("font_outline_color", Color(0, 0.25, 0.05, 0.9))
-	btn.add_theme_constant_override("outline_size", 3)
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color(0.15, 0.80, 0.35)
-	st.set_border_width_all(2)
-	st.border_color = Color(0.04, 0.40, 0.12)
-	st.set_corner_radius_all(22)
+	var st: StyleBoxFlat
+	var hover: StyleBoxFlat
+	if _is_supercell():
+		var fill: Color = ThemeManager.color("button_primary_bg", Color("FFCC2E"))
+		var border: Color = ThemeManager.color("button_primary_border", Color("152033"))
+		st = _make_skin_sticker(fill, border, 14)
+		hover = st.duplicate() as StyleBoxFlat
+		hover.bg_color = fill.lightened(0.08)
+		btn.add_theme_color_override("font_color", ThemeManager.color("button_primary_text", Color("2A1F00")))
+	else:
+		btn.add_theme_color_override("font_color", Color.WHITE)
+		btn.add_theme_color_override("font_outline_color", Color(0, 0.25, 0.05, 0.9))
+		btn.add_theme_constant_override("outline_size", 3)
+		st = StyleBoxFlat.new()
+		st.bg_color = Color(0.15, 0.80, 0.35)
+		st.set_border_width_all(2)
+		st.border_color = Color(0.04, 0.40, 0.12)
+		st.set_corner_radius_all(22)
+		hover = st.duplicate() as StyleBoxFlat
+		hover.bg_color = Color(0.20, 0.88, 0.40)
 	btn.add_theme_stylebox_override("normal", st)
-	var hover := st.duplicate()
-	hover.bg_color = Color(0.20, 0.88, 0.40)
 	btn.add_theme_stylebox_override("hover", hover)
 	btn.add_theme_stylebox_override("pressed", hover)
 	btn.add_theme_stylebox_override("focus", st)
@@ -735,6 +829,7 @@ func _initiate_purchase(product_id: String, expected_amount: int, from_pos: Vect
 	var on_success := func(pid: String, _chips: int) -> void:
 		if pid != product_id:
 			return
+		SoundManager.play("shop_purchase")
 		_spawn_confetti_burst(from_pos)
 		_spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
 	var on_failure := func(pid: String, err: String) -> void:
@@ -798,9 +893,10 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 		_animate_balance_increment(old_credits, new_credits, 0.9)
 		return
 
-	var chip_count: int = 10
-	var stagger_step: float = 0.05
-	var travel_time: float = 0.55
+	var anim: Dictionary = ConfigManager.get_claim_animation()
+	var chip_count: int = anim["chip_count"]
+	var stagger_step: float = anim["stagger_step_sec"]
+	var travel_time: float = anim["travel_time_sec"]
 	var chip_size: Vector2 = Vector2(52, 52)
 	var chip_color: Color = Color("FFEC00")
 
@@ -868,11 +964,13 @@ func _spawn_chip_trail(tex: Texture2D, size: Vector2, color: Color, start: Vecto
 func _animate_balance_increment(from: int, to: int, duration: float) -> void:
 	if _cash_cd.is_empty():
 		return
+	SoundManager.play_sfx_loop("balance_increment")
 	var tw := create_tween()
 	tw.tween_method(func(val: int) -> void:
 		if not _cash_cd.is_empty():
 			SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(val))
 	, from, to, duration).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(func() -> void: SoundManager.stop_sfx_loop_if("balance_increment"))
 
 
 func _flash_balance_pill(duration: float) -> void:
@@ -967,3 +1065,39 @@ func _attach_shimmer_sweep(ctrl: Control, period: float = 3.0, color: Color = Co
 		])
 		ctrl.draw_colored_polygon(poly, color)
 	)
+
+
+# --- Theme helpers ----------------------------------------------------------
+
+func _is_supercell() -> bool:
+	return ThemeManager.current_id == "supercell"
+
+
+## Sticker-style StyleBoxFlat (supercell drop-shadow look).
+## In classic skins falls back to a plain rounded panel without the shadow.
+func _make_skin_sticker(fill: Color, border: Color, radius: int) -> StyleBoxFlat:
+	var st := StyleBoxFlat.new()
+	st.bg_color = fill
+	st.border_color = border
+	st.set_border_width_all(int(ThemeManager.size("border_width", 3)))
+	st.set_corner_radius_all(radius)
+	st.anti_aliasing = true
+	if _is_supercell():
+		st.shadow_color = Color(0, 0, 0, 0.5)
+		st.shadow_offset = Vector2(0, int(ThemeManager.size("button_shadow_offset", 6)))
+	return st
+
+
+## Apply the active theme's font (e.g. LilitaOne for supercell) to every
+## Label/Button in the subtree. Single pass so individual builders stay free
+## of font wiring.
+func _apply_theme_font_recursive(node: Node) -> void:
+	var f: Font = ThemeManager.font()
+	if f == null:
+		return
+	if node is Label:
+		(node as Label).add_theme_font_override("font", f)
+	elif node is Button:
+		(node as Button).add_theme_font_override("font", f)
+	for child in node.get_children():
+		_apply_theme_font_recursive(child)

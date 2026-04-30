@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "_doc": "Haptic feedback per event. duration_ms = how long to vibrate. Set 0 to disable that event without removing it. heavy_events get a 3-pulse pattern instead of single buzz.",
+
+  "events": {
+    "button_press":         10,
+    "card_hold":            10,
+    "bet_change":           10,
+    "card_deal":            15,
+    "card_flip":            15,
+    "win_small":            30,
+    "win_medium":           40,
+    "win_large":            60,
+    "win_royal_flush":     100,
+    "win_jackpot":         100,
+    "spin_reel":             8,
+    "spin_stop":            20,
+    "double_win":           30,
+    "double_lose":          20,
+    "gift_claim":           40,
+    "multiplier_activate":  25
+  },
+
+  "heavy_events": ["win_royal_flush", "win_jackpot"],
+  "heavy_pulse_count": 3,
+  "heavy_inter_pulse_gap_ms": 50
+}

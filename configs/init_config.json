@@ -1,13 +1,19 @@
 {
-  "version": 1,
+  "version": 2,
+  "_doc": "First-launch & global defaults. SaveManager._seed_first_launch_defaults() reads these only when no save file exists (fresh install). Once a save file is written, player's saved values win. Wired keys: starting_balance, default_speed, default_denomination_index (via balance.json), default_mode, default_machine, default_locale, default_theme, first_gift_delay_hours. show_speed_button & show_double_button are read at every game-screen build. tutorial_enabled is reserved (no tutorial system yet).",
+
   "starting_balance": 20000,
+
   "default_speed": 1,
-  "show_speed_button": true,
-  "show_double_button": true,
-  "default_denomination": 1,
+  "default_denomination_index": 0,
   "default_mode": "single_play",
   "default_machine": "jacks_or_better",
   "default_locale": "en",
+  "default_theme": "classic",
+
+  "show_speed_button": true,
+  "show_double_button": true,
+
   "tutorial_enabled": true,
   "first_gift_delay_hours": 0
 }

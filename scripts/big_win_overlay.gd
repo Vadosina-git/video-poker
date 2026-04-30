@@ -24,7 +24,10 @@ func _theme_big_win_path(rel: String) -> String:
 
 ## Classify via ConfigManager, then show if the payout qualifies.
 ## `host` is the Control the overlay is parented to (the game screen).
+## Disable globally via configs/features.json -> feature_flags.big_win_overlay_enabled.
 func show_if_qualifies(host: Node, payout: int, total_bet: int) -> void:
+	if not ConfigManager.is_feature_enabled("big_win_overlay_enabled", true):
+		return
 	var level := ConfigManager.classify_big_win(payout, total_bet)
 	if level == "none":
 		return
@@ -113,6 +116,7 @@ func show_win(host: Node, amount: int, level: String = "big") -> void:
 		overlay.size.x * 0.5 - title.size.x * 0.5,
 		overlay.size.y * 0.32 - title.size.y * 0.5,
 	)
+	SoundManager.play_music("big_win_music")
 	var tt := title.create_tween().set_parallel(true)
 	tt.tween_property(title, "modulate:a", 1.0, 0.35).set_ease(Tween.EASE_OUT)
 	tt.tween_property(title, "scale", Vector2.ONE, 0.55) \
@@ -153,6 +157,7 @@ func show_win(host: Node, amount: int, level: String = "big") -> void:
 		overlay.size.x * 0.5 - counter_max_w * 0.5,
 		counter_top,
 	)
+	SoundManager.play_sfx_loop("coin_increment")
 	var counter_state := {"val": 0}
 	var counter_tw := overlay.create_tween()
 	counter_tw.tween_method(func(v: float) -> void:
@@ -164,6 +169,7 @@ func show_win(host: Node, amount: int, level: String = "big") -> void:
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	counter_tw.tween_callback(func() -> void:
 		_update_counter(counter_box, amount)
+		SoundManager.stop_sfx_loop_if("coin_increment")
 		_tap_ready = true
 	)
 
@@ -205,6 +211,8 @@ func _dismiss() -> void:
 	_overlay = null
 	_tap_ready = false
 	_counter_slots.clear()  # slots will be freed with the overlay subtree
+	SoundManager.stop_music(1.5)
+	SoundManager.stop_sfx_loop_if("coin_increment")
 	var tw := ov.create_tween()
 	tw.tween_property(ov, "modulate:a", 0.0, 0.3)
 	tw.tween_callback(ov.queue_free)

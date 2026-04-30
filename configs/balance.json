@@ -1,16 +1,19 @@
 {
-  "version": 1,
+  "version": 3,
+  "_doc": "Per-mode betting economics. denominations = chip-coin face values available in BET AMOUNT picker. default_denomination_index seeds first-launch selection (consumed by SaveManager._seed_first_launch_defaults via init_config + balance). NOTE: max_bet is a STRUCTURAL constant (=5) tied to the 5-column paytable layout in machines.json hands[].pays — it cannot be changed via config without rebuilding paytables and FSM logic. Likewise min_bet=1 is implicit in bet-cycling logic.",
+
   "modes": {
-    "single_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 200},
-    "triple_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 600},
-    "five_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 1000},
-    "ten_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 2000},
-    "ultra_vp": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 800},
-    "spin_poker": {"denominations": [100, 200, 500, 1000], "default_denomination_index": 0, "max_bet_multiplier": 5, "recommended_min_balance_multiplier": 1000}
+    "single_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
+    "triple_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
+    "five_play":   {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
+    "ten_play":    {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
+    "ultra_vp":    {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
+    "spin_poker":  {"denominations": [100, 200, 500, 1000],                            "default_denomination_index": 0}
   },
+
   "big_win_thresholds": {
-    "_comment": "Bet-normalized multiplier = payout / bet. BIG WIN fires when multiplier is in [big_win.min, big_win.max]. HUGE WIN fires at or above huge_win.min.",
-    "big_win": {"min": 4, "max": 7},
+    "_doc": "Bet-normalized multiplier = payout / total_bet. BIG WIN fires when multiplier in [big_win.min, big_win.max]. HUGE WIN fires at or above huge_win.min. Disable celebration entirely via configs/features.json -> feature_flags.big_win_overlay_enabled.",
+    "big_win":  {"min": 4, "max": 7},
     "huge_win": {"min": 8}
   }
 }

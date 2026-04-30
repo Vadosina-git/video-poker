@@ -1,21 +1,24 @@
 {
-  "version": 1,
-  "card_deal_delay_ms": 100,
-  "card_draw_delay_ms": 150,
-  "bet_highlight_duration_ms": 1000,
-  "win_counter_duration_ms": 3000,
-  "win_highlight_hold_sec": 3,
-  "balance_increment_duration_sec": 5,
-  "gift_increment_duration_sec": 5,
+  "version": 2,
+  "_doc": "Animation timings (ms unless suffixed _sec / _factor / _count / _px). Used by ConfigManager.get_animation(key, default). All keys here are wired and drive runtime behaviour. Per-speed overrides (used during DEAL/DRAW pacing and Spin Poker reel base/inertia/stagger durations) live in SPEED_CONFIGS arrays inside game.gd / multi_hand_game.gd / spin_poker_game.gd — they are not exposed here because they're indexed by SaveManager.speed_level (0..3).",
+
+  "card_deal_delay_ms": 80,
+  "card_draw_delay_ms": 80,
+
   "deal_button_idle_blink_sec": 5,
   "deal_button_blink_interval_ms": 600,
-  "spin_reel_stop_delay_ms": 2000,
-  "spin_stop_inertia_ms": 700,
-  "double_card_flip_ms": 800,
-  "lobby_machine_tap_transition_ms": 400,
-  "spin_reel_speed_px_per_sec": 3000,
+
+  "win_counter_single_ms": 2000,
+  "win_counter_multi_ms": 1400,
+  "post_win_pause_sec": 0.5,
+  "bet_highlight_single_ms": 800,
+  "bet_highlight_multi_ms": 400,
+
+  "double_card_flip_ms": 150,
+
+  "spin_reel_speed_factor": 0.6,
   "spin_reel_deceleration_ms": 800,
   "spin_reel_bounce_px": 5,
   "spin_reel_column_delay_ms": 300,
-  "spin_filler_cards_count": 15
+  "spin_filler_cards_count": 20
 }

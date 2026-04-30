@@ -24,6 +24,8 @@ func _ready() -> void:
 
 
 func _show_lobby() -> void:
+	SoundManager.stop_ambient()
+	SoundManager.play_lobby_ambient()
 	_clear_current()
 	var lobby: Control = LobbyScene.instantiate()
 	add_child(lobby)
@@ -61,6 +63,7 @@ func _on_machine_selected(variant_id: String) -> void:
 
 
 func _load_game_scene(variant_id: String) -> void:
+	SoundManager.stop_ambient()
 	_clear_current()
 	var paytable: Paytable = _paytables[variant_id]
 	var variant := _create_variant(variant_id, paytable)
@@ -79,6 +82,7 @@ func _load_game_scene(variant_id: String) -> void:
 			_make_full_rect(spin_game)
 			_current_scene = spin_game
 			spin_game.back_to_lobby.connect(_show_lobby)
+			SoundManager.play_ambient()
 			return
 
 	if hand_count > 1 or ultra_vp:
@@ -94,6 +98,7 @@ func _load_game_scene(variant_id: String) -> void:
 			_current_scene = multi_game
 			multi_game.back_to_lobby.connect(_show_lobby)
 			_fade_in_scene(multi_game)
+			SoundManager.play_ambient()
 			return
 
 	# Single hand mode — route to per-theme scene if the active skin
@@ -108,6 +113,7 @@ func _load_game_scene(variant_id: String) -> void:
 	_current_scene = game
 	game.back_to_lobby.connect(_show_lobby)
 	_fade_in_scene(game)
+	SoundManager.play_ambient()
 
 
 func _get_single_hand_scene() -> PackedScene:

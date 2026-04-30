@@ -1,15 +1,45 @@
 {
-  "version": 1,
+  "version": 3,
+  "_doc": "events: <event_name> -> <file under sounds_path>. Event names MUST match SoundManager.play(name) callsites in code. Keys with no matching file in assets/ are silently skipped at load. Placeholder events marked with _placeholder use default sound and need replacement.",
   "sounds_path": "res://assets/sounds/",
   "events": {
-    "button_press": "sfx_button_press.mp3", "card_deal": "sfx_card_deal.mp3", "card_flip": "sfx_card_flip.mp3",
-    "card_hold": "sfx_card_hold.mp3", "bet_change": "sfx_bet_change.mp3", "win_small": "sfx_win_small.mp3",
-    "win_medium": "sfx_win_medium.mp3", "win_large": "sfx_win_large.mp3", "win_royal_flush": "sfx_win_royal_flush.mp3",
-    "win_jackpot": "sfx_win_jackpot.mp3", "lose": "sfx_lose.mp3", "double_win": "sfx_double_win.mp3",
-    "double_lose": "sfx_double_lose.mp3", "balance_increment": "sfx_balance_increment.mp3",
-    "gift_claim": "sfx_gift_claim.mp3", "shop_purchase": "sfx_shop_purchase.mp3",
-    "spin_reel": "sfx_spin_reel.mp3", "spin_stop": "sfx_spin_stop.mp3",
-    "multiplier_activate": "sfx_multiplier_activate.mp3", "lobby_ambient": "sfx_lobby_ambient.mp3",
-    "deal_button_blink": "sfx_deal_blink.mp3"
+    "hold":               "sfx_card_hold.wav",
+    "combination_found":  "sfx_combination_found.wav",
+    "deal":               "sfx_card_deal.wav",
+    "flip":               "sfx_card_flip.wav",
+    "win":                "sfx_win_medium.wav",
+    "win_small":          "sfx_win_small.wav",
+    "win_big":            "sfx_win_large.wav",
+    "win_royal":          "sfx_win_royal_flush.wav",
+    "win_jackpot":        "sfx_win_jackpot.wav",
+    "lose":               "sfx_lose.wav",
+    "double_win":         "sfx_double_win.wav",
+    "double_lose":        "sfx_double_lose.wav",
+    "balance_increment":  "sfx_balance_increment.wav",
+    "gift_claim":         "sfx_gift_claim.wav",
+    "shop_purchase":      "sfx_shop_purchase.wav",
+    "spin_reel":          "sfx_spin_reel.wav",
+    "spin_stop":          "sfx_spin_stop.wav",
+    "multiplier_activate":"sfx_multiplier_activate.wav",
+    "lobby_ambient":      "sfx_lobby_ambient.wav",
+    "game_ambient":       "sfx_game_ambient.wav",
+    "big_win_music":      "sfx_big_win_music.wav",
+    "coin_increment":     "sfx_coin_increment.wav",
+    "game_ambient_2":     "sfx_game_ambient_2.wav",
+    "game_ambient_3":     "sfx_game_ambient_3.wav",
+    "deal_button_blink":  "sfx_deal_blink.wav",
+    "button_press":       "sfx_button_press.wav",
+    "button_disabled":    "sfx_button_disabled.wav",
+    "hand_result":        "sfx_hand_result.wav",
+    "flip_extra":         "sfx_card_flip.wav"
+  },
+  "_placeholders": [],
+  "pitches": {
+    "button_press":     0.82,
+    "button_disabled":  0.75
+  },
+  "volumes_db": {
+    "flip":       -2.0,
+    "flip_extra": -4.4
   }
 }

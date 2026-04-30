@@ -1,8 +1,20 @@
 {
-  "version": 1,
+  "version": 3,
+  "_doc": "Free-credits-on-timer system. interval_hours = how often a gift becomes claimable. chips_amount = how many credits are awarded. claim_animation tunes the chip-cascade flying from gift button to balance pill (consumed by lobby_manager._spawn_chip_cascade and shop_overlay._spawn_chip_cascade). notification.* are reserved for future push-notification integration. To hide the gift button entirely, use configs/features.json -> ui_visibility.show_lobby_gift_button.",
+
   "interval_hours": 2,
   "chips_amount": 500,
-  "notification": {"title_key": "gift.notification.title", "body_key": "gift.notification.body"},
-  "claim_animation_duration_sec": 5,
-  "show_lobby_indicator": true
+
+  "claim_animation": {
+    "_doc": "Total duration ≈ travel_time_sec + stagger_step_sec × (chip_count - 1).",
+    "chip_count": 10,
+    "stagger_step_sec": 0.05,
+    "travel_time_sec": 0.55
+  },
+
+  "notification": {
+    "_doc": "Reserved for push-notification integration. Currently UNUSED — no push system wired.",
+    "title_key": "gift.notification.title",
+    "body_key":  "gift.notification.body"
+  }
 }

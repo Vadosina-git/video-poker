@@ -51,10 +51,20 @@ const MODE_HANDS := {
 func _build_play_modes() -> void:
 	PLAY_MODES.clear()
 	var lobby_modes := ConfigManager.get_lobby_modes()
+	# features.json gates entire mode families (multi-hand / ultra_vp / spin_poker).
+	var multi_on: bool = ConfigManager.is_feature_enabled("multi_hand_enabled", true)
+	var ultra_on: bool = ConfigManager.is_feature_enabled("ultra_vp_enabled", true)
+	var spin_on: bool = ConfigManager.is_feature_enabled("spin_poker_enabled", true)
 	for m in lobby_modes:
 		if not m.get("enabled", true):
 			continue
 		var mode_id: String = m.get("id", "")
+		if mode_id in ["triple_play", "five_play", "ten_play"] and not multi_on:
+			continue
+		if mode_id == "ultra_vp" and not ultra_on:
+			continue
+		if mode_id == "spin_poker" and not spin_on:
+			continue
 		PLAY_MODES.append({
 			"id": mode_id,
 			"label_key": m.get("label_key", "lobby.mode_" + mode_id),
@@ -70,8 +80,6 @@ func _build_play_modes() -> void:
 		]
 var _active_mode: int = 0
 # Per-mode gradient pairs for the supercell skin (top → bottom).
-# Classic skin still uses the static `grid_bg_top/bottom` from its theme
-# JSON so the original look is preserved bit-for-bit.
 const SUPERCELL_MODE_BG := {
 	"single_play": [Color("22CBFD"), Color("A5E6FF")],   # cyan — default supercell
 	# Multi-hand modes progressively darken with hand count so the
@@ -82,10 +90,23 @@ const SUPERCELL_MODE_BG := {
 	"ultra_vp":    [Color("4CAF50"), Color("1B5E20")],   # supercell green
 	"spin_poker":  [Color("7E57C2"), Color("4527A0")],   # supercell purple
 }
+
+# Per-mode gradient pairs for the classic skin (top → bottom).
+# Single keeps the original theme colors; each multi-hand step darkens the
+# bottom accent progressively. Ultra → dark forest green. Spin → deep purple.
+const CLASSIC_MODE_BG := {
+	"single_play": [Color("07132A"), Color("4A8CC8")],   # classic navy → sky blue
+	"triple_play": [Color("061122"), Color("3D79AD")],   # slightly darker blue
+	"five_play":   [Color("050E1B"), Color("306090")],   # medium dark blue
+	"ten_play":    [Color("040C16"), Color("214566")],   # deep dark blue
+	"ultra_vp":    [Color("031A08"), Color("0D5C2A")],   # dark forest green
+	"spin_poker":  [Color("0E0320"), Color("4A147A")],   # deep purple
+}
 var _active_bg_top: Color = Color(0.04, 0.04, 0.08, 1)
 var _active_bg_bot: Color = Color(0.04, 0.04, 0.08, 1)
 var _bg_node: ColorRect = null
 var _sidebar_buttons: Array[Button] = []
+var _bg_gradient_node: TextureRect = null  # ThemeGradient TextureRect; updated on mode change
 var _gift_footer_label: Label = null
 var _gift_footer_tex: TextureRect = null
 var _gift_footer_ready_path: String = ""
@@ -183,6 +204,7 @@ func _build_bg_layer() -> void:
 		add_child(gr)
 		move_child(gr, insert_idx)
 		insert_idx += 1
+		_bg_gradient_node = gr
 	var overlay_tex: Texture2D = ThemeManager.background_overlay_gradient_texture()
 	if overlay_tex != null:
 		var ov := TextureRect.new()
@@ -478,14 +500,15 @@ func _style_top_bar() -> void:
 	# The badge is a plain red dot that appears only while at least one
 	# free reward is available in the shop (daily gift OR any IAP pack
 	# off its cooldown). State is maintained by _refresh_shop_badge.
-	_store_btn = _make_top_icon_btn("store",
-		Translations.tr_key("lobby.store"),
-		_show_shop)
-	_store_btn.draw.connect(func() -> void:
-		if _shop_badge_visible:
-			_draw_badge(_store_btn)
-	)
-	left.add_child(_store_btn)
+	if ConfigManager.is_visible("show_lobby_store_button", true):
+		_store_btn = _make_top_icon_btn("store",
+			Translations.tr_key("lobby.store"),
+			_show_shop)
+		_store_btn.draw.connect(func() -> void:
+			if _shop_badge_visible:
+				_draw_badge(_store_btn)
+		)
+		left.add_child(_store_btn)
 
 	# ---------- expanding spacer ----------
 	var sp1 := Control.new()
@@ -517,9 +540,10 @@ func _style_top_bar() -> void:
 	right.add_child(_make_top_icon_btn("support",
 		Translations.tr_key("lobby.support"),
 		_show_support))
-	right.add_child(_make_top_icon_btn("settings",
-		Translations.tr_key("lobby.settings"),
-		_show_settings))
+	if ConfigManager.is_visible("show_lobby_settings_gear", true):
+		right.add_child(_make_top_icon_btn("settings",
+			Translations.tr_key("lobby.settings"),
+			_show_settings))
 
 	# ---------- RIGHT safe zone ----------
 	var right_pad := Control.new()
@@ -666,8 +690,11 @@ func _draw_badge(ctrl: Control) -> void:
 ## True while the shop has at least one claimable free reward: the
 ## daily gift (when its cooldown has elapsed) or any IAP pack currently
 ## off its own cooldown. Called every frame from _process — cheap:
-## integer math + a dictionary lookup.
+## integer math + a dictionary lookup. Suppressed when configs/features.json
+## -> feature_flags.lobby_store_indicator is false (no red dot shown).
 func _has_free_shop_reward() -> bool:
+	if not ConfigManager.is_feature_enabled("lobby_store_indicator", true):
+		return false
 	if _is_gift_ready():
 		return true
 	var items: Array = ConfigManager.get_shop_items()
@@ -742,19 +769,26 @@ func _style_footer() -> void:
 
 
 func _build_footer_modes() -> void:
-	# Find active mode from SaveManager (match hands + ultra_vp flag).
+	# Find active mode from SaveManager — prefer mode_id match, fall back to hand_count.
 	var found := false
 	for j in PLAY_MODES.size():
-		var m: Dictionary = PLAY_MODES[j]
-		if m["hands"] == SaveManager.hand_count and m["ultra_vp"] == SaveManager.ultra_vp and m.get("spin_poker", false) == SaveManager.spin_poker:
+		if PLAY_MODES[j].get("id", "") == SaveManager.mode_id:
 			_active_mode = j
 			found = true
 			break
+	if not found:
+		for j in PLAY_MODES.size():
+			var m: Dictionary = PLAY_MODES[j]
+			if m["hands"] == SaveManager.hand_count and m["ultra_vp"] == SaveManager.ultra_vp and m.get("spin_poker", false) == SaveManager.spin_poker:
+				_active_mode = j
+				found = true
+				break
 	if not found and PLAY_MODES.size() > 0:
 		# Saved mode was disabled in config — sync SaveManager to the first
 		# enabled mode so machine routing doesn't leak stale flags (e.g. old
 		# spin_poker=true would otherwise launch spin_poker_game.tscn).
 		_active_mode = 0
+		SaveManager.mode_id = PLAY_MODES[0].get("id", "single_play")
 		SaveManager.hand_count = PLAY_MODES[0]["hands"]
 		SaveManager.ultra_vp = PLAY_MODES[0]["ultra_vp"]
 		SaveManager.spin_poker = PLAY_MODES[0].get("spin_poker", false)
@@ -786,10 +820,16 @@ func _build_footer_modes() -> void:
 
 
 func _on_mode_selected(index: int) -> void:
+	var was_ultra: bool = _active_mode == index and PLAY_MODES[index].get("ultra_vp", false)
 	_active_mode = index
-	SaveManager.hand_count = PLAY_MODES[index]["hands"]
+	var selected_mode_id: String = PLAY_MODES[index].get("id", "single_play")
+	SaveManager.mode_id = selected_mode_id
+	var default_hands: int = PLAY_MODES[index]["hands"]
+	SaveManager.hand_count = SaveManager.mode_hand_counts.get(selected_mode_id, default_hands)
 	SaveManager.ultra_vp = PLAY_MODES[index]["ultra_vp"]
 	SaveManager.spin_poker = PLAY_MODES[index].get("spin_poker", false)
+	if PLAY_MODES[index].get("ultra_vp", false) and not was_ultra:
+		SoundManager.play("multiplier_activate")
 	SaveManager.save_game()
 	# Repaint the lobby backdrop with the new mode's gradient (supercell
 	# only — classic stays on its theme-default colors).
@@ -813,8 +853,8 @@ func _on_mode_selected(index: int) -> void:
 ## Metadata `mode_id` drives the primitive drawn (so PNG swaps can be
 ## slotted in later using the same keys as machine tiles).
 ## Resolve the lobby gradient pair for the currently selected mode.
-## Supercell uses the per-mode SUPERCELL_MODE_BG palette; every other
-## skin (currently classic) keeps its theme-defined `grid_bg_top/bottom`.
+## Supercell uses SUPERCELL_MODE_BG; classic uses CLASSIC_MODE_BG (mode-aware
+## darkening). Unknown skins fall back to theme `grid_bg_top/bottom` colors.
 func _apply_mode_bg() -> void:
 	var mode_id: String = "single_play"
 	if _active_mode >= 0 and _active_mode < PLAY_MODES.size():
@@ -826,11 +866,42 @@ func _apply_mode_bg() -> void:
 		_active_bg_top = pair[0]
 		_active_bg_bot = pair[1]
 	else:
-		var solid: Color = ThemeManager.color("bg_main", Color(0.04, 0.04, 0.08))
-		_active_bg_top = ThemeManager.color("grid_bg_top", solid)
-		_active_bg_bot = ThemeManager.color("grid_bg_bottom", solid)
+		var pair: Variant = CLASSIC_MODE_BG.get(mode_id, null)
+		if pair != null:
+			_active_bg_top = pair[0]
+			_active_bg_bot = pair[1]
+		else:
+			var solid: Color = ThemeManager.color("bg_main", Color(0.04, 0.04, 0.08))
+			_active_bg_top = ThemeManager.color("grid_bg_top", solid)
+			_active_bg_bot = ThemeManager.color("grid_bg_bottom", solid)
+		# Classic uses a radial GradientTexture2D — rebuild it with mode colors
+		# so switching modes visually tints the background.
+		if _bg_gradient_node != null and is_instance_valid(_bg_gradient_node):
+			_bg_gradient_node.texture = _build_classic_radial(_active_bg_top, _active_bg_bot)
 	if _bg_node != null and is_instance_valid(_bg_node):
 		_bg_node.queue_redraw()
+
+
+## Builds a radial GradientTexture2D matching the classic.json structure
+## but derived from the given edge (top/dark) and center (bot/accent) colors.
+## Stop positions mirror the original: 0.0 → 0.18 → 0.54 → 1.0.
+func _build_classic_radial(edge: Color, center: Color) -> GradientTexture2D:
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.18, 0.54, 1.0])
+	grad.colors = PackedColorArray([
+		center.lightened(0.12),           # glowing center — slightly brighter
+		center,                           # full accent
+		center.lerp(edge, 0.6),           # transitioning toward dark
+		edge,                             # darkest at the edges
+	])
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.width = 1024
+	tex.height = 1024
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 1.0)
+	return tex
 
 
 func _make_footer_mode_btn(mode_id: String, label_text: String, active: bool) -> Button:
@@ -1673,6 +1744,46 @@ func _show_settings() -> void:
 		lang_btn.pressed.connect(_show_language_picker)
 		vbox.add_child(lang_btn)
 
+	# Music toggle
+	var music_on: bool = SaveManager.settings.get("music", true)
+	var music_btn := Button.new()
+	music_btn.text = "%s: %s" % [
+		Translations.tr_key("settings.music"),
+		Translations.tr_key("common.on") if music_on else Translations.tr_key("common.off"),
+	]
+	music_btn.custom_minimum_size = Vector2(280, 56)
+	_style_lang_btn(music_btn, music_on)
+	music_btn.pressed.connect(func() -> void:
+		var new_val: bool = not SaveManager.settings.get("music", true)
+		SoundManager.set_music_enabled(new_val)
+		music_btn.text = "%s: %s" % [
+			Translations.tr_key("settings.music"),
+			Translations.tr_key("common.on") if new_val else Translations.tr_key("common.off"),
+		]
+		_style_lang_btn(music_btn, new_val)
+	)
+	vbox.add_child(music_btn)
+
+	# Sound FX toggle
+	var sfx_on: bool = SaveManager.settings.get("sound_fx", true)
+	var sfx_btn := Button.new()
+	sfx_btn.text = "%s: %s" % [
+		Translations.tr_key("settings.sound_fx"),
+		Translations.tr_key("common.on") if sfx_on else Translations.tr_key("common.off"),
+	]
+	sfx_btn.custom_minimum_size = Vector2(280, 56)
+	_style_lang_btn(sfx_btn, sfx_on)
+	sfx_btn.pressed.connect(func() -> void:
+		var new_val: bool = not SaveManager.settings.get("sound_fx", true)
+		SoundManager.set_sfx_enabled(new_val)
+		sfx_btn.text = "%s: %s" % [
+			Translations.tr_key("settings.sound_fx"),
+			Translations.tr_key("common.on") if new_val else Translations.tr_key("common.off"),
+		]
+		_style_lang_btn(sfx_btn, new_val)
+	)
+	vbox.add_child(sfx_btn)
+
 	# Vibration toggle
 	var vib_on: bool = SaveManager.settings.get("vibration", true)
 	var vib_btn := Button.new()
@@ -2199,6 +2310,10 @@ func _build_gift_widget() -> void:
 	_attach_hover_bounce(root)
 	_gift_btn = root
 
+	if not ConfigManager.is_visible("show_lobby_gift_button", true):
+		_gift_btn.queue_free()
+		_gift_btn = null
+		return
 	top_bar.add_child(_gift_btn)
 	if is_instance_valid(_settings_btn):
 		top_bar.move_child(_gift_btn, _settings_btn.get_index())
@@ -2409,10 +2524,12 @@ func _animate_balance_increment(from: int, to: int, duration: float) -> void:
 	# is up-to-date the instant the shop closes.
 	if target_cd != _cash_cd and not _cash_cd.is_empty():
 		SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(to))
+	SoundManager.play_sfx_loop("balance_increment")
 	var tw := create_tween()
 	tw.tween_method(func(val: int) -> void:
 		SaveManager.set_currency_value(target_cd, SaveManager.format_money(val))
 	, from, to, duration).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(func() -> void: SoundManager.stop_sfx_loop_if("balance_increment"))
 
 
 ## Spawns a visual cascade of chip icons that fly from `from_pos` (global)
@@ -2432,9 +2549,10 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 		_animate_balance_increment(old_credits, new_credits, 0.9)
 		return
 
-	var chip_count: int = 10
-	var stagger_step: float = 0.05
-	var travel_time: float = 0.55
+	var anim: Dictionary = ConfigManager.get_claim_animation()
+	var chip_count: int = anim["chip_count"]
+	var stagger_step: float = anim["stagger_step_sec"]
+	var travel_time: float = anim["travel_time_sec"]
 	var chip_size: Vector2 = Vector2(52, 52)  # bigger, per spec
 	var chip_color: Color = Color("FFEC00")    # yellow, per spec
 
@@ -2968,6 +3086,7 @@ func _build_chips_display(amount: int, font_size: int, color: Color) -> HBoxCont
 	num.add_theme_color_override("font_color", color)
 	num.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	num.add_theme_constant_override("outline_size", 3)
+	num.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hb.add_child(num)
 	var chip_tex: Texture2D = SaveManager.get_chip_texture()
 	if chip_tex:
@@ -2982,9 +3101,26 @@ func _build_chips_display(amount: int, font_size: int, color: Color) -> HBoxCont
 
 
 func _add_strike_line(ctrl: Control) -> void:
+	# Compute strike y from font ascent (digit visual centre ≈ label_top +
+	# ascent/2). Robust across themes, fonts and HBox row padding.
 	ctrl.draw.connect(func() -> void:
-		var y: float = ctrl.size.y * 0.55
-		ctrl.draw_line(Vector2(-2, y), Vector2(ctrl.size.x + 2, y), Color(1.0, 0.25, 0.25, 0.95), 3.0)
+		if ctrl.get_child_count() == 0:
+			return
+		var lab: Label = ctrl.get_child(0) as Label
+		if lab == null:
+			var fy: float = ctrl.size.y * 0.5
+			ctrl.draw_line(Vector2(-2, fy), Vector2(ctrl.size.x + 2, fy),
+				Color(1.0, 0.25, 0.25, 0.95), 3.0)
+			return
+		var f: Font = lab.get_theme_font("font")
+		var fs: int = lab.get_theme_font_size("font_size")
+		if f == null:
+			f = ThemeDB.fallback_font
+		if fs <= 0:
+			fs = ThemeDB.fallback_font_size
+		var y: float = lab.position.y + f.get_ascent(fs) * 0.5
+		ctrl.draw_line(Vector2(-2, y), Vector2(ctrl.size.x + 2, y),
+			Color(1.0, 0.25, 0.25, 0.95), 3.0)
 	)
 
 

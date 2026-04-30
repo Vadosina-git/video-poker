@@ -286,20 +286,15 @@ func flash_winning_row() -> void:
 	if _winning_row < 0:
 		return
 	var start: int = _winning_row * _columns
-	# anim 5.2: glow + scale pulse on each cell of the winning row (x3 cycles).
-	# Cells get a warm yellow tint and a gentle overscale, synchronised across the row.
+	# anim 5.2: glow on each cell of the winning row (x3 cycles).
 	for cycle in 3:
 		for col in _columns:
 			var label := _labels[start + col]
-			label.pivot_offset = label.size * 0.5
-			var tw := label.create_tween().set_parallel(true)
+			var tw := label.create_tween()
 			var base_delay: float = float(cycle) * 0.42
 			tw.tween_interval(base_delay)
-			tw.chain().tween_property(label, "modulate", Color(1.5, 1.4, 0.6), 0.2)
-			tw.tween_property(label, "scale", Vector2(1.08, 1.08), 0.2) \
-				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-			tw.chain().tween_property(label, "modulate", Color.WHITE, 0.22)
-			tw.tween_property(label, "scale", Vector2.ONE, 0.22).set_ease(Tween.EASE_OUT)
+			tw.tween_property(label, "modulate", Color(1.5, 1.4, 0.6), 0.2)
+			tw.tween_property(label, "modulate", Color.WHITE, 0.22)
 
 
 func _get_font_size() -> int:

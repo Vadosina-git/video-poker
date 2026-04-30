@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "_doc": "Feature flags & visibility switches. All keys here are wired into runtime — flipping any of them affects behaviour on next app launch (or scene reload for lobby flags). API: ConfigManager.is_feature_enabled(key) / is_visible(key) / get_default_theme().",
+
+  "feature_flags": {
+    "_doc": "Top-level on/off switches. Disable to hide entire features.",
+    "age_gate_enabled": true,
+    "big_win_overlay_enabled": true,
+    "double_or_nothing_enabled": true,
+    "ultra_vp_enabled": true,
+    "spin_poker_enabled": true,
+    "multi_hand_enabled": true,
+    "auto_shop_on_low_balance": true,
+    "deal_button_idle_blink": true,
+    "lobby_store_indicator": true,
+    "exit_confirm_dialog": true,
+    "sound_fx_default": true,
+    "vibration_default": true
+  },
+
+  "ui_visibility": {
+    "_doc": "Per-control visibility in lobby / cards. false = hide.",
+    "show_lobby_settings_gear": true,
+    "show_lobby_store_button": true,
+    "show_lobby_gift_button": true,
+    "show_rtp_in_machine_info": true
+  },
+
+  "theme": {
+    "_doc": "default_theme is consumed by SaveManager._seed_first_launch_defaults — kept here as the single canonical source (init_config.default_theme mirrors it).",
+    "default_theme": "classic"
+  }
+}

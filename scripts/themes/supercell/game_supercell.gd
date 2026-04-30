@@ -560,25 +560,16 @@ func _pulse_paytable_row(key: String) -> void:
 	var lit_fill := Color("FFCC2E")
 	var lit_text := Color("2B1C48")
 
-	row.pivot_offset = row.size * 0.5
 	var tw := row.create_tween().set_parallel(true)
 	if not same_row:
 		tw.tween_property(bg_style, "bg_color", lit_fill, 0.12) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.tween_property(row, "scale", Vector2(1.08, 1.08), 0.15) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	# Hand-name AND payout value go dark on a lit row — yellow text on
-	# yellow fill is unreadable. `_animate_payout_emphasis` may later
-	# repaint pay_lab red during the cascade, which is fine: that override
-	# is applied after this tween chain.
+	# yellow fill is unreadable.
 	if not same_row and name_lab != null:
 		tw.tween_property(name_lab, "theme_override_colors/font_color", lit_text, 0.12)
 	if not same_row and pay_lab != null:
 		tw.tween_property(pay_lab, "theme_override_colors/font_color", lit_text, 0.12)
-	# Scale settles back quickly, but fill + text colors stay until
-	# the next deal calls _reset_paytable_highlight().
-	tw.chain().tween_property(row, "scale", Vector2.ONE, 0.2) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	_highlighted_paytable_key = key
 
 
@@ -652,18 +643,11 @@ func _animate_payout_emphasis(row: Control, enable: bool) -> void:
 	if not is_instance_valid(pay_lab):
 		return
 	var emphasis_color := Color("E63946")
-	var target_scale := Vector2(1.4, 1.4) if enable else Vector2.ONE
 	var target_color := emphasis_color if enable else PAYTABLE_ROW_COL
 	var prev_tw: Tween = pay_lab.get_meta("emphasis_tween", null)
 	if prev_tw != null and prev_tw.is_running():
 		prev_tw.kill()
-	pay_lab.pivot_offset = pay_lab.size * 0.5
 	var tw: Tween = pay_lab.create_tween()
-	tw.set_parallel(true)
-	tw.tween_property(pay_lab, "scale", target_scale, 0.18) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	# Drive font_color directly (theme override) instead of `modulate`,
-	# so the red is pure red, not red × yellow muddy orange.
 	tw.tween_property(pay_lab, "theme_override_colors/font_color", target_color, 0.18) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	pay_lab.set_meta("emphasis_tween", tw)
@@ -1667,13 +1651,16 @@ func _on_state_changed(state: int) -> void:
 
 func _start_idle_blink() -> void:
 	_stop_idle_blink()
+	if not ConfigManager.is_feature_enabled("deal_button_idle_blink", true):
+		return
 	if _draw_btn == null:
 		return
 	_idle_blink_tween = _draw_btn.create_tween().set_loops()
+	var half_blink: float = ConfigManager.get_animation("deal_button_blink_interval_ms", 600.0) / 2000.0
 	for i in 2:
-		_idle_blink_tween.tween_property(_draw_btn, "modulate:a", 0.45, 0.3)
-		_idle_blink_tween.tween_property(_draw_btn, "modulate:a", 1.0, 0.3)
-	_idle_blink_tween.tween_interval(5.0)
+		_idle_blink_tween.tween_property(_draw_btn, "modulate:a", 0.45, half_blink)
+		_idle_blink_tween.tween_property(_draw_btn, "modulate:a", 1.0, half_blink)
+	_idle_blink_tween.tween_interval(ConfigManager.get_animation("deal_button_idle_blink_sec", 5.0))
 
 
 func _stop_idle_blink() -> void:
@@ -1709,13 +1696,13 @@ func _on_cards_dealt(dealt_hand: Array) -> void:
 			if not instant:
 				await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
 	if any_face_up and not instant:
-		await get_tree().create_timer(0.08).timeout
+		await get_tree().create_timer(ConfigManager.get_animation("card_deal_delay_ms", 80.0) / 1000.0).timeout
 	for i in 5:
 		if i >= _cards.size():
 			continue
 		_cards[i].set_flip_duration(_get_flip_s())
 		_cards[i].set_card(dealt_hand[i], true, _variant.is_wild_card(dealt_hand[i]))
-		SoundManager.play("deal")
+		SoundManager.play("flip")
 		VibrationManager.vibrate("card_deal")
 		# Clear hold state from previous round — classic HELD overlay off
 		# + balatro tilt + wobble reset. Without explicit wobble stop the
@@ -1865,17 +1852,6 @@ func _show_win_name_pill(show: bool) -> void:
 	_win_name_label.visible = true
 	_win_name_label.scale = Vector2.ONE
 	_win_name_label.modulate.a = 1.0
-	# Wait one frame so the layout pass assigns the label a real size
-	# before we compute pivot — without this, pop-in collapses to 0.
-	await get_tree().process_frame
-	if not is_instance_valid(_win_name_label):
-		return
-	_win_name_label.pivot_offset = _win_name_label.size * 0.5
-	var tw := _win_name_label.create_tween().set_parallel(true)
-	tw.tween_property(_win_name_label, "scale", Vector2(1.12, 1.12), 0.18) \
-		.from(Vector2(0.7, 0.7)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.chain().tween_property(_win_name_label, "scale", Vector2.ONE, 0.18) \
-		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	_win_pill_blink_tw = _start_pill_blink(_win_name_label, _win_pill_blink_tw)
 
 
@@ -1935,10 +1911,11 @@ func _animate_win_increment(from: int, to: int) -> void:
 	if from == to:
 		return
 	_win_increment_tween = create_tween()
+	var dur: float = ConfigManager.get_animation("win_counter_single_ms", 2000.0) / 1000.0
 	_win_increment_tween.tween_method(func(val: int) -> void:
 		if _win_label != null:
 			_win_label.text = str(val)
-	, from, to, 2.0).set_ease(Tween.EASE_OUT)
+	, from, to, dur).set_ease(Tween.EASE_OUT)
 
 
 func _stop_win_increment() -> void:
@@ -2013,12 +1990,14 @@ func _run_balance_roll_up(new_credits: int) -> void:
 	var dur: float = lerpf(0.375, 1.8, ratio)  # 1.5× the previous 0.25..1.2
 	if _balance_tween and _balance_tween.is_running():
 		_balance_tween.kill()
+	SoundManager.play_sfx_loop("balance_increment")
 	_balance_tween = create_tween()
 	_balance_tween.tween_method(func(v: int) -> void:
 		_balance_display_value = v
 		if _balance_label != null:
 			_balance_label.text = SaveManager.format_money(v)
 	, from_val, to_val, dur).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	_balance_tween.tween_callback(func() -> void: SoundManager.stop_sfx_loop_if("balance_increment"))
 
 
 func _on_bet_changed(_new_bet: int) -> void:
@@ -2322,13 +2301,13 @@ func _on_deal_draw_pressed() -> void:
 				if not instant:
 					await get_tree().create_timer(_get_draw_ms() / 1000.0).timeout
 		if not instant:
-			await get_tree().create_timer(0.08).timeout
+			await get_tree().create_timer(ConfigManager.get_animation("card_draw_delay_ms", 80.0) / 1000.0).timeout
 		_game_manager.draw()
 		for i in 5:
 			if not _game_manager.held[i]:
 				_cards[i].set_flip_duration(_get_flip_s())
 				_cards[i].set_card(_game_manager.hand[i], true, _variant.is_wild_card(_game_manager.hand[i]))
-				SoundManager.play("deal")
+				SoundManager.play("flip")
 				VibrationManager.vibrate("card_deal")
 				if not instant:
 					await get_tree().create_timer(_get_draw_ms() / 1000.0).timeout
@@ -2345,7 +2324,7 @@ func _on_deal_draw_pressed() -> void:
 			var cost: int = _game_manager.bet * SaveManager.denomination
 			if cost > SaveManager.credits:
 				_flash_balance_red()
-				if ShopOverlay:
+				if ShopOverlay and ConfigManager.is_feature_enabled("auto_shop_on_low_balance", true):
 					ShopOverlay.show(self)
 				return
 		_game_manager.deal_or_draw()
@@ -2561,7 +2540,7 @@ func _start_double() -> void:
 		if i >= _cards.size():
 			continue
 		var cv: Control = _cards[i]
-		cv.set_flip_duration(0.15)
+		cv.set_flip_duration(ConfigManager.get_animation("double_card_flip_ms", 150.0) / 1000.0)
 		cv.set_held(false)
 		_stop_card_wobble(cv)
 		_tween_card_rotation(cv, 0.0, 0.18)
@@ -2601,7 +2580,7 @@ func _on_double_card_picked(index: int) -> void:
 
 	var card: CardData = _double_cards[index]
 	_cards[index].set_card(card, true)
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(ConfigManager.get_animation("post_win_pause_sec", 0.5)).timeout
 
 	var player_rank: int = card.rank as int
 	var dealer_rank: int = _double_dealer_card.rank as int

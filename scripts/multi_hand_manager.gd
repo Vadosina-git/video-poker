@@ -58,8 +58,21 @@ func setup(p_variant: BaseVariant, p_num_hands: int, p_ultra_vp: bool = false) -
 		next_multipliers.append(1)
 
 
-## Ultra VP multiplier table based on hand rank
-static func get_ultra_vp_multiplier(hand_rank: HandEvaluator.HandRank) -> int:
+## Ultra VP multiplier table based on hand rank.
+## Per-machine overrides come from configs/machines.json -> machines.{id}.ultra_multipliers.
+## When a machine declares its own table (e.g. deuces_wild has wild-only ranks), values
+## are looked up by paytable hand-key. The fallback table below is used for any rank
+## the machine config doesn't override.
+static func get_ultra_vp_multiplier(hand_rank: HandEvaluator.HandRank, variant_id: String = "") -> int:
+	if variant_id != "":
+		var cm: Node = Engine.get_main_loop().root.get_node_or_null("/root/ConfigManager")
+		if cm:
+			var m: Dictionary = cm.get_machine(variant_id)
+			var overrides: Dictionary = m.get("ultra_multipliers", {})
+			if overrides.size() > 0:
+				var key: String = Paytable.STANDARD_HAND_KEYS.get(hand_rank, "")
+				if key != "" and overrides.has(key):
+					return int(overrides[key])
 	match hand_rank:
 		HandEvaluator.HandRank.JACKS_OR_BETTER: return 2
 		HandEvaluator.HandRank.TWO_PAIR: return 3
@@ -88,7 +101,6 @@ func bet_one() -> void:
 			bet += 1
 	else:
 		bet = (bet % MAX_BET) + 1
-	SoundManager.play("bet")
 	SaveManager.set_bet_level(mode_id, bet)
 	bet_changed.emit(bet)
 
@@ -101,7 +113,6 @@ func bet_max() -> void:
 	bet = ULTRA_BET if ultra_vp else MAX_BET
 	SaveManager.set_bet_level(mode_id, bet)
 	bet_changed.emit(bet)
-	SoundManager.play("bet")
 	deal()
 
 
@@ -148,6 +159,10 @@ func on_deal_animation_complete() -> void:
 	for i in 5:
 		if variant.is_wild_card(primary_hand[i]):
 			held[i] = true
+	for h in held:
+		if h:
+			SoundManager.play("combination_found")
+			break
 	state = State.HOLDING
 	state_changed.emit(state)
 
@@ -211,7 +226,7 @@ func _evaluate_all() -> void:
 		total_payout += payout
 		# Calculate earned multiplier for next round (only at MAX BET)
 		if ux_active:
-			earned_multipliers.append(get_ultra_vp_multiplier(hand_rank))
+			earned_multipliers.append(get_ultra_vp_multiplier(hand_rank, variant.paytable.variant_id if variant and variant.paytable else ""))
 
 	# Store earned multipliers as next_multipliers (to be activated on next deal)
 	if ux_active:
@@ -221,12 +236,9 @@ func _evaluate_all() -> void:
 		SaveManager.add_credits(total_payout)
 		credits_changed.emit(SaveManager.credits)
 		if total_payout >= bet * num_hands * SaveManager.denomination * 5:
-			SoundManager.play("win_big")
+			SoundManager.play_with_pitch("win_big", randf_range(1.0, 1.2))
 		else:
-			SoundManager.play("win_small")
-	else:
-		SoundManager.play("lose")
-
+			SoundManager.play_with_pitch("win_small", randf_range(1.0, 1.2))
 	if SaveManager.credits <= 0:
 		SaveManager.credits = SaveManager.DEFAULT_CREDITS
 		SaveManager.save_game()

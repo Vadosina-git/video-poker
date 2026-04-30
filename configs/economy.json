@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "_doc": "Behavioral & economic tuning that lives outside balance.json (which is per-mode bet sizing). Values here drive guard-rails, depth hints, and risk rounds.",
+
+  "game_depth": {
+    "_doc": "Used to grey-out denominations the player can't afford for a meaningful session. balance / (denom * max_bet * num_hands) >= min_rounds_to_play -> denom is allowed.",
+    "min_rounds_to_play": 30,
+    "show_depth_hint": true,
+    "warn_below_rounds": 10
+  },
+
+  "auto_shop": {
+    "_doc": "When player's balance can't cover the next bet. trigger_below_min_bet=true opens shop overlay automatically.",
+    "trigger_below_min_bet": true,
+    "open_after_failed_bet_attempts": 1,
+    "show_low_balance_toast": true,
+    "low_balance_toast_threshold_credits": 100
+  },
+
+  "double_or_nothing": {
+    "_doc": "Risk round after a winning hand. Players double their last_win or lose it.",
+    "enabled_in_single": true,
+    "enabled_in_multi": true,
+    "enabled_in_spin_poker": true,
+    "enabled_in_ultra_vp": true,
+    "max_consecutive_doubles": 5,
+    "show_warning_first_time": true,
+    "dealer_card_count": 1,
+    "player_pick_count": 4,
+    "tie_returns_bet": true
+  },
+
+  "starting_balance": {
+    "_doc": "Mirror of init_config.starting_balance for organisational clarity. ConfigManager reads from init_config; setting here is a no-op unless wired explicitly.",
+    "first_launch_credits": 20000,
+    "min_balance_floor": 0,
+    "free_credits_when_broke": 500
+  },
+
+  "_max_bet_note": "min/max coin-bet per mode are NOT tunable via config — they are structural constants (1..5) tied to paytable column count in machines.json. Don't try to expose them here. Ultra VP activation cost is hardcoded as ULTRA_BET=2*MAX_BET=10 in multi_hand_manager.gd."
+}

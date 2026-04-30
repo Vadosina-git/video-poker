@@ -11,6 +11,10 @@ extends RefCounted
 static func show_if_needed(host: Control) -> void:
 	if SaveManager.age_gate_confirmed:
 		return
+	# Disable via configs/features.json -> feature_flags.age_gate_enabled.
+	var cm: Node = Engine.get_main_loop().root.get_node_or_null("/root/ConfigManager")
+	if cm and not cm.is_feature_enabled("age_gate_enabled", true):
+		return
 	_build(host)
 
 

@@ -11,6 +11,8 @@ var bet_level: int = 1    # Legacy, kept for backward compat
 var bet_levels: Dictionary = {}  # Per-mode: {"single_play": 1, "triple_play": 1, ...}
 var ultra_vp: bool = false  # Ultra VP mode flag
 var spin_poker: bool = false   # Spin Poker mode flag
+var mode_id: String = "single_play"  # Last selected lobby mode
+var mode_hand_counts: Dictionary = {}  # Per-mode saved hand count
 var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
 var last_gift_time: int = 0         # Unix timestamp of last gift claim
 var pack_claim_times: Dictionary = {}  # product_id → unix ts of last free-timed pack claim
@@ -18,12 +20,13 @@ var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
 var language: String = "system"  # "system" | "en" | "ru" | "es"
 var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (classic-only, see age_gate.gd)
 var theme_name: String = "classic"  # Active visual theme id (ThemeManager reads on _ready)
+## Player-toggleable settings persisted in save file. Currently only sound_fx
+## and vibration have UI controls / runtime consumers — music / casino_ambient /
+## game_speed / auto_hold were declared for a never-built settings menu and
+## have been removed (Phase 6 will reintroduce them with actual consumers).
 var settings := {
 	"sound_fx": true,
 	"music": true,
-	"casino_ambient": false,
-	"game_speed": "normal",
-	"auto_hold": false,
 	"vibration": true,
 }
 
@@ -294,6 +297,8 @@ func save_game() -> void:
 		"bet_levels": bet_levels,
 		"ultra_vp": ultra_vp,
 		"spin_poker": spin_poker,
+		"mode_id": mode_id,
+		"mode_hand_counts": mode_hand_counts,
 		"depth_hint_shown": depth_hint_shown,
 		"last_gift_time": last_gift_time,
 		"pack_claim_times": pack_claim_times,
@@ -332,6 +337,7 @@ func _deobfuscate(bytes: PackedByteArray) -> String:
 
 func load_game() -> void:
 	if not FileAccess.file_exists(SAVE_PATH):
+		_seed_first_launch_defaults()
 		return
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	if file == null:
@@ -360,6 +366,11 @@ func load_game() -> void:
 		bet_levels[key] = int(saved_bets[key])
 	ultra_vp = bool(data.get("ultra_vp", data.get("ultimate_x", false)))
 	spin_poker = bool(data.get("spin_poker", false))
+	mode_id = String(data.get("mode_id", "single_play"))
+	var saved_mode_hands: Dictionary = data.get("mode_hand_counts", {})
+	mode_hand_counts.clear()
+	for key in saved_mode_hands:
+		mode_hand_counts[str(key)] = int(saved_mode_hands[key])
 	depth_hint_shown = bool(data.get("depth_hint_shown", false))
 	last_gift_time = int(data.get("last_gift_time", 0))
 	var saved_claims: Dictionary = data.get("pack_claim_times", {})
@@ -374,6 +385,61 @@ func load_game() -> void:
 	for key in saved_settings:
 		if key in settings:
 			settings[key] = saved_settings[key]
+
+
+## Called by load_game when no save file exists (fresh install / wiped data).
+## Seeds first-launch defaults from configs/init_config.json + balance.json
+## via ConfigManager. Then writes the seeded state to disk so subsequent
+## launches skip this branch.
+func _seed_first_launch_defaults() -> void:
+	var cm: Node = Engine.get_main_loop().root.get_node_or_null("/root/ConfigManager")
+	if cm == null:
+		return
+
+	credits = cm.get_starting_balance()
+	speed_level = cm.get_default_speed()
+	last_variant = cm.get_default_machine()
+
+	# Map default_mode -> hand_count + ultra_vp + spin_poker flags.
+	var default_mode: String = cm.get_default_mode()
+	mode_id = default_mode
+	match default_mode:
+		"single_play":
+			hand_count = 1; ultra_vp = false; spin_poker = false
+		"triple_play":
+			hand_count = 3; ultra_vp = false; spin_poker = false
+		"five_play":
+			hand_count = 5; ultra_vp = false; spin_poker = false
+		"ten_play":
+			hand_count = 10; ultra_vp = false; spin_poker = false
+		"ultra_vp":
+			hand_count = 5; ultra_vp = true; spin_poker = false
+		"spin_poker":
+			hand_count = 1; ultra_vp = false; spin_poker = true
+		_:
+			hand_count = 1; ultra_vp = false; spin_poker = false
+
+	# Translate balance.modes.<m>.default_denomination_index -> denomination.
+	var denoms: Array = cm.get_denominations(default_mode)
+	var d_idx: int = clampi(cm.get_default_denomination_index(default_mode), 0, denoms.size() - 1)
+	if denoms.size() > 0:
+		denomination = int(denoms[d_idx])
+
+	language = cm.get_default_locale()
+	theme_name = cm.get_default_theme()
+
+	# first_gift_delay_hours: shift last_gift_time so the first gift becomes
+	# claimable exactly delay_hours after fresh install. delay=0 means ready
+	# immediately, delay=N means wait N hours from now.
+	var delay_hours: int = int(cm.init_config.get("first_gift_delay_hours", 0))
+	var interval_hours: int = cm.get_gift_interval_hours()
+	last_gift_time = int(Time.get_unix_time_from_system()) + (delay_hours - interval_hours) * 3600
+
+	# Per-feature setting defaults (read from features.json -> feature_flags).
+	settings["sound_fx"] = cm.is_feature_enabled("sound_fx_default", true)
+	settings["vibration"] = cm.is_feature_enabled("vibration_default", true)
+
+	save_game()
 
 
 ## Single global bet level shared across all modes (Single / Triple /
