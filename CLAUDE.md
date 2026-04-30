@@ -19,6 +19,12 @@
   при использовании ConfigManager API. Согласно §9, configs/ —
   единственный источник правды для тюнинга.
 
+- **`docs/REMOTE_CONFIG.md`** — ОБЯЗАТЕЛЬНО прочитай при работе с
+  Firebase Remote Config: kill-switch, deep-merge, app_instance_id,
+  `RemoteConfigManager`, любые правки `_REMOTE_OVERRIDABLE` или
+  параметров в Firebase Console. Локалка из `configs/` остаётся
+  фундаментом, remote — заплатки поверх.
+
 - **`docs/UI_LAYOUTS.md`** — подгрузи при правке экранов лобби
   или игры, при работе с FSM состояний, шрифтами, типографикой.
 
@@ -226,10 +232,15 @@ PNG `res://assets/cards/card_vp_{rank}{suit}.png`. Joker:
 
 ## 6. Autoloads (порядок в `project.godot`)
 
+Порядок: **ConfigManager → SaveManager → RemoteConfigManager** → остальные.
+SaveManager стоит до RemoteConfigManager намеренно — RemoteConfigManager
+читает/пишет `app_instance_id` через SaveManager.
+
 | Autoload | Назначение |
 |---|---|
-| **ConfigManager** | Первый. `configs/*.json` → fallback defaults. `get_value(file, key, default)`. |
-| **SaveManager** | `credits`, `denomination`, `last_variant`, `hand_count`, `speed_level`, `bet_level`, `ultra_vp`, `spin_poker`, `language`, `settings: Dictionary`. Файл `user://save.json`. Поле `ultra_vp` (ранее `ultimate_x`) — при загрузке принимает оба ключа. Утилиты: `format_money`, `format_short`, `add_credits`, `deduct_credits`. |
+| **ConfigManager** | Первый. `configs/*.json` → fallback defaults. После старта подписан на `RemoteConfigManager.fetch_completed` — на успехе делает deep-merge remote-оверрайдов поверх локалки в полях `_REMOTE_OVERRIDABLE`. |
+| **SaveManager** | `credits`, `denomination`, `last_variant`, `hand_count`, `speed_level`, `bet_level`, `ultra_vp`, `spin_poker`, `language`, `app_instance_id` (стабильный Firebase client id), `settings: Dictionary`. Файл `user://save.json`. Поле `ultra_vp` (ранее `ultimate_x`) — при загрузке принимает оба ключа. Утилиты: `format_money`, `format_short`, `add_credits`, `deduct_credits`. |
+| **RemoteConfigManager** | Firebase Remote Config через REST. На старте делает один POST на endpoint, парсит entries, проверяет kill-switch `remote_config_enabled` (точное `"true"`), эмитит `fetch_completed(success)`. Платформенные ключи через `OS.get_name()` (iOS/Android/Web, остальное → iOS fallback). Подробно — [`docs/REMOTE_CONFIG.md`](docs/REMOTE_CONFIG.md). |
 | **SoundManager** | Маппинг событий → файлов из `configs/sounds.json`. 22 placeholder MP3. |
 | **Translations** | i18n EN/RU/ES. См. §8 ниже. |
 | **VibrationManager** | Haptic для iOS/Android. Паттерны для deal/hold/win/jackpot. |
@@ -342,6 +353,16 @@ python3 -c "import json; d=json.load(open('data/translations.json')); print({k: 
   зашить число/флаг/строку в `*.gd`, проверь, есть ли ключ в
   `configs/*.json`. Если нет — добавь ключ + accessor в `ConfigManager`.
   `configs/` — единственный источник правды для тюнинга.
+- **Remote Config — поверх локалки.** При старте сессии
+  `RemoteConfigManager` (REST к Firebase, autoload #3) делает deep-merge
+  remote-оверрайдов поверх 13 имён из `ConfigManager._REMOTE_OVERRIDABLE`.
+  Kill-switch `remote_config_enabled` (`Boolean=true` в Firebase
+  Console) — opt-in: при отсутствии или `false` оверрайды игнорируются.
+  При добавлении нового конфигурируемого поля — сначала в локальный JSON
+  + accessor в ConfigManager, потом (опционально) публикация в Firebase.
+  **Не клади в Remote Config paytables / RTP / IAP product_id** —
+  только косметику, балансы экономики и feature flags. Подробно —
+  [`docs/REMOTE_CONFIG.md`](docs/REMOTE_CONFIG.md).
 - **Никаких хардкодов пользовательского текста** — только
   `Translations.tr_key()`. Перед добавлением любой надписи (`Label.text`,
   `Button.text`, заголовки popup'ов, статусы, win-бейджи, info-popup,
@@ -372,7 +393,7 @@ python3 -c "import json; d=json.load(open('data/translations.json')); print({k: 
 
 ---
 
-*Создан: 2026-04-08 · Обновлён: 2026-04-28 · Версия: 3.0 (компакт)*
+*Создан: 2026-04-08 · Обновлён: 2026-04-30 · Версия: 3.1 (Remote Config)*
 
-*Размер файла: ~15.9k символов (целевой бюджет: ≤ 35k). Если превышает —
+*Размер файла: ~17.8k символов (целевой бюджет: ≤ 35k). Если превышает —
 вынести редкие разделы в `docs/` и обновить эту строку через `wc -m CLAUDE.md`.*

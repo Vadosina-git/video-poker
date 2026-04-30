@@ -17,6 +17,16 @@ var animations: Dictionary = {}
 var features: Dictionary = {}
 var vibration: Dictionary = {}
 var economy: Dictionary = {}
+# Theme overrides — remote-only, no local file. Populated by Firebase Remote Config.
+var classic: Dictionary = {}
+var supercell: Dictionary = {}
+
+
+const _REMOTE_OVERRIDABLE := [
+	"animations", "balance", "economy", "features", "gift",
+	"init_config", "lobby_order", "machines", "shop", "sounds",
+	"vibration", "classic", "supercell",
+]
 
 
 func _ready() -> void:
@@ -31,6 +41,36 @@ func _ready() -> void:
 	features = _load_json("features.json", _default_features())
 	vibration = _load_json("vibration.json", _default_vibration())
 	economy = _load_json("economy.json", _default_economy())
+	RemoteConfigManager.fetch_completed.connect(_on_remote_fetch_completed)
+
+
+func _on_remote_fetch_completed(success: bool) -> void:
+	if not success:
+		return
+	var applied: Array[String] = []
+	for config_name in _REMOTE_OVERRIDABLE:
+		var remote := RemoteConfigManager.get_remote(config_name)
+		if remote.is_empty():
+			continue
+		var current: Variant = get(config_name)
+		var base: Dictionary = current if current is Dictionary else {}
+		set(config_name, _deep_merge(base, remote))
+		applied.append(config_name)
+	if not applied.is_empty():
+		print("[ConfigManager] remote overrides applied: ", applied)
+
+
+## Recursively merges `override` into `base`. Dictionary values at the same
+## key are merged depth-first; everything else (scalars, arrays) is replaced
+## by `override`. `base` is not mutated — returns a deep-copied result.
+func _deep_merge(base: Dictionary, override: Dictionary) -> Dictionary:
+	var result := base.duplicate(true)
+	for key in override:
+		if result.has(key) and result[key] is Dictionary and override[key] is Dictionary:
+			result[key] = _deep_merge(result[key], override[key])
+		else:
+			result[key] = override[key]
+	return result
 
 
 # ─── ACCESSORS ────────────────────────────────────────────────────────

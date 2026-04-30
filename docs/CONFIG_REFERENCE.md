@@ -11,6 +11,12 @@ ConfigManager стоит **первым** в autoload-порядке — все 
 JSON не поддерживает комментарии; в каждом файле есть `_doc` (и вложенные
 `_doc` в секциях) — игнорируется кодом.
 
+> **Remote Config поверх локалки.** Любой из перечисленных файлов может
+> быть перекрыт через Firebase Remote Config — deep-merge поверх
+> локального JSON, контролируется kill-switch'ом `remote_config_enabled`.
+> Архитектура, kill-switch, deep-merge, операционные сценарии и список
+> overridable-конфигов — в [REMOTE_CONFIG.md](REMOTE_CONFIG.md).
+
 ---
 
 ## Файлы

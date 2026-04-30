@@ -20,6 +20,7 @@ var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
 var language: String = "system"  # "system" | "en" | "ru" | "es"
 var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (classic-only, see age_gate.gd)
 var theme_name: String = "classic"  # Active visual theme id (ThemeManager reads on _ready)
+var app_instance_id: String = ""  # Stable Firebase Remote Config client id; generated once on first launch
 ## Player-toggleable settings persisted in save file. Currently only sound_fx
 ## and vibration have UI controls / runtime consumers — music / casino_ambient /
 ## game_speed / auto_hold were declared for a never-built settings menu and
@@ -306,6 +307,7 @@ func save_game() -> void:
 		"language": language,
 		"age_gate_confirmed": age_gate_confirmed,
 		"theme_name": theme_name,
+		"app_instance_id": app_instance_id,
 		"settings": settings,
 	}
 	var json_text := JSON.stringify(data, "\t")
@@ -381,6 +383,7 @@ func load_game() -> void:
 	language = String(data.get("language", "system"))
 	age_gate_confirmed = bool(data.get("age_gate_confirmed", false))
 	theme_name = String(data.get("theme_name", "classic"))
+	app_instance_id = String(data.get("app_instance_id", ""))
 	var saved_settings: Dictionary = data.get("settings", {})
 	for key in saved_settings:
 		if key in settings:

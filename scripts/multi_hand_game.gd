@@ -1505,6 +1505,14 @@ func _on_deal_draw_pressed() -> void:
 	if _animating:
 		return
 	VibrationManager.vibrate("button_press")
+	# Lock bet controls immediately — prevents any visible window where
+	# the player could still tap BET / BET MAX / denomination after
+	# initiating a deal but before the manager's state transition lands.
+	_bet_btn.disabled = true
+	_bet_max_btn.disabled = true
+	_bet_amount_btn.disabled = true
+	_bet_amount_btn.modulate.a = 0.5
+	_hands_btn.disabled = true
 	if _manager.state == MultiHandManager.State.HOLDING:
 		_animating = true
 		var delay: float = _get_deal_ms() / 1000.0
@@ -2542,6 +2550,14 @@ func _on_bet_one_pressed() -> void:
 
 
 func _on_bet_max_pressed() -> void:
+	# bet_max() triggers a deal — lock bet controls up-front so the
+	# Ultra VP multiplier animation (which awaits before deal()) doesn't
+	# leave them tappable in the meantime.
+	_bet_btn.disabled = true
+	_bet_max_btn.disabled = true
+	_bet_amount_btn.disabled = true
+	_bet_amount_btn.modulate.a = 0.5
+	_hands_btn.disabled = true
 	if _ultra_vp:
 		_save_ux_state()
 		# Restore state for MAX bet key (where NEXT mults are stored)

@@ -1510,6 +1510,12 @@ func _on_deal_draw_pressed() -> void:
 			_flash_balance_red()
 			_show_bet_picker()
 			return
+	# Lock bet controls immediately so they can't be tapped in the gap
+	# between this click and the manager's state transition.
+	_bet_btn.disabled = true
+	_bet_max_btn.disabled = true
+	_bet_amount_btn.disabled = true
+	_bet_amount_btn.modulate.a = 0.5
 	# Disable DOUBLE while a fresh round is in flight.
 	if _double_btn != null and is_instance_valid(_double_btn):
 		_double_btn.disabled = true
@@ -1538,6 +1544,12 @@ func _on_bet_one_pressed() -> void:
 
 
 func _on_bet_max_pressed() -> void:
+	# bet_max() leads into deal() — lock bet controls now so they can't
+	# be tapped while the deal is starting up.
+	_bet_btn.disabled = true
+	_bet_max_btn.disabled = true
+	_bet_amount_btn.disabled = true
+	_bet_amount_btn.modulate.a = 0.5
 	_manager.bet_max()
 	_update_bet_display(_manager.bet)
 	_manager.deal()

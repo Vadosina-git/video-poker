@@ -21,6 +21,11 @@ build/
 .keystore.env
 .env
 .appstore.env
+.firebase.env
+
+# Firebase native SDK config files (contain API keys)
+firebase/google-services.json
+firebase/GoogleService-Info.plist
 
 # RevenueCat plugin binaries — 850MB+ of .xcframework + .aar.
 # Install locally via: ./scripts/install_revenuecat.sh
