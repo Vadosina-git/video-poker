@@ -242,7 +242,7 @@
     {
       "id": "spin_poker",
       "label_key": "lobby.mode_spin_poker",
-      "enabled": true,
+      "enabled": false,
       "machines": [
         {
           "id": "jacks_or_better",

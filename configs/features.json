@@ -4,11 +4,11 @@
 
   "feature_flags": {
     "_doc": "Top-level on/off switches. Disable to hide entire features.",
-    "age_gate_enabled": true,
+    "age_gate_enabled": false,
     "big_win_overlay_enabled": true,
-    "double_or_nothing_enabled": true,
+    "double_or_nothing_enabled": false,
     "ultra_vp_enabled": true,
-    "spin_poker_enabled": true,
+    "spin_poker_enabled": false,
     "multi_hand_enabled": true,
     "auto_shop_on_low_balance": true,
     "deal_button_idle_blink": true,
@@ -28,6 +28,6 @@
 
   "theme": {
     "_doc": "default_theme is consumed by SaveManager._seed_first_launch_defaults — kept here as the single canonical source (init_config.default_theme mirrors it).",
-    "default_theme": "classic"
+    "default_theme": "supercell"
   }
 }

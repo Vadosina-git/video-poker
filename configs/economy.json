@@ -18,11 +18,11 @@
   },
 
   "double_or_nothing": {
-    "_doc": "Risk round after a winning hand. Players double their last_win or lose it.",
-    "enabled_in_single": true,
-    "enabled_in_multi": true,
-    "enabled_in_spin_poker": true,
-    "enabled_in_ultra_vp": true,
+    "_doc": "Risk round after a winning hand. Players double their last_win or lose it. Globally OFF for App Store stealth — keep in sync with features.json:double_or_nothing_enabled and init_config.show_double_button.",
+    "enabled_in_single": false,
+    "enabled_in_multi": false,
+    "enabled_in_spin_poker": false,
+    "enabled_in_ultra_vp": false,
     "max_consecutive_doubles": 5,
     "show_warning_first_time": true,
     "dealer_card_count": 1,
