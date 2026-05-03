@@ -104,13 +104,26 @@ func _flush_tracked() -> void:
 
 
 func _apply_to(ctrl: Control) -> void:
-	# Inset the control inside its anchors. Scenes registered via main.gd
-	# are already at PRESET_FULL_RECT (anchors 0..1, offsets 0), so writing
-	# offsets directly shrinks them by the safe-area margins.
-	ctrl.offset_left = margins["left"]
-	ctrl.offset_top = margins["top"]
-	ctrl.offset_right = -margins["right"]
-	ctrl.offset_bottom = -margins["bottom"]
+	# Apply inset *additively* to the control's existing offsets, respecting
+	# its anchors. Only sides anchored to a viewport edge get pushed inward,
+	# so a top-anchored bar shifts down by `top` but keeps its declared height,
+	# a bottom-anchored bar shifts up by `bottom`, and a full-rect container
+	# shrinks on all four sides. Previous delta is cached in meta so repeated
+	# recomputes (rotation, focus return) don't accumulate.
+	var prev: Dictionary = ctrl.get_meta("_safe_area_applied", {"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0})
+	var dl: float = float(margins["left"]) - float(prev["left"])
+	var dt: float = float(margins["top"]) - float(prev["top"])
+	var dr: float = float(margins["right"]) - float(prev["right"])
+	var db: float = float(margins["bottom"]) - float(prev["bottom"])
+	if ctrl.anchor_left == 0.0:
+		ctrl.offset_left += dl
+	if ctrl.anchor_top == 0.0:
+		ctrl.offset_top += dt
+	if ctrl.anchor_right == 1.0:
+		ctrl.offset_right -= dr
+	if ctrl.anchor_bottom == 1.0:
+		ctrl.offset_bottom -= db
+	ctrl.set_meta("_safe_area_applied", margins.duplicate())
 
 
 func _margins_equal(a: Dictionary, b: Dictionary) -> bool:

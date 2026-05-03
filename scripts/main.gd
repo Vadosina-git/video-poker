@@ -152,9 +152,22 @@ func _create_variant(variant_id: String, pt: Paytable) -> BaseVariant:
 func _make_full_rect(ctrl: Control) -> void:
 	ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ctrl.set_offsets_preset(Control.PRESET_FULL_RECT)
-	# Respect device safe area (notch / Dynamic Island / home indicator
-	# / Android cutout). On devices without cutouts the inset is zero.
-	SafeAreaManager.apply_offsets(ctrl)
+	# Safe-area inset (notch / Dynamic Island / home indicator / Android
+	# cutout) is applied to UI children only — NOT to the scene root and
+	# NOT to a child that's clearly a background (named "Background", OR
+	# a ColorRect/TextureRect already at FULL_RECT — script-built backdrops
+	# follow this pattern). Backgrounds stay full-bleed so the clear color
+	# never shows in cutout pockets; every UI container is pushed inward.
+	for child in ctrl.get_children():
+		if not (child is Control):
+			continue
+		if child.name == "Background":
+			continue
+		if (child is ColorRect or child is TextureRect) \
+				and child.anchor_left == 0.0 and child.anchor_top == 0.0 \
+				and child.anchor_right == 1.0 and child.anchor_bottom == 1.0:
+			continue
+		SafeAreaManager.apply_offsets(child)
 
 
 func _clear_current() -> void:
