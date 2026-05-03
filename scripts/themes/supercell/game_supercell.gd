@@ -78,6 +78,12 @@ var _denom_lab: Label = null    # label inside the COINS picker button — track
 var _denom_btn: Button = null   # the COINS picker button itself (for width measurement)
 var _coins_prefix_lab: Label = null  # "COINS:" label preceding the chip+value cluster
 
+# Section roots — captured by builders, animated on entrance.
+var _top_bar_root: Control = null
+var _paytable_panel_root: Control = null
+var _cards_area_root: Control = null
+var _bottom_bar_root: Control = null
+
 
 func setup(variant: BaseVariant) -> void:
 	_variant = variant
@@ -113,6 +119,52 @@ func _apply_font_to_node(node: Node, f: Font) -> void:
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_play_entrance_animation()
+
+
+func _play_entrance_animation() -> void:
+	# Mirror classic single-hand entrance: top sections slide in from above,
+	# bottom controls slide up from below. Same params as scripts/game.gd.
+	var top_nodes: Array[Control] = []
+	if is_instance_valid(_top_bar_root):
+		top_nodes.append(_top_bar_root)
+	if is_instance_valid(_paytable_panel_root):
+		top_nodes.append(_paytable_panel_root)
+	if is_instance_valid(_cards_area_root):
+		top_nodes.append(_cards_area_root)
+	var bottom_nodes: Array[Control] = []
+	if is_instance_valid(_bottom_bar_root):
+		bottom_nodes.append(_bottom_bar_root)
+	for n in top_nodes + bottom_nodes:
+		n.modulate.a = 0.0
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var vp_h: float = get_viewport_rect().size.y
+	var slide: float = vp_h * 0.6
+	var dur: float = 0.6
+	var overshoot_px: float = 9.0
+	for n in top_nodes:
+		if not is_instance_valid(n):
+			continue
+		var base_y: float = n.position.y
+		n.position.y = base_y - slide
+		n.modulate.a = 1.0
+		_tween_section_bounce(n, base_y, overshoot_px, dur)
+	for n in bottom_nodes:
+		if not is_instance_valid(n):
+			continue
+		var base_y: float = n.position.y
+		n.position.y = base_y + slide
+		n.modulate.a = 1.0
+		_tween_section_bounce(n, base_y, -overshoot_px, dur)
+
+
+func _tween_section_bounce(section: Control, target_y: float, overshoot: float, dur: float) -> void:
+	var tw := section.create_tween()
+	tw.tween_property(section, "position:y", target_y + overshoot, dur * 0.82) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(section, "position:y", target_y, dur * 0.18) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -195,6 +247,7 @@ func _build_top_bar() -> void:
 	top.custom_minimum_size = Vector2(0, 88)
 	top.add_theme_constant_override("separation", 16)
 	add_child(top)
+	_top_bar_root = top
 
 	# Back button — red square with white left arrow.
 	var back_btn := _make_sticker_btn(Color("E54C3A"), Color("7A1F13"))
@@ -423,6 +476,7 @@ func _build_paytable_panel() -> void:
 		st.anti_aliasing = true
 		panel.add_theme_stylebox_override("panel", st)
 	add_child(panel)
+	_paytable_panel_root = panel
 
 	# Make the whole paytable a single tappable button — anywhere in
 	# the panel triggers the same press-pop + intro hint bubble.
@@ -948,6 +1002,7 @@ func _build_cards_area() -> void:
 	center.offset_bottom = -150
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
+	_cards_area_root = center
 
 	# ── Status banner — single fixed-width pill above the cards. Drives
 	# every state prompt (PLACE BET → HOLD → NO WIN / WIN NAME) so the
@@ -1194,6 +1249,7 @@ func _build_bottom_bar() -> void:
 	# COINS, DEAL) breathe — much closer to the supercell mock.
 	bar.add_theme_constant_override("separation", 36)
 	add_child(bar)
+	_bottom_bar_root = bar
 
 	# Left-side spacer pushes everything to the right edge next to DEAL.
 	# Supercell intentionally drops BET LEVEL (bet locked at MAX) and
