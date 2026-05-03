@@ -38,9 +38,19 @@ func _notification(what: int) -> void:
 		_recompute()
 
 
-func apply_offsets(ctrl: Control) -> void:
+## `axes` controls which sides receive the safe-area push:
+##   "all"        — left/top/right/bottom (default, 99% of cases)
+##   "vertical"   — top/bottom only; left/right stay flush to viewport.
+##                  Used by the lobby's outer VBoxContainer so the machine
+##                  carousel can sweep edge-to-edge under the Dynamic Island
+##                  / rounded corners. The TopBar/Footer inside still need
+##                  to clear the notch — they handle it with their own
+##                  internal horizontal padding (TOP_BAR_SIDE_PAD).
+##   "horizontal" — left/right only.
+func apply_offsets(ctrl: Control, axes: String = "all") -> void:
 	if ctrl == null:
 		return
+	ctrl.set_meta("_safe_area_axes", axes)
 	_tracked.append(weakref(ctrl))
 	_apply_to(ctrl)
 
@@ -124,17 +134,20 @@ func _apply_to(ctrl: Control) -> void:
 	# also shift up by `db`, otherwise the container shrinks instead of
 	# sliding clear of the home-indicator pocket. Same idea horizontally
 	# for right-anchored containers.
-	if ctrl.anchor_left == 0.0:
+	var axes: String = ctrl.get_meta("_safe_area_axes", "all")
+	var apply_h: bool = axes != "vertical"
+	var apply_v: bool = axes != "horizontal"
+	if apply_h and ctrl.anchor_left == 0.0:
 		ctrl.offset_left += dl
-	if ctrl.anchor_left == 1.0:
+	if apply_h and ctrl.anchor_left == 1.0:
 		ctrl.offset_left -= dr
-	if ctrl.anchor_top == 0.0:
+	if apply_v and ctrl.anchor_top == 0.0:
 		ctrl.offset_top += dt
-	if ctrl.anchor_top == 1.0:
+	if apply_v and ctrl.anchor_top == 1.0:
 		ctrl.offset_top -= db
-	if ctrl.anchor_right == 1.0:
+	if apply_h and ctrl.anchor_right == 1.0:
 		ctrl.offset_right -= dr
-	if ctrl.anchor_bottom == 1.0:
+	if apply_v and ctrl.anchor_bottom == 1.0:
 		ctrl.offset_bottom -= db
 	ctrl.set_meta("_safe_area_applied", margins.duplicate())
 

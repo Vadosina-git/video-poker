@@ -167,7 +167,12 @@ func _make_full_rect(ctrl: Control) -> void:
 				and child.anchor_left == 0.0 and child.anchor_top == 0.0 \
 				and child.anchor_right == 1.0 and child.anchor_bottom == 1.0:
 			continue
-		SafeAreaManager.apply_offsets(child)
+		# Per-child opt-in: a Control can carry `safe_area_axes` meta
+		# ("all" / "vertical" / "horizontal") to restrict which sides are
+		# inset. Lobby's VBoxContainer uses "vertical" so the machine
+		# carousel can sweep horizontally under the notch.
+		var axes: String = String(child.get_meta("safe_area_axes", "all"))
+		SafeAreaManager.apply_offsets(child, axes)
 
 
 func _clear_current() -> void:

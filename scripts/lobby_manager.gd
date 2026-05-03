@@ -250,7 +250,15 @@ func _build_theme_cheat_btn() -> void:
 	add_child(btn)
 
 
-const SAFE_AREA_H := 20
+## Was 20px before edge-to-edge carousel work. Now the machine carousel
+## sweeps to the actual screen edge (under the Dynamic Island / rounded
+## corners) — the lobby's outer VBoxContainer carries metadata
+## `safe_area_axes = "vertical"` so iOS horizontal safe area is ignored
+## here, and the TopBar/Footer handle their own notch clearance via
+## TOP_BAR_SIDE_PAD. Keeping the constant at 0 instead of removing it so
+## the few non-carousel call sites (line 660-661 stylebox content margins)
+## still compile without conditional code.
+const SAFE_AREA_H := 0
 # Extra horizontal padding inside the top bar so the balance pill (left)
 # and the settings/support icons (right) stay clear of the screen's
 # rounded corners / notch instead of hugging the bezel.
