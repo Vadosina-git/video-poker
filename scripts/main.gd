@@ -152,6 +152,9 @@ func _create_variant(variant_id: String, pt: Paytable) -> BaseVariant:
 func _make_full_rect(ctrl: Control) -> void:
 	ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ctrl.set_offsets_preset(Control.PRESET_FULL_RECT)
+	# Respect device safe area (notch / Dynamic Island / home indicator
+	# / Android cutout). On devices without cutouts the inset is zero.
+	SafeAreaManager.apply_offsets(ctrl)
 
 
 func _clear_current() -> void:

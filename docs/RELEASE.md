@@ -33,6 +33,23 @@ Play developer name) — в `/Users/vadimprokop/Downloads/SHARED_ACCOUNTS_REFERE
 | Min SDK | 24 |
 | Target Audience | 18+ (simulated gambling) |
 
+## Версионирование
+
+**Принцип** (выровнен с другими приложениями KHRALZ):
+
+| Поле | iOS ключ | Android ключ | Когда меняем |
+|---|---|---|---|
+| Marketing version (`X.Y.Z`) | `application/short_version` | `version/name` | Только при заметных релизах: новые фичи, переход в новый цикл, сторовый changelog |
+| Build number (целое) | `application/version` | `version/code` | **Каждый** upload в TestFlight / Play Internal — инкрементится монотонно |
+
+В сторе отображается как `1.0.1 (2)`, `1.0.1 (3)`, `1.0.2 (1)` и т.д. Marketing
+держим стабильным внутри одного цикла фиксов; build всегда новый.
+
+**Грабли:** `application/version` для iOS должен быть **целым числом** или
+dotted-int-большим предыдущего CFBundleVersion в TestFlight. Не подставлять
+сюда «1.0.1» — это путает sort order и App Store Connect жалуется на
+дубликаты.
+
 ## Локальные secrets (gitignored)
 
 - `.keystore.env` — Android release keystore credentials

@@ -22,6 +22,7 @@ config/icon="res://assets/icons/icon_1024.png"
 
 ConfigManager="*res://scripts/config_manager.gd"
 SaveManager="*res://scripts/save_manager.gd"
+SafeAreaManager="*res://scripts/safe_area_manager.gd"
 RemoteConfigManager="*res://scripts/remote_config_manager.gd"
 SoundManager="*res://scripts/sound_manager.gd"
 Translations="*res://scripts/translations.gd"

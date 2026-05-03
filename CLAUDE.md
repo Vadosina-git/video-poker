@@ -91,7 +91,7 @@
 - **Godot 4.6**, GDScript, Mobile renderer
 - Базовое разрешение: 1080×1920 portrait (1920×1080 landscape alt)
 - Stretch mode: `canvas_items`, aspect: `keep_height` (portrait)
-- Поддержка Safe Area (iOS notch/island)
+- Поддержка Safe Area (iOS notch/Dynamic Island, Android cutout, home indicator) — autoload `SafeAreaManager` (`scripts/safe_area_manager.gd`); применяется к каждой игровой сцене из `main.gd._make_full_rect`
 - Сборки: Android (APK/AAB), iOS, Windows, macOS, Linux
 
 ---
@@ -240,6 +240,7 @@ SaveManager стоит до RemoteConfigManager намеренно — RemoteCon
 |---|---|
 | **ConfigManager** | Первый. `configs/*.json` → fallback defaults. После старта подписан на `RemoteConfigManager.fetch_completed` — на успехе делает deep-merge remote-оверрайдов поверх локалки в полях `_REMOTE_OVERRIDABLE`. |
 | **SaveManager** | `credits`, `denomination`, `last_variant`, `hand_count`, `speed_level`, `bet_level`, `ultra_vp`, `spin_poker`, `language`, `app_instance_id` (стабильный Firebase client id), `settings: Dictionary`. Файл `user://save.json`. Поле `ultra_vp` (ранее `ultimate_x`) — при загрузке принимает оба ключа. Утилиты: `format_money`, `format_short`, `add_credits`, `deduct_credits`. |
+| **SafeAreaManager** | Между SaveManager и RemoteConfigManager. Читает `DisplayServer.get_display_safe_area()`, конвертирует в координаты вьюпорта, эмитит `safe_area_changed`. `apply_offsets(control)` — навешивает inset на full-rect Control и пересчитывает на `size_changed` / `NOTIFICATION_APPLICATION_FOCUS_IN`. Используется из `main.gd._make_full_rect`. |
 | **RemoteConfigManager** | Firebase Remote Config через REST. На старте делает один POST на endpoint, парсит entries, проверяет kill-switch `remote_config_enabled` (точное `"true"`), эмитит `fetch_completed(success)`. Платформенные ключи через `OS.get_name()` (iOS/Android/Web, остальное → iOS fallback). Подробно — [`docs/REMOTE_CONFIG.md`](docs/REMOTE_CONFIG.md). |
 | **SoundManager** | Маппинг событий → файлов из `configs/sounds.json`. 22 placeholder MP3. |
 | **Translations** | i18n EN/RU/ES. См. §8 ниже. |
