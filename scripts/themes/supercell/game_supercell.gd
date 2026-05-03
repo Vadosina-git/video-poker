@@ -1289,7 +1289,11 @@ func _build_bottom_bar() -> void:
 
 	# DOUBLE — added to the bar AFTER COINS so it sits between COINS and
 	# DEAL in the visual flow. Same yellow plate as the rest of the right
-	# cluster.
+	# cluster. Visibility is config-driven (`show_double_button` in
+	# init_config / Remote Config) so single + multi stay in sync — when
+	# the App Store stealth flag flips DOUBLE off in multi, it must also
+	# be hidden here.
+	_double_btn.visible = bool(ConfigManager.init_config.get("show_double_button", true))
 	bar.add_child(_double_btn)
 	# Keep the "DOUBLE" label rendered ON TOP of the PNG plate (same
 	# pattern as SPEED / DEAL — the artwork carries the chrome, Godot
@@ -1701,8 +1705,7 @@ func _on_cards_dealt(dealt_hand: Array) -> void:
 		if i >= _cards.size():
 			continue
 		_cards[i].set_flip_duration(_get_flip_s())
-		_cards[i].set_card(dealt_hand[i], true, _variant.is_wild_card(dealt_hand[i]))
-		SoundManager.play("flip")
+		_cards[i].set_card(dealt_hand[i], true, _variant.is_wild_card(dealt_hand[i]))  # SFX inside CardVisual
 		VibrationManager.vibrate("card_deal")
 		# Clear hold state from previous round — classic HELD overlay off
 		# + balatro tilt + wobble reset. Without explicit wobble stop the
@@ -1738,6 +1741,12 @@ func _on_card_replaced(_index: int, _new_card: CardData) -> void:
 
 func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
 	_last_win_amount = payout
+	# Result is announced — the COINS picker becomes interactive again
+	# (unless we're in the middle of a Double sub-game, which keeps it
+	# locked via `_in_double`). The visual state is restored here so
+	# the player can change denomination before the next DEAL.
+	if not _in_double:
+		_set_denom_btn_locked(false)
 	if _double_btn != null:
 		_double_btn.disabled = not (payout > 0)
 	# Seed the double-or-nothing wager pool with the FRESH draw payout so
@@ -1779,6 +1788,11 @@ func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
 		_show_lose_name_pill(true)
 		_set_status(Translations.tr_key("game.no_win"))
 		_set_win_dimmed()
+		# Clear the sticky DEAL-time highlight (e.g. the player started
+		# with JJ but un-held both jacks — DRAW evaluates as no-win, so
+		# the previous "JACKS OR BETTER" row should fade out instead of
+		# bleeding into the no-win view).
+		_reset_paytable_highlight()
 
 
 ## Show / hide the "TRY AGAIN! PRESS DEAL" pill on a losing round.
@@ -1955,6 +1969,11 @@ func _on_credits_changed(new_credits: int) -> void:
 	if new_credits < _balance_display_value:
 		if _balance_tween and _balance_tween.is_running():
 			_balance_tween.kill()
+			# `.kill()` cancels the tween_callback that would have stopped
+			# the looped balance SFX — stop it explicitly here, otherwise
+			# the coin-count loop plays forever (e.g. after entering the
+			# Double sub-game, which deducts the wager via this path).
+			SoundManager.stop_sfx_loop_if("balance_increment")
 		_balance_display_value = new_credits
 		_balance_label.text = SaveManager.format_money(new_credits)
 		_balance_hold_until_ms = 0
@@ -1990,6 +2009,10 @@ func _run_balance_roll_up(new_credits: int) -> void:
 	var dur: float = lerpf(0.375, 1.8, ratio)  # 1.5× the previous 0.25..1.2
 	if _balance_tween and _balance_tween.is_running():
 		_balance_tween.kill()
+		# Killing the tween skips its tween_callback — stop the existing
+		# loop before starting a fresh one so we don't leave the SFX
+		# playing if the new tween is also killed before it finishes.
+		SoundManager.stop_sfx_loop_if("balance_increment")
 	SoundManager.play_sfx_loop("balance_increment")
 	_balance_tween = create_tween()
 	_balance_tween.tween_method(func(v: int) -> void:
@@ -2290,13 +2313,16 @@ func _on_deal_draw_pressed() -> void:
 		return
 	VibrationManager.vibrate("button_press")
 	if _game_manager.state == GameManager.State.HOLDING:
+		# Lock the COINS picker visually the moment a real DRAW starts —
+		# disabled + dim so the player sees they can't change denomination
+		# until the result is announced. Re-enabled in `_on_hand_evaluated`.
+		_set_denom_btn_locked(true)
 		_animating = true
 		var instant := _get_flip_s() < 0.03
 		for i in 5:
 			if not _game_manager.held[i]:
 				_cards[i].set_flip_duration(_get_flip_s())
-				_cards[i].flip_to_back()
-				SoundManager.play("flip")
+				_cards[i].flip_to_back()  # SFX inside CardVisual
 				VibrationManager.vibrate("card_flip")
 				if not instant:
 					await get_tree().create_timer(_get_draw_ms() / 1000.0).timeout
@@ -2306,8 +2332,7 @@ func _on_deal_draw_pressed() -> void:
 		for i in 5:
 			if not _game_manager.held[i]:
 				_cards[i].set_flip_duration(_get_flip_s())
-				_cards[i].set_card(_game_manager.hand[i], true, _variant.is_wild_card(_game_manager.hand[i]))
-				SoundManager.play("flip")
+				_cards[i].set_card(_game_manager.hand[i], true, _variant.is_wild_card(_game_manager.hand[i]))  # SFX inside CardVisual
 				VibrationManager.vibrate("card_deal")
 				if not instant:
 					await get_tree().create_timer(_get_draw_ms() / 1000.0).timeout
@@ -2323,10 +2348,16 @@ func _on_deal_draw_pressed() -> void:
 		if state2 == GameManager.State.IDLE or state2 == GameManager.State.WIN_DISPLAY:
 			var cost: int = _game_manager.bet * SaveManager.denomination
 			if cost > SaveManager.credits:
+				# Insufficient — bail BEFORE locking the COINS picker.
+				# Otherwise the player closes the shop and finds the
+				# denom button stuck disabled (no hand was ever started,
+				# so `_on_hand_evaluated` won't fire to re-enable it).
 				_flash_balance_red()
 				if ShopOverlay and ConfigManager.is_feature_enabled("auto_shop_on_low_balance", true):
 					ShopOverlay.show(self)
 				return
+		# Deal will start — lock the COINS picker now.
+		_set_denom_btn_locked(true)
 		_game_manager.deal_or_draw()
 
 
@@ -2500,6 +2531,10 @@ func _start_double() -> void:
 	_double_picking = false
 	_double_btn.disabled = true
 	_draw_btn.disabled = true
+	# Player is now risking the win — keep the COINS picker locked + dim
+	# until Double resolves (lose/tie/take-win → `_end_double`, or WIN
+	# branch which clears `_in_double` and re-enables via `_set_...(false)`).
+	_set_denom_btn_locked(true)
 
 	# Risk the win: deduct the amount from balance. Mirrors classic
 	# `game.gd:_start_double` — balance rolls back to its pre-draw level.
@@ -2587,6 +2622,7 @@ func _on_double_card_picked(index: int) -> void:
 
 	if player_rank > dealer_rank:
 		_double_amount *= 2
+		SoundManager.play("double_win")
 		VibrationManager.vibrate("double_win")
 		SaveManager.add_credits(_double_amount)
 		_on_credits_changed(SaveManager.credits)
@@ -2600,22 +2636,48 @@ func _on_double_card_picked(index: int) -> void:
 		await get_tree().create_timer(0.4).timeout
 		_double_btn.disabled = false
 		_draw_btn.disabled = false
-		# Allow another DOUBLE round (or a fresh DEAL) — open the gate so
-		# `_on_double_card_picked` accepts the next pick.
-		_double_picking = false
+		# Keep `_double_picking = true` so the 3 remaining face-down cards
+		# stay locked until the next `_start_double()` (which resets the
+		# gate). Otherwise a tap on another face-down card would re-enter
+		# resolution and double-pay the round.
+		# Exit the double-routing mode so DEAL works again — without this
+		# `_on_deal_draw_pressed` early-returns on `if _in_double` and the
+		# player is stuck choosing between DOUBLE-again and a dead DEAL.
+		# `_start_double()` re-asserts the flag if the player risks again.
+		_in_double = false
+		# Win banked → COINS picker can be tweaked before next DEAL.
+		_set_denom_btn_locked(false)
 	elif player_rank == dealer_rank:
-		# Tie — return the original wager.
+		# Tie = PUSH (IGT Game King). Refund the wager to balance and
+		# restore the WIN label to the at-risk amount so the player sees
+		# what's available to risk again. Re-enable DOUBLE + DEAL so the
+		# player chooses: another Double round or collect. `_in_double`
+		# is cleared so DEAL routes correctly through the normal path.
+		# `_double_picking` stays true so leftover face-down cards on
+		# screen don't react to taps until the next `_start_double()`.
 		SaveManager.add_credits(_double_amount)
 		_on_credits_changed(SaveManager.credits)
 		_set_status(Translations.tr_key("double.tie"))
-		_double_amount = 0
-		_double_picking = false
-		_end_double()
+		_last_win_amount = _double_amount
+		_set_win_active(_double_amount)
+		await get_tree().create_timer(0.4).timeout
+		_double_btn.disabled = false
+		_draw_btn.disabled = false
+		_in_double = false
+		_set_denom_btn_locked(false)
 	else:
+		SoundManager.play("double_lose")
 		VibrationManager.vibrate("double_lose")
 		_set_status(Translations.tr_key("double.lose"))
 		_double_amount = 0
-		_double_picking = false
+		# Do NOT reset `_double_picking = false` here — `_end_double`
+		# awaits 1.0s before clearing `_in_double`, and during that
+		# window the 3 untouched face-down cards would still route
+		# clicks through `_on_double_card_picked` (the `_in_double` gate
+		# is still on). Leaving the pick-lock on prevents the bug where
+		# a tap on another face-down card after LOSE flipped a second
+		# card and re-ran resolution. Flag is reset by the next
+		# `_start_double()` if the player risks again.
 		_end_double()
 
 
@@ -2624,6 +2686,28 @@ func _end_double() -> void:
 	_double_btn.disabled = true
 	_draw_btn.disabled = false
 	_in_double = false
+	# Round fully resolved (lose / tie-then-fold / forfeit) — restore
+	# the COINS picker so the next round can use a different denom.
+	_set_denom_btn_locked(false)
+
+
+# Re-deal the 4 player face-down cards on a TIE so the round becomes a
+# push. Dealer card (slot 0) stays — only the picks reshuffle.
+func _reshuffle_double_player_cards() -> void:
+	var deck := Deck.new(52)
+	var fresh: Array = deck.deal_hand()
+	for i in range(1, 5):
+		if i >= _cards.size():
+			continue
+		_double_cards[i] = fresh[i]
+		var cv: Control = _cards[i]
+		cv.set_flip_duration(ConfigManager.get_animation("double_card_flip_ms", 150.0) / 1000.0)
+		if cv.face_up:
+			cv.flip_to_back()
+		else:
+			cv.show_back()
+		cv.set_interactive(true)
+	_set_status(Translations.tr_key("double.pick_card"))
 
 
 func _hide_double_overlay() -> void:
@@ -2637,12 +2721,37 @@ func _hide_double_overlay() -> void:
 func _on_bet_lvl_pressed() -> void:
 	if _animating:
 		return
+	if _is_bet_locked():
+		return
 	_show_picker("BET LEVEL", [1, 2, 3, 4, 5], _game_manager.bet, func(v: int) -> void:
+		# Defense in depth: refuse if state changed while picker was open.
+		if _is_bet_locked():
+			return
 		while _game_manager.bet != v:
 			_game_manager.bet_one()
 			if _game_manager.bet >= 5 and v == 5:
 				break
 	)
+
+
+# Visually lock/unlock the COINS picker. `disabled` blocks the press,
+# `modulate.a` dims the button so the player sees the change. Called
+# from DEAL/DRAW press, hand-evaluated callback, Double start/end.
+func _set_denom_btn_locked(locked: bool) -> void:
+	if _denom_btn == null or not is_instance_valid(_denom_btn):
+		return
+	_denom_btn.disabled = locked
+	_denom_btn.modulate.a = 0.5 if locked else 1.0
+
+
+# Single source of truth: bet/denomination cannot change during an active
+# hand or while the Double sub-game is running. Mirrors the helper in
+# classic single-hand `game.gd`.
+func _is_bet_locked() -> bool:
+	if _in_double:
+		return true
+	return _game_manager.state != GameManager.State.IDLE \
+		and _game_manager.state != GameManager.State.WIN_DISPLAY
 
 
 ## Denomination picker — sets SaveManager.denomination to the chosen
@@ -2651,10 +2760,15 @@ func _on_bet_lvl_pressed() -> void:
 func _on_denom_pressed() -> void:
 	if _animating:
 		return
+	if _is_bet_locked():
+		return
 	var denoms: Array = ConfigManager.get_denominations("single_play")
 	if denoms.is_empty():
 		denoms = [1, 5, 25, 100, 500]
 	_show_picker(Translations.tr_key("game.select_coins_amount"), denoms, SaveManager.denomination, func(v: int) -> void:
+		# Defense in depth: refuse if state changed while picker was open.
+		if _is_bet_locked():
+			return
 		var prev: int = SaveManager.denomination
 		SaveManager.denomination = v
 		SaveManager.save_game()
@@ -2682,29 +2796,35 @@ func _on_info_pressed() -> void:
 	)
 	overlay.add_child(dim)
 	var panel := PanelContainer.new()
+	# Width = 80% of viewport (Bug 16). Centered via FULL_RECT + offsets
+	# so it scales with portrait/landscape and tablet layouts. Min height
+	# preserved from the previous fixed-520 design so short content still
+	# reads as a deliberate dialog, not a thin strip.
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	# PRESET_CENTER alone anchors the node at (0.5, 0.5) but grows right+down
-	# from that point — without GROW_DIRECTION_BOTH the panel ends up offset
-	# toward the bottom-right instead of genuinely centered.
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	panel.custom_minimum_size = Vector2(520, 520)
+	var vp_size: Vector2 = get_viewport_rect().size
+	var panel_w: float = vp_size.x * 0.8
+	var panel_h: float = maxf(520.0, vp_size.y * 0.5)
+	panel.custom_minimum_size = Vector2(panel_w, panel_h)
 	panel.add_theme_stylebox_override("panel", ThemeManager.make_popup_stylebox())
 	overlay.add_child(panel)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
+	vb.add_theme_constant_override("separation", 8)
 	panel.add_child(vb)
 	var title := Label.new()
 	title.text = _variant_title()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ThemeManager.style_popup_title(title, 28)
+	# Title bumped 28→34 (Bug 8: info text too small to read on iPhone).
+	ThemeManager.style_popup_title(title, 34)
 	vb.add_child(title)
 	var mini: String = Translations.tr_key("machine.%s.mini" % SaveManager.last_variant)
 	if not mini.begins_with("machine.") and mini != "":
 		var desc := Label.new()
 		desc.text = mini
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		ThemeManager.style_popup_body(desc, 15)
+		# Body bumped 15→19 per Phase 7 spec (~3-4px increase).
+		ThemeManager.style_popup_body(desc, 19)
 		vb.add_child(desc)
 	_append_trainer_disclaimer(vb)
 
@@ -2724,7 +2844,8 @@ func _append_trainer_disclaimer(parent: VBoxContainer) -> void:
 	lab.text = Translations.tr_key("trainer.disclaimer")
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ThemeManager.style_popup_body(lab, 13)
+	# Disclaimer bumped 13→16 alongside body bump (Bug 8).
+	ThemeManager.style_popup_body(lab, 16)
 	# Slightly dim so the disclaimer reads as supplementary info, not body.
 	lab.modulate = Color(1, 1, 1, 0.78)
 	parent.add_child(lab)

@@ -1556,9 +1556,18 @@ func _on_bet_max_pressed() -> void:
 
 
 func _on_bet_amount_pressed() -> void:
-	if _manager.state != SpinPokerManager.State.IDLE and _manager.state != SpinPokerManager.State.WIN_DISPLAY:
+	if _is_bet_locked():
 		return
 	_show_bet_picker()
+
+
+# Single source of truth: bet/denomination cannot change during an active
+# spin or while the Double sub-game is running.
+func _is_bet_locked() -> bool:
+	if _in_double:
+		return true
+	return _manager.state != SpinPokerManager.State.IDLE \
+		and _manager.state != SpinPokerManager.State.WIN_DISPLAY
 
 
 func _on_speed_pressed() -> void:
@@ -1892,6 +1901,12 @@ func _show_bet_picker() -> void:
 		cd["box"].set_anchors_preset(Control.PRESET_FULL_RECT)
 		btn.add_child(cd["box"])
 		btn.pressed.connect(func() -> void:
+			# Defense in depth: refuse to apply if state changed under us.
+			if _is_bet_locked():
+				if _bet_picker_overlay:
+					_bet_picker_overlay.queue_free()
+					_bet_picker_overlay = null
+				return
 			_current_denomination = amount
 			SaveManager.denomination = amount
 			_update_bet_amount_btn()
@@ -2646,13 +2661,20 @@ func _on_double_panel_card_input(event: InputEvent, idx: int) -> void:
 			_double_btn.disabled = false
 		_deal_draw_btn.disabled = false
 	elif player_rank == dealer_rank:
-		# Tie — return the wagered amount, no further double rounds.
+		# Tie = PUSH (IGT). Refund the wager, close the popup, re-enable
+		# DOUBLE / DEAL so the player chooses: risk again or collect.
 		SaveManager.add_credits(_double_amount)
 		_update_balance(SaveManager.credits)
+		_last_total_payout = _double_amount
+		_set_win_active(_double_amount)
 		_double_status_label.text = Translations.tr_key("double.tie")
-		_double_amount = 0
 		await get_tree().create_timer(1.0).timeout
-		_end_double()
+		if is_instance_valid(_double_overlay):
+			_hide_double_overlay()
+		_in_double = false
+		if _double_btn != null and is_instance_valid(_double_btn):
+			_double_btn.disabled = false
+		_deal_draw_btn.disabled = false
 	else:
 		# Lose — wager already deducted on _open_double_table; just clear
 		# the WIN label so the player sees zero, then close.
@@ -2664,6 +2686,25 @@ func _on_double_panel_card_input(event: InputEvent, idx: int) -> void:
 		_set_win_dimmed()
 		await get_tree().create_timer(1.0).timeout
 		_end_double()
+
+
+## Re-deal the 4 player face-down cards on a TIE so the round becomes a
+## push. Dealer card (slot 0) stays — only the picks reshuffle. Restores
+## mouse_filter on the picks since the first pick disabled it.
+func _reshuffle_double_panel_cards() -> void:
+	var deck := Deck.new(52)
+	var fresh: Array = deck.deal_hand()
+	var back_path: String = SPIN_CARD_DIR + "card_back_spin.svg"
+	var back_tex: Texture2D = load(back_path) if ResourceLoader.exists(back_path) else null
+	for i in range(1, 5):
+		if i >= _double_panel_cards.size():
+			continue
+		_double_cards[i] = fresh[i]
+		var ct: TextureRect = _double_panel_cards[i]
+		if back_tex != null:
+			ct.texture = back_tex
+		ct.mouse_filter = Control.MOUSE_FILTER_STOP
+	_double_status_label.text = Translations.tr_key("double.pick_card")
 
 
 func _end_double() -> void:

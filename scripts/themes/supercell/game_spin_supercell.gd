@@ -343,6 +343,13 @@ func _show_bet_picker() -> void:
 		SaveManager.set_currency_value(cd, SaveManager.format_auto(amount, 140, 20))
 		btn.add_child(cd["box"])
 		btn.pressed.connect(func() -> void:
+			# Defense in depth: refuse to apply if state changed under us.
+			# `_is_bet_locked()` is inherited from `spin_poker_game.gd`.
+			if _is_bet_locked():
+				if _bet_picker_overlay:
+					_bet_picker_overlay.queue_free()
+					_bet_picker_overlay = null
+				return
 			_current_denomination = amount
 			SaveManager.denomination = amount
 			_update_bet_amount_btn()

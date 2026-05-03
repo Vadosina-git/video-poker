@@ -213,6 +213,9 @@ func set_flip_duration(duration: float) -> void:
 	_flip_duration = duration
 
 func _play_flip_in() -> void:
+	# Centralized flip SFX so every caller (DEAL, DRAW, Double reveal,
+	# replace_card) gets the sound without having to remember to play it.
+	SoundManager.play("flip")
 	if _flip_duration < 0.03:
 		scale.x = 1.0
 		return
@@ -232,6 +235,9 @@ func _play_flip_in() -> void:
 func flip_to_back() -> void:
 	if not face_up:
 		return
+	# Centralized flip SFX (back-flip side) so DEAL prep + DRAW + Double
+	# entry all play the same sound without per-caller boilerplate.
+	SoundManager.play("flip")
 	if _flip_duration < 0.03:
 		# Instant
 		face_up = false

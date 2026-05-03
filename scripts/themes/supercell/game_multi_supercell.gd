@@ -78,6 +78,33 @@ func _ready() -> void:
 	# glance from across the room — the supercell screens have more
 	# breathing room than classic, the bigger numbers fit naturally.
 	call_deferred("_apply_supercell_info_row_sizes")
+	# Re-skin the "+" topup button to the same 72×72 PNG plate as the
+	# single-hand supercell, instead of the classic blue mini button.
+	# Classic's text "+" looks tiny on the supercell layout (Bug 12).
+	call_deferred("_apply_supercell_topup_btn")
+
+
+## Re-skin the classic "+" topup button (small text "+" on a blue plate)
+## with the supercell PNG plate used in single-hand: 72×72 plate carrying
+## the baked-in "+" glyph. Without this the button shrinks to ~24px on the
+## InfoRow and feels untappable on touch devices.
+func _apply_supercell_topup_btn() -> void:
+	if _topup_btn == null or not is_instance_valid(_topup_btn):
+		return
+	_topup_btn.text = ""
+	_topup_btn.custom_minimum_size = Vector2(56, 56)
+	_topup_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var empty_st := StyleBoxEmpty.new()
+	_topup_btn.add_theme_stylebox_override("normal", empty_st)
+	_topup_btn.add_theme_stylebox_override("hover", empty_st)
+	_topup_btn.add_theme_stylebox_override("pressed", empty_st)
+	_topup_btn.add_theme_stylebox_override("focus", empty_st)
+	_topup_btn.add_theme_stylebox_override("disabled", empty_st)
+	var icon_path := "res://assets/themes/supercell/controls/btn_plus.png"
+	if ResourceLoader.exists(icon_path):
+		_topup_btn.icon = load(icon_path)
+		_topup_btn.expand_icon = true
+	_topup_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 
 ## Force the multi-hand bet level to 1 (denomination = full wager) and
@@ -113,8 +140,15 @@ func _apply_supercell_button_sizes() -> void:
 		_speed_btn.custom_minimum_size = Vector2(110, BTN_H)
 	if _hands_btn != null and is_instance_valid(_hands_btn):
 		_hands_btn.custom_minimum_size = Vector2(110, BTN_H)
+		# Classic styled HANDS with `COL_BTN_TEXT` (dark brown) so the
+		# label was unreadable on the supercell purple plate. Force white
+		# across every state so the supercell skin reads correctly.
+		_hands_btn.add_theme_color_override("font_color", Color.WHITE)
+		_hands_btn.add_theme_color_override("font_hover_color", Color.WHITE)
+		_hands_btn.add_theme_color_override("font_pressed_color", Color.WHITE)
+		_hands_btn.add_theme_color_override("font_focus_color", Color.WHITE)
 	if _bet_amount_btn != null and is_instance_valid(_bet_amount_btn):
-		_bet_amount_btn.custom_minimum_size = Vector2(130, BTN_H)
+		_bet_amount_btn.custom_minimum_size = Vector2(180, BTN_H)
 	if _bet_btn != null and is_instance_valid(_bet_btn):
 		_bet_btn.custom_minimum_size = Vector2(130, BTN_H)
 	if _bet_max_btn != null and is_instance_valid(_bet_max_btn):
@@ -357,7 +391,10 @@ func _update_bet_amount_btn() -> void:
 		_bet_btn_cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_bet_btn_cd["box"].add_theme_constant_override("separation", 2)
 		_coins_btn_wrap.add_child(_bet_btn_cd["box"])
-	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_auto(_current_denomination, 70, 18))
+	# Force the compact "5K" / "1.2M" form instead of `format_auto` —
+	# the COINS button only has ~60px left after the "COINS:" prefix and
+	# chip glyph, so a 4-digit "5,000" overflows the rounded plate.
+	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_short(_current_denomination))
 
 
 func _relocate_speed_to_middle() -> void:
@@ -524,6 +561,13 @@ func _show_bet_picker() -> void:
 		SaveManager.set_currency_value(cd, SaveManager.format_auto(amount, 140, 20))
 		btn.add_child(cd["box"])
 		btn.pressed.connect(func() -> void:
+			# Defense in depth: refuse to apply if state changed under us.
+			# `_is_bet_locked()` is inherited from `multi_hand_game.gd`.
+			if _is_bet_locked():
+				if _bet_picker_overlay:
+					_bet_picker_overlay.queue_free()
+					_bet_picker_overlay = null
+				return
 			if _ultra_vp:
 				_save_ux_state()
 			_current_denomination = amount

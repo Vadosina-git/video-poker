@@ -431,11 +431,54 @@ func _on_speed_pressed() -> void:
 	SaveManager.save_game()
 	_update_speed_display()
 
+var _speed_glyph_rects: Array = []  # 4 TextureRects, [0..3] = level indicator
+var _speed_glyphs_built: bool = false
+
 func _update_speed_display() -> void:
-	var arrows := ""
-	for i in 4:
-		arrows += ARROW_ACTIVE if i <= _speed_level else ARROW_INACTIVE
-	_speed_btn.text = arrows + "\nSPEED"
+	if _speed_btn == null:
+		return
+	# Lazy build: 4 triangle glyphs in a row + a SPEED label below, both
+	# wrapped in a VBoxContainer that fills the button. Mouse filter is
+	# IGNORE on every child so taps pass through to the button itself.
+	# Glyph PNGs come from the active theme folder so classic and Supercell
+	# get their own colorways without needing a per-skin override.
+	if not _speed_glyphs_built:
+		_speed_btn.text = ""
+		var wrap := VBoxContainer.new()
+		wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+		wrap.alignment = BoxContainer.ALIGNMENT_CENTER
+		wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wrap.add_theme_constant_override("separation", 2)
+		_speed_btn.add_child(wrap)
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_theme_constant_override("separation", 3)
+		wrap.add_child(row)
+		_speed_glyph_rects.clear()
+		for i in 4:
+			var glyph := TextureRect.new()
+			glyph.custom_minimum_size = Vector2(14, 14)
+			glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			row.add_child(glyph)
+			_speed_glyph_rects.append(glyph)
+		var lbl := Label.new()
+		lbl.text = "SPEED"
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", Color.WHITE)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wrap.add_child(lbl)
+		_speed_glyphs_built = true
+	var active_path: String = ThemeManager.theme_folder() + "controls/speed_active.png"
+	var inactive_path: String = ThemeManager.theme_folder() + "controls/speed_inactive.png"
+	var active_tex: Texture2D = load(active_path) if ResourceLoader.exists(active_path) else null
+	var inactive_tex: Texture2D = load(inactive_path) if ResourceLoader.exists(inactive_path) else null
+	for i in _speed_glyph_rects.size():
+		var rect: TextureRect = _speed_glyph_rects[i]
+		rect.texture = active_tex if i <= _speed_level else inactive_tex
 
 
 # --- Cards ---
@@ -765,16 +808,14 @@ func _on_cards_dealt(dealt_hand: Array[CardData]) -> void:
 		_card_visuals[i].set_flip_duration(_get_flip_s())
 		if _card_visuals[i].face_up:
 			any_face_up = true
-			_card_visuals[i].flip_to_back()
-			SoundManager.play("flip")
+			_card_visuals[i].flip_to_back()  # SFX inside CardVisual
 			if not instant:
 				await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
 	if any_face_up and not instant:
 		await get_tree().create_timer(ConfigManager.get_animation("card_deal_delay_ms", 80.0) / 1000.0).timeout
 	for i in 5:
 		_card_visuals[i].set_flip_duration(_get_flip_s())
-		_card_visuals[i].set_card(dealt_hand[i], true, _variant.is_wild_card(dealt_hand[i]))
-		SoundManager.play("flip")
+		_card_visuals[i].set_card(dealt_hand[i], true, _variant.is_wild_card(dealt_hand[i]))  # SFX inside CardVisual
 		VibrationManager.vibrate("card_deal")
 		if not instant and i < 4:
 			await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
@@ -792,24 +833,22 @@ func _on_deal_draw_pressed() -> void:
 	if _game_manager.state == GameManager.State.HOLDING:
 		_animating = true
 		var instant := _get_flip_s() < 0.03
-		# Flip non-held cards to back
+		# Flip non-held cards to back (SFX inside CardVisual.flip_to_back)
 		for i in 5:
 			if not _game_manager.held[i]:
 				_card_visuals[i].set_flip_duration(_get_flip_s())
 				_card_visuals[i].flip_to_back()
-				SoundManager.play("flip")
 				VibrationManager.vibrate("card_flip")
 				if not instant:
 					await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
 		if not instant:
 			await get_tree().create_timer(ConfigManager.get_animation("card_draw_delay_ms", 80.0) / 1000.0).timeout
 		_game_manager.draw()
-		# Deal new cards
+		# Deal new cards (SFX inside CardVisual.set_card → _play_flip_in)
 		for i in 5:
 			if not _game_manager.held[i]:
 				_card_visuals[i].set_flip_duration(_get_flip_s())
 				_card_visuals[i].set_card(_game_manager.hand[i], true, _variant.is_wild_card(_game_manager.hand[i]))
-				SoundManager.play("flip")
 				VibrationManager.vibrate("card_deal")
 				if not instant:
 					await get_tree().create_timer(_get_deal_ms() / 1000.0).timeout
@@ -1182,9 +1221,19 @@ func _update_bet_amount_btn() -> void:
 	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_auto(_current_denomination, 118, 20))
 
 func _on_bet_amount_pressed() -> void:
-	if _game_manager.state != GameManager.State.IDLE and _game_manager.state != GameManager.State.WIN_DISPLAY:
+	if _is_bet_locked():
 		return
 	_show_bet_picker()
+
+
+# Single source of truth: bet/denomination cannot change during an active
+# hand or while the Double sub-game is running. Used by every entry point
+# that mutates `SaveManager.denomination` or `SaveManager.bet_level`.
+func _is_bet_locked() -> bool:
+	if _in_double:
+		return true
+	return _game_manager.state != GameManager.State.IDLE \
+		and _game_manager.state != GameManager.State.WIN_DISPLAY
 
 
 # ─── IDLE BLINK (G.10) ───────────────────────────────────────────────
@@ -1300,6 +1349,11 @@ func _show_bet_picker() -> void:
 		grid.add_child(btn)
 
 func _select_denomination(amount: int) -> void:
+	# Defense in depth: even if the picker stayed open across a state
+	# change, refuse to apply the new denomination mid-hand.
+	if _is_bet_locked():
+		_hide_bet_picker()
+		return
 	_current_denomination = amount
 	SaveManager.denomination = amount
 	_update_bet_amount_btn()
@@ -1453,9 +1507,15 @@ func _show_info() -> void:
 	_info_overlay.add_child(dim)
 
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = 40
-	scroll.offset_right = -40
+	# 80% of viewport width (Bug 16) — anchored to left/right at 10/90%
+	# so the dialog scales with the device. Top/bottom keep a fixed
+	# inset so the close button doesn't kiss the safe-area.
+	scroll.anchor_left = 0.1
+	scroll.anchor_right = 0.9
+	scroll.anchor_top = 0.0
+	scroll.anchor_bottom = 1.0
+	scroll.offset_left = 0
+	scroll.offset_right = 0
 	scroll.offset_top = 20
 	scroll.offset_bottom = -20
 	_info_overlay.add_child(scroll)
@@ -1468,7 +1528,7 @@ func _show_info() -> void:
 	# Close button
 	var close_btn := Button.new()
 	close_btn.text = "X"
-	close_btn.add_theme_font_size_override("font_size", 24)
+	close_btn.add_theme_font_size_override("font_size", 28)
 	close_btn.add_theme_color_override("font_color", Color.WHITE)
 	var close_style := StyleBoxFlat.new()
 	close_style.bg_color = Color(0.5, 0.1, 0.1, 0.8)
@@ -1484,7 +1544,7 @@ func _show_info() -> void:
 	var title := Label.new()
 	title.text = Translations.tr_key("info.title_single")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
+	title.add_theme_font_size_override("font_size", 34)
 	title.add_theme_color_override("font_color", COL_YELLOW)
 	content.add_child(title)
 
@@ -1503,7 +1563,7 @@ func _show_info() -> void:
 	rules.bbcode_enabled = true
 	rules.fit_content = true
 	rules.scroll_active = false
-	rules.add_theme_font_size_override("normal_font_size", 18)
+	rules.add_theme_font_size_override("normal_font_size", 22)
 	rules.add_theme_color_override("default_color", Color.WHITE)
 	var rules_text: String = Translations.tr_key("info.rules_single")
 	# Auto-highlight keywords in yellow if no BBCode tags present
@@ -1517,7 +1577,7 @@ func _show_info() -> void:
 	var machines_title := Label.new()
 	machines_title.text = Translations.tr_key("info.machines_title")
 	machines_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	machines_title.add_theme_font_size_override("font_size", 24)
+	machines_title.add_theme_font_size_override("font_size", 28)
 	machines_title.add_theme_color_override("font_color", COL_YELLOW)
 	content.add_child(machines_title)
 
@@ -1545,7 +1605,7 @@ func _show_info() -> void:
 	for header_key in ["info.col_machine", "info.col_deck", "info.col_rtp", "info.col_feature"]:
 		var lbl := Label.new()
 		lbl.text = Translations.tr_key(header_key)
-		lbl.add_theme_font_size_override("font_size", 16)
+		lbl.add_theme_font_size_override("font_size", 19)
 		lbl.add_theme_color_override("font_color", COL_YELLOW)
 		lbl.add_theme_font_override("font", bold)
 		table.add_child(lbl)
@@ -1575,7 +1635,7 @@ func _show_info() -> void:
 		for i in cells.size():
 			var lbl := Label.new()
 			lbl.text = cells[i]
-			lbl.add_theme_font_size_override("font_size", 14)
+			lbl.add_theme_font_size_override("font_size", 17)
 			lbl.add_theme_color_override("font_color", Color.WHITE)
 			if i == 3:
 				lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -1793,14 +1853,20 @@ func _on_double_card_picked(index: int) -> void:
 		_bet_one_btn.disabled = false
 		_bet_max_btn.disabled = false
 	elif player_rank == dealer_rank:
-		# Tie — return original amount
+		# Tie = PUSH (IGT Game King). Refund the wager to balance and
+		# restore the WIN label to the at-risk amount. DOUBLE + DEAL
+		# light up so the player chooses: risk again or collect.
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
 		_animate_credits(SaveManager.credits)
 		_set_status(Translations.tr_key("double.tie"))
-		_double_amount = 0
+		_set_win_active(_double_amount)
 		await _credit_tween.finished
-		_end_double()
+		_double_btn.disabled = false
+		_deal_draw_btn.disabled = false
+		_bet_one_btn.disabled = false
+		_bet_max_btn.disabled = false
+		_in_double = false
 	else:
 		# Lose
 		SoundManager.play("double_lose")
@@ -1817,6 +1883,25 @@ func _end_double() -> void:
 	_bet_one_btn.disabled = false
 	_bet_max_btn.disabled = false
 	_in_double = false
+
+
+# Re-deal the 4 player face-down cards from a fresh deck and re-enable
+# clicks. Dealer card (slot 0) stays the same — only the picks reshuffle.
+# Used on a TIE so the round becomes a push (player keeps wager at risk
+# and picks again).
+func _reshuffle_double_player_cards() -> void:
+	var deck := Deck.new(52)
+	var fresh: Array = deck.deal_hand()
+	for i in range(1, 5):
+		_double_cards[i] = fresh[i]
+		var cv = _card_visuals[i]
+		cv.set_flip_duration(ConfigManager.get_animation("double_card_flip_ms", 150.0) / 1000.0)
+		if cv.face_up:
+			cv.flip_to_back()
+		else:
+			cv.show_back()
+		cv.set_interactive(true)
+	_set_status(Translations.tr_key("double.pick_card"))
 
 
 func _hide_double_overlay() -> void:

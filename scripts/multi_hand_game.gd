@@ -457,10 +457,15 @@ func _apply_theme() -> void:
 	# Left group: INFO + SPEED
 	var tex_info := load("res://assets/themes/classic/controls/info_button.svg")
 	_style_btn(_info_btn, tex_info, Color.BLACK, 16, 40, btn_h)
-	_style_btn(_speed_btn, tex_panel_w, Color.WHITE, 13, 110, btn_h)
+	# Match single-hand chrome — yellow plate so SPEED doesn't look like
+	# a flat unstyled rectangle when no theme PNG is applied (Bug 11
+	# follow-up: classic multi-hand had `tex_panel_w` which renders bare).
+	_style_btn(_speed_btn, tex_yellow, COL_BTN_TEXT, 13, 110, btn_h)
 
-	# Center group: HANDS, $amount, BET, BET MAX
-	_style_btn(_hands_btn, tex_panel, Color.WHITE, 14, 100, btn_h)
+	# Center group: HANDS, $amount, BET, BET MAX. HANDS shares the same
+	# yellow chrome as SPEED so the multi-hand bar matches single-hand
+	# (Bug 11 follow-up).
+	_style_btn(_hands_btn, tex_yellow, COL_BTN_TEXT, 14, 100, btn_h)
 	_style_btn(_bet_amount_btn, tex_blue, Color.WHITE, 16, 120, btn_h)
 	_style_btn(_bet_btn, tex_yellow, COL_BTN_TEXT, 14, 80, btn_h)
 	_style_btn(_bet_max_btn, tex_yellow, COL_BTN_TEXT, 14, 100, btn_h)
@@ -933,11 +938,52 @@ func _on_speed_pressed() -> void:
 	SaveManager.save_game()
 	_update_speed_display()
 
+var _speed_glyph_rects: Array = []  # 4 TextureRects, [0..3] = level indicator
+var _speed_glyphs_built: bool = false
+
 func _update_speed_display() -> void:
-	var arrows := ""
-	for i in 4:
-		arrows += "▶" if i <= _speed_level else "▷"
-	_speed_btn.text = arrows + "\nSPEED"
+	if _speed_btn == null:
+		return
+	# Lazy build: 4 triangle glyphs in a row + a SPEED label below, both
+	# wrapped in a VBoxContainer that fills the button. Mouse filter is
+	# IGNORE on every child so taps pass through to the button itself.
+	if not _speed_glyphs_built:
+		_speed_btn.text = ""
+		var wrap := VBoxContainer.new()
+		wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+		wrap.alignment = BoxContainer.ALIGNMENT_CENTER
+		wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wrap.add_theme_constant_override("separation", 2)
+		_speed_btn.add_child(wrap)
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_theme_constant_override("separation", 3)
+		wrap.add_child(row)
+		_speed_glyph_rects.clear()
+		for i in 4:
+			var glyph := TextureRect.new()
+			glyph.custom_minimum_size = Vector2(14, 14)
+			glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			row.add_child(glyph)
+			_speed_glyph_rects.append(glyph)
+		var lbl := Label.new()
+		lbl.text = "SPEED"
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", Color.WHITE)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		wrap.add_child(lbl)
+		_speed_glyphs_built = true
+	var active_path: String = ThemeManager.theme_folder() + "controls/speed_active.png"
+	var inactive_path: String = ThemeManager.theme_folder() + "controls/speed_inactive.png"
+	var active_tex: Texture2D = load(active_path) if ResourceLoader.exists(active_path) else null
+	var inactive_tex: Texture2D = load(inactive_path) if ResourceLoader.exists(inactive_path) else null
+	for i in _speed_glyph_rects.size():
+		var rect: TextureRect = _speed_glyph_rects[i]
+		rect.texture = active_tex if i <= _speed_level else inactive_tex
 
 
 # --- Hand count cycling ---
@@ -976,13 +1022,13 @@ func _on_hands_pressed() -> void:
 
 func _switch_hand_count(new_count: int) -> void:
 	_switching_hands = true
-	# Remember whether we were in 100-hand layout before changing state.
-	# When the layout mode flips (acc-stack ↔ static columns) the badges
-	# need a full rebuild; otherwise we just refresh the multipliers like
-	# before so the side columns don't get repositioned mid-animation.
-	var was_hundred: bool = _is_hundred_layout()
 	# Save current UX state before switching
 	_save_ux_state()
+	# Snap-clear the paytable badges (left + right columns + accumulated
+	# 100h stack) the instant the player taps the HANDS button, so they
+	# don't linger visually during the 0.2s shrink-out animation. Without
+	# this they only disappeared at the end of the rebuild — felt laggy.
+	_clear_paytable_badges()
 
 	# 1. Animate out: bounce → shrink → fade
 	if _extra_grid:
@@ -1013,7 +1059,11 @@ func _switch_hand_count(new_count: int) -> void:
 	# Load saved UX state for new hand count
 	_load_ux_state()
 
-	# 4. Build new grid (invisible)
+	# 4. Build new grid OFF-TREE so 99 add_child calls don't each trigger
+	# a layout reflow on the parent (Bug 13: switching to 100 hands took
+	# noticeably long because every mini-hand insertion reflowed the
+	# bottom-section anchors). We attach the fully-built grid to the
+	# scene tree in one shot at the end of the build phase.
 	var extra_rect: Control = %ExtraHandsRect
 	_extra_grid = GridContainer.new()
 	_extra_grid.set_anchors_preset(Control.PRESET_CENTER)
@@ -1023,7 +1073,6 @@ func _switch_hand_count(new_count: int) -> void:
 	_extra_grid.add_theme_constant_override("h_separation", 20 if _ultra_vp else 16)
 	_extra_grid.add_theme_constant_override("v_separation", 10)
 	_extra_grid.modulate.a = 0.0
-	extra_rect.add_child(_extra_grid)
 
 	# Ultra VP: keep primary zone/labels (index 0), remove old extra zones/labels.
 	# NOTE: the zones in _mult_zones[1..] were children of the extra_grid and
@@ -1063,7 +1112,20 @@ func _switch_hand_count(new_count: int) -> void:
 		else:
 			_extra_grid.add_child(mh)
 		_extra_displays.append(mh)
-		mh.show_back()
+		# NOTE: cannot call `mh.show_back()` here — the mini hasn't entered
+		# the tree yet (the grid is built off-tree to skip 99 reflows on
+		# 100h), so its `_ready` hasn't fired and `_card_textures` is empty.
+		# We initialize face-down state below, after the grid attaches.
+
+	# Single attach to the tree — one layout pass for the whole batch
+	# instead of 99 incremental reflows.
+	extra_rect.add_child(_extra_grid)
+
+	# Now every mini's `_ready` has fired and its `_card_textures` is
+	# populated — safe to flip them to back. Without this loop the player
+	# saw blank/empty mini-hand slots until the first DEAL repainted them.
+	for mini in _extra_displays:
+		mini.show_back()
 
 	# 5. Wait for layout, then size
 	await get_tree().process_frame
@@ -1098,10 +1160,12 @@ func _switch_hand_count(new_count: int) -> void:
 	tw_in.tween_property(_extra_grid, "scale", Vector2(1.0, 1.0), 0.06).set_ease(Tween.EASE_IN_OUT)
 	await tw_in.finished
 
-	# Now that the grid is at full scale, swap the badge model if the
-	# layout mode flipped between accumulated-stack and static columns.
-	if was_hundred != _is_hundred_layout():
-		_build_paytable_badges()
+	# Badges were snap-cleared at the start of the switch, so we always
+	# rebuild here — both for layout flips (acc-stack ↔ static columns)
+	# and same-layout count changes (5→10, 10→25, etc.). Without this
+	# unconditional rebuild same-layout switches were left with no
+	# badges at all after the early clear.
+	_build_paytable_badges()
 
 	# Refresh multiplier labels for new layout
 	if _ultra_vp:
@@ -1615,7 +1679,11 @@ func _on_hands_drawn(all_hands: Array) -> void:
 			for j in 5:
 				if not _manager.held[j] and j < hand.size():
 					last_unheld = j
-			var collapse_sfx: bool = _is_hundred_layout() and _speed_level >= 1
+			# Collapse the per-card flip SFX into a single sound on the
+			# last non-held card of the hand. Active for 25 / 50 / 100
+			# hands at speed ≥ 2× — without this 250 / 495 simultaneous
+			# flip sounds turn into a cacophony at fast speeds.
+			var collapse_sfx: bool = _num_hands >= 25 and not _ultra_vp and _speed_level >= 1
 			for i in 5:
 				if not _manager.held[i] and i < hand.size():
 					mini.show_card_at(i, hand[i], _extra_flip_animate())
@@ -1641,6 +1709,13 @@ func _on_hands_drawn(all_hands: Array) -> void:
 				if _ultra_vp and (idx + 1) < _manager.hand_multipliers.size():
 					active_m = _manager.hand_multipliers[idx + 1]
 				SoundManager.play_with_pitch("hand_result", _hand_result_pitch)
+				# Light haptic on every winning extra-hand badge so the
+				# player feels each mini-celebration. Bug 14 (multi-hand
+				# Supercell — no haptic + sound) and Bug 15 (100h — no
+				# haptic) are both addressed by this single call. Tied
+				# to a short 12ms pulse to avoid haptic fatigue when
+				# many extra hands win in the same round.
+				VibrationManager.vibrate("extra_hand_win")
 				_hand_result_pitch += 0.08
 				mini.show_result(hand_name, base_mult, badge_color, active_m, hand_key)
 				mini.set_win_mask(_variant.get_hold_mask(hand, hand_rank))
@@ -2624,9 +2699,18 @@ func _get_card_path(card: CardData) -> String:
 # --- Bet picker ---
 
 func _on_bet_amount_pressed() -> void:
-	if _manager.state != MultiHandManager.State.IDLE and _manager.state != MultiHandManager.State.WIN_DISPLAY:
+	if _is_bet_locked():
 		return
 	_show_bet_picker()
+
+
+# Single source of truth: bet/denomination cannot change during an active
+# hand or while the Double sub-game is running.
+func _is_bet_locked() -> bool:
+	if _in_double:
+		return true
+	return _manager.state != MultiHandManager.State.IDLE \
+		and _manager.state != MultiHandManager.State.WIN_DISPLAY
 
 
 func _on_back_pressed() -> void:
@@ -2696,6 +2780,12 @@ func _show_bet_picker() -> void:
 		SaveManager.set_currency_value(cd, SaveManager.format_auto(amount, 96, 16))
 		btn.add_child(cd["box"])
 		btn.pressed.connect(func() -> void:
+			# Defense in depth: refuse to apply if state changed under us.
+			if _is_bet_locked():
+				if _bet_picker_overlay:
+					_bet_picker_overlay.queue_free()
+					_bet_picker_overlay = null
+				return
 			if _ultra_vp:
 				_save_ux_state()
 			_current_denomination = amount
@@ -2850,32 +2940,39 @@ func _show_info() -> void:
 
 	# Supercell wraps content in a centered popup panel (purple/yellow
 	# stylebox). Classic puts the scroll container directly on dim.
+	# Both target 80% of viewport width (Bug 16) — anchors at 10..90%
+	# so the dialog scales with the device.
 	var scroll_parent: Control = _info_overlay
-	var scroll_offset_left: int = 60
-	var scroll_offset_right: int = -60
 	var scroll_offset_top: int = 20
 	var scroll_offset_bottom: int = -20
 	if is_supercell:
 		var popup_panel := PanelContainer.new()
 		popup_panel.name = "SupercellInfoPanel"
 		popup_panel.add_theme_stylebox_override("panel", ThemeManager.make_popup_stylebox())
-		popup_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-		popup_panel.offset_left = 40
-		popup_panel.offset_right = -40
+		popup_panel.anchor_left = 0.1
+		popup_panel.anchor_right = 0.9
+		popup_panel.anchor_top = 0.0
+		popup_panel.anchor_bottom = 1.0
+		popup_panel.offset_left = 0
+		popup_panel.offset_right = 0
 		popup_panel.offset_top = 40
 		popup_panel.offset_bottom = -40
 		_info_overlay.add_child(popup_panel)
 		scroll_parent = popup_panel
-		scroll_offset_left = 0
-		scroll_offset_right = 0
 		scroll_offset_top = 0
 		scroll_offset_bottom = 0
 
 	var scroll := ScrollContainer.new()
 	if scroll_parent == _info_overlay:
-		scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
-		scroll.offset_left = scroll_offset_left
-		scroll.offset_right = scroll_offset_right
+		# Classic mode: scroll fills 80% of overlay width with a top/bottom
+		# inset (Bug 16). Supercell mode: scroll fills the popup_panel,
+		# whose own anchors already do the 80% sizing.
+		scroll.anchor_left = 0.1
+		scroll.anchor_right = 0.9
+		scroll.anchor_top = 0.0
+		scroll.anchor_bottom = 1.0
+		scroll.offset_left = 0
+		scroll.offset_right = 0
 		scroll.offset_top = scroll_offset_top
 		scroll.offset_bottom = scroll_offset_bottom
 	scroll_parent.add_child(scroll)
@@ -2893,7 +2990,7 @@ func _show_info() -> void:
 	close_btn.pressed.connect(_hide_info)
 	if is_supercell:
 		close_btn.custom_minimum_size = Vector2(48, 48)
-		close_btn.add_theme_font_size_override("font_size", 26)
+		close_btn.add_theme_font_size_override("font_size", 30)
 		close_btn.add_theme_color_override("font_color", ThemeManager.color("button_primary_text", Color("2A1F00")))
 		var sb_close := StyleBoxFlat.new()
 		sb_close.bg_color = ThemeManager.color("button_primary_bg", Color("FFCC2E"))
@@ -2909,7 +3006,7 @@ func _show_info() -> void:
 		if f_close != null:
 			close_btn.add_theme_font_override("font", f_close)
 	else:
-		close_btn.add_theme_font_size_override("font_size", 24)
+		close_btn.add_theme_font_size_override("font_size", 28)
 		close_btn.add_theme_color_override("font_color", Color.WHITE)
 		var close_style := StyleBoxFlat.new()
 		close_style.bg_color = Color(0.5, 0.1, 0.1, 0.8)
@@ -2929,9 +3026,9 @@ func _show_info() -> void:
 	title.text = Translations.tr_key("info.title_ultra_vp") if _ultra_vp else Translations.tr_key("info.title_multi")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if is_supercell:
-		ThemeManager.style_popup_title(title, 26)
+		ThemeManager.style_popup_title(title, 32)
 	else:
-		title.add_theme_font_size_override("font_size", 28)
+		title.add_theme_font_size_override("font_size", 34)
 		title.add_theme_color_override("font_color", Color("FFEC00"))
 		title.add_theme_font_override("font", bold)
 	content.add_child(title)
@@ -2958,7 +3055,7 @@ func _show_info() -> void:
 	rules.bbcode_enabled = true
 	rules.fit_content = true
 	rules.scroll_active = false
-	rules.add_theme_font_size_override("normal_font_size", 14 if is_supercell else 16)
+	rules.add_theme_font_size_override("normal_font_size", 18 if is_supercell else 20)
 	rules.add_theme_color_override("default_color", Color.WHITE)
 	if is_supercell:
 		var f_rules: Font = ThemeManager.font()
@@ -2982,9 +3079,9 @@ func _show_info() -> void:
 		mt.text = Translations.tr_key("info.multiplier_table")
 		mt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		if is_supercell:
-			ThemeManager.style_popup_title(mt, 20)
+			ThemeManager.style_popup_title(mt, 24)
 		else:
-			mt.add_theme_font_size_override("font_size", 22)
+			mt.add_theme_font_size_override("font_size", 26)
 			mt.add_theme_color_override("font_color", Color("FFEC00"))
 			mt.add_theme_font_override("font", bold)
 		content.add_child(mt)
@@ -2998,7 +3095,7 @@ func _show_info() -> void:
 		for header_key in ["info.col_winning_hand", "info.col_next_multiplier"]:
 			var lbl := Label.new()
 			lbl.text = Translations.tr_key(header_key)
-			lbl.add_theme_font_size_override("font_size", 14 if is_supercell else 15)
+			lbl.add_theme_font_size_override("font_size", 17 if is_supercell else 18)
 			lbl.add_theme_color_override("font_color", ThemeManager.color("popup_title_text", Color("FFEC00")) if is_supercell else Color("FFEC00"))
 			lbl.add_theme_font_override("font", bold)
 			table.add_child(lbl)
@@ -3047,7 +3144,7 @@ func _show_info() -> void:
 				cell_panel.add_theme_stylebox_override("panel", cs)
 				var lbl := Label.new()
 				lbl.text = cell
-				lbl.add_theme_font_size_override("font_size", 13 if is_supercell else 14)
+				lbl.add_theme_font_size_override("font_size", 16 if is_supercell else 17)
 				lbl.add_theme_color_override("font_color", Color.WHITE if is_supercell else row_col)
 				if is_supercell:
 					var f_cell: Font = ThemeManager.font()
@@ -3280,13 +3377,20 @@ func _on_double_card_picked(index: int) -> void:
 		_bet_btn.disabled = false
 		_bet_max_btn.disabled = false
 	elif player_rank == dealer_rank:
+		# Tie = PUSH (IGT). Refund the wager and re-enable DOUBLE / DEAL
+		# so the player chooses: risk again or collect.
 		SaveManager.add_credits(_double_amount)
 		_displayed_credits = SaveManager.credits - _double_amount
 		_animate_credits(SaveManager.credits)
-		_win_cd["box"].visible = true
-		_double_amount = 0
+		_win_label.text = Translations.tr_key("double.tie")
+		_set_win_active(_double_amount)
 		await _credit_tween.finished
-		_end_double()
+		_double_btn.disabled = false
+		_deal_draw_btn.disabled = false
+		_bet_btn.disabled = false
+		_bet_max_btn.disabled = false
+		_hands_btn.disabled = false
+		_in_double = false
 	else:
 		SoundManager.play("double_lose")
 		VibrationManager.vibrate("double_lose")
@@ -3304,6 +3408,24 @@ func _end_double() -> void:
 	_bet_max_btn.disabled = false
 	_hands_btn.disabled = false
 	_in_double = false
+
+
+# Re-deal the 4 player face-down cards on a TIE so the round becomes a
+# push (multi-hand parity with classic single-hand). Dealer card (slot 0)
+# stays — only the picks reshuffle.
+func _reshuffle_double_player_cards() -> void:
+	var deck := Deck.new(52)
+	var fresh: Array = deck.deal_hand()
+	for i in range(1, 5):
+		_double_cards[i] = fresh[i]
+		var cv = _primary_cards[i]
+		cv.set_flip_duration(ConfigManager.get_animation("double_card_flip_ms", 150.0) / 1000.0)
+		if cv.face_up:
+			cv.flip_to_back()
+		else:
+			cv.show_back()
+		cv.set_interactive(true)
+	_win_label.text = Translations.tr_key("game.win_label")
 	# Restore extra hands
 	for mini in _extra_displays:
 		mini.modulate = Color.WHITE

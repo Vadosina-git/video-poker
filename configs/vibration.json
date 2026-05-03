@@ -18,7 +18,8 @@
     "double_win":           30,
     "double_lose":          20,
     "gift_claim":           40,
-    "multiplier_activate":  25
+    "multiplier_activate":  25,
+    "extra_hand_win":       12
   },
 
   "heavy_events": ["win_royal_flush", "win_jackpot"],
