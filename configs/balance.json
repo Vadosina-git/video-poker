@@ -3,12 +3,12 @@
   "_doc": "Per-mode betting economics. denominations = chip-coin face values available in BET AMOUNT picker. default_denomination_index seeds first-launch selection (consumed by SaveManager._seed_first_launch_defaults via init_config + balance). NOTE: max_bet is a STRUCTURAL constant (=5) tied to the 5-column paytable layout in machines.json hands[].pays — it cannot be changed via config without rebuilding paytables and FSM logic. Likewise min_bet=1 is implicit in bet-cycling logic.",
 
   "modes": {
-    "single_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
-    "triple_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
-    "five_play":   {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
-    "ten_play":    {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
-    "ultra_vp":    {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000], "default_denomination_index": 0},
-    "spin_poker":  {"denominations": [100, 200, 500, 1000],                            "default_denomination_index": 0}
+    "single_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000, 50000, 100000], "default_denomination_index": 0},
+    "triple_play": {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000, 50000, 100000], "default_denomination_index": 0},
+    "five_play":   {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000, 50000, 100000], "default_denomination_index": 0},
+    "ten_play":    {"denominations": [100, 200, 500, 1000, 2500, 5000, 10000, 20000, 50000, 100000], "default_denomination_index": 0},
+    "ultra_vp":    {"denominations": [1, 10, 20, 50, 100, 250, 500, 1000, 2000, 5000, 10000], "default_denomination_index": 0},
+    "spin_poker":  {"denominations": [10, 20, 50, 100, 250, 500, 1000, 2000],                            "default_denomination_index": 0}
   },
 
   "big_win_thresholds": {

@@ -127,14 +127,18 @@ func setup(variant: BaseVariant, num_hands: int, p_ultra_vp: bool = false) -> vo
 func _ready() -> void:
 	if _variant == null:
 		return
-	# Determine mode for denomination config
+	# Determine mode for denomination config. Ultra always reads its own
+	# denomination set, regardless of num_hands.
 	var mode_id := "five_play"
-	match _num_hands:
-		1: mode_id = "single_play"
-		3: mode_id = "triple_play"
-		5: mode_id = "ultra_vp" if _ultra_vp else "five_play"
-		10: mode_id = "ten_play"
-		_: mode_id = "five_play"
+	if _ultra_vp:
+		mode_id = "ultra_vp"
+	else:
+		match _num_hands:
+			1: mode_id = "single_play"
+			3: mode_id = "triple_play"
+			5: mode_id = "five_play"
+			10: mode_id = "ten_play"
+			_: mode_id = "five_play"
 	BET_AMOUNTS = ConfigManager.get_denominations(mode_id)
 	var shop_items := ConfigManager.get_shop_items()
 	for si in shop_items:

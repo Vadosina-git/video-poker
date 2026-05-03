@@ -107,25 +107,142 @@ func _apply_supercell_topup_btn() -> void:
 	_topup_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 
-## Force the multi-hand bet level to 1 (denomination = full wager) and
-## hide the BET / MAX BET buttons so the player can't change it. Mirrors
-## the single-hand supercell's locked-bet-1 design.
+## Multi-hand supercell bet lock.
+## Non-Ultra modes: bet stays at 1 (denomination = full wager).
+## Ultra mode: bet is 5 (feature OFF) or 10 (feature ON, multipliers active).
+## Player toggles between 5/10 by tapping the Ultra info card (the
+## "ULTRA Win → Next hand gets multiplier!" plate to the right of the
+## primary hand). BET/MAX BET buttons stay hidden in this skin.
 func _lock_supercell_bet_to_one() -> void:
 	if _manager != null and is_instance_valid(_manager):
-		_manager.bet = 1
+		var locked_bet: int = 1
+		if _ultra_vp:
+			# Restore feature state from saved bet (5 or 10). Default OFF.
+			var saved: int = SaveManager.get_bet_level(_manager.mode_id)
+			locked_bet = 10 if saved >= 10 else 5
+		_manager.bet = locked_bet
 		if _manager.has_method("get") and "mode_id" in _manager:
-			SaveManager.set_bet_level(_manager.mode_id, 1)
-		_manager.bet_changed.emit(1)
+			SaveManager.set_bet_level(_manager.mode_id, locked_bet)
+		_manager.bet_changed.emit(locked_bet)
+		_update_bet_display(locked_bet)
 	if _bet_btn != null and is_instance_valid(_bet_btn):
 		_bet_btn.visible = false
 		_bet_btn.disabled = true
 	if _bet_max_btn != null and is_instance_valid(_bet_max_btn):
 		_bet_max_btn.visible = false
 		_bet_max_btn.disabled = true
+	# Refresh the calc suffix on the TOTAL BET row (driven by current bet).
+	if _ultra_vp:
+		call_deferred("_refresh_ultra_calc_suffix")
 	# Force LilitaOne onto every label / button classic just built. The
 	# subclass's own ctor doesn't touch them, so without this they keep
 	# the engine default font even with the supercell theme active.
 	call_deferred("_apply_supercell_font_recursive", self)
+
+
+var _ultra_calc_box: HBoxContainer = null
+var _ultra_calc_text: Label = null
+var _ultra_calc_value_cd: Dictionary = {}
+
+## In Ultra mode, TOTAL BET shows the BASE wager (bet=5 × N × denom)
+## with a calc tail "× 2 = {doubled}" appended only when the feature
+## is ON. The doubled value is rendered with the same currency-display
+## glyphs as the base (just without the chip prefix), so they visually
+## match. Calc tail hidden when feature OFF.
+func _refresh_ultra_calc_suffix() -> void:
+	if not _ultra_vp:
+		return
+	if _bet_cd.is_empty():
+		return
+	var bet_box: Node = _bet_cd.get("box")
+	if bet_box == null or not is_instance_valid(bet_box):
+		return
+	if _ultra_calc_box == null or not is_instance_valid(_ultra_calc_box):
+		_ultra_calc_box = HBoxContainer.new()
+		_ultra_calc_box.alignment = BoxContainer.ALIGNMENT_CENTER
+		_ultra_calc_box.add_theme_constant_override("separation", 0)
+		_ultra_calc_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var parent: Node = bet_box.get_parent()
+		if parent != null and parent.has_method("add_child"):
+			parent.add_child(_ultra_calc_box)
+			parent.move_child(_ultra_calc_box, bet_box.get_index() + 1)
+		else:
+			return
+		_ultra_calc_text = Label.new()
+		_ultra_calc_text.text = " × 2 = "
+		_ultra_calc_text.add_theme_font_size_override("font_size", _info_glyph_h)
+		_ultra_calc_text.add_theme_color_override("font_color", Color("FFCC2E"))
+		_ultra_calc_text.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		_ultra_calc_text.add_theme_constant_override("outline_size", 4)
+		var f: Font = ThemeManager.font()
+		if f != null:
+			_ultra_calc_text.add_theme_font_override("font", f)
+		_ultra_calc_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ultra_calc_box.add_child(_ultra_calc_text)
+		_ultra_calc_value_cd = SaveManager.create_currency_display(_info_glyph_h, COL_YELLOW)
+		_ultra_calc_value_cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ultra_calc_box.add_child(_ultra_calc_value_cd["box"])
+	var feature_on: bool = _manager != null and is_instance_valid(_manager) and _manager.bet >= 10
+	if feature_on:
+		var base: int = 5 * _num_hands * SaveManager.denomination
+		SaveManager.set_currency_value(_ultra_calc_value_cd, SaveManager.format_short(base * 2), 0, Color(-1, 0, 0), false)
+		_ultra_calc_box.visible = true
+	else:
+		_ultra_calc_box.visible = false
+
+
+## Override classic's _update_bet_display: in Ultra mode, the chip+amount
+## currency display always shows the BASE total bet (bet=5 × N × denom),
+## regardless of current bet. The doubled value lives in the calc suffix.
+func _update_bet_display(bet: int) -> void:
+	if not _ultra_vp:
+		super._update_bet_display(bet)
+		return
+	var base: int = 5 * _num_hands * SaveManager.denomination
+	if _balance_show_depth:
+		var credits_total: int = 5 * _num_hands
+		SaveManager.set_currency_value(_bet_cd, str(credits_total), 0, Color(-1, 0, 0), false)
+	else:
+		SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(base))
+		_flash_bet_display()
+	_refresh_ultra_calc_suffix()
+	_refresh_ux_visibility()
+
+
+## Defensive override: classic's HOLDING / DRAWING branches don't
+## explicitly disable the COINS (denomination) button — it relies on
+## DEALING's prior disable persisting. In Ultra mode something between
+## DEALING and HOLDING re-enables it, leaving the button visually
+## active mid-round. Force-disable across every in-round state.
+func _on_state_changed(new_state: int) -> void:
+	super._on_state_changed(new_state)
+	if _bet_amount_btn == null or not is_instance_valid(_bet_amount_btn):
+		return
+	match new_state:
+		MultiHandManager.State.IDLE, MultiHandManager.State.WIN_DISPLAY:
+			# parent enables / leaves enabled — bet can be changed here
+			pass
+		_:
+			_bet_amount_btn.disabled = true
+			_bet_amount_btn.modulate.a = 0.5
+
+
+## Override classic's `_on_info_card_clicked`: in Supercell the Ultra
+## info card acts purely as an ON/OFF toggle for the feature (bet 5↔10).
+## It does NOT start a round — player must press DEAL afterwards.
+## Classic's behavior (activate + immediate deal) is unchanged in its skin.
+func _on_info_card_clicked(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	if _is_bet_locked():
+		return
+	if _manager == null or not is_instance_valid(_manager):
+		return
+	var new_bet: int = 5 if _manager.bet >= 10 else 10
+	_manager.bet = new_bet
+	SaveManager.set_bet_level(_manager.mode_id, new_bet)
+	SaveManager.save_game()
+	_manager.bet_changed.emit(new_bet)
 
 
 ## Override classic's compact 36px-tall button sizing with the supercell
@@ -307,6 +424,8 @@ func _switch_hand_count(new_count: int) -> void:
 	_apply_supercell_font_recursive(self)
 	_apply_font_to_badges()
 	_skin_ultra_multiplier_plaques()
+	if _ultra_vp:
+		_refresh_ultra_calc_suffix()
 
 
 ## Replace the dark-blue procedural plaque drawn behind every Ultra VP
@@ -394,7 +513,12 @@ func _update_bet_amount_btn() -> void:
 	# Force the compact "5K" / "1.2M" form instead of `format_auto` —
 	# the COINS button only has ~60px left after the "COINS:" prefix and
 	# chip glyph, so a 4-digit "5,000" overflows the rounded plate.
-	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_short(_current_denomination))
+	# Ultra: display the denomination × 5 (matches picker rows). Static —
+	# does NOT scale with num_hands.
+	var shown_amount: int = _current_denomination
+	if _ultra_vp:
+		shown_amount = _current_denomination * 5
+	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_short(shown_amount))
 
 
 func _relocate_speed_to_middle() -> void:
@@ -558,7 +682,10 @@ func _show_bet_picker() -> void:
 		var cd := SaveManager.create_currency_display(20, ThemeManager.color("button_primary_text", Color("2A1F00")))
 		cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
 		cd["box"].set_anchors_preset(Control.PRESET_FULL_RECT)
-		SaveManager.set_currency_value(cd, SaveManager.format_auto(amount, 140, 20))
+		# Ultra: each row reads denom × 5 (static, never recomputed).
+		# Other modes: raw denom.
+		var displayed_amount: int = amount * 5 if _ultra_vp else amount
+		SaveManager.set_currency_value(cd, SaveManager.format_auto(displayed_amount, 140, 20))
 		btn.add_child(cd["box"])
 		btn.pressed.connect(func() -> void:
 			# Defense in depth: refuse to apply if state changed under us.
