@@ -115,10 +115,23 @@ func _apply_to(ctrl: Control) -> void:
 	var dt: float = float(margins["top"]) - float(prev["top"])
 	var dr: float = float(margins["right"]) - float(prev["right"])
 	var db: float = float(margins["bottom"]) - float(prev["bottom"])
+	# An edge at anchor 0 (follows parent top/left) gets pushed inward by
+	# the top/left safe area; an edge at anchor 1 (follows parent
+	# bottom/right) gets pulled inward by the bottom/right safe area.
+	# Critically: when BOTH edges of an axis share anchor 1 — e.g. a
+	# bottom-anchored container that "grows upward from the bottom" like
+	# BottomSection (anchor_top=1, anchor_bottom=1) — the top edge must
+	# also shift up by `db`, otherwise the container shrinks instead of
+	# sliding clear of the home-indicator pocket. Same idea horizontally
+	# for right-anchored containers.
 	if ctrl.anchor_left == 0.0:
 		ctrl.offset_left += dl
+	if ctrl.anchor_left == 1.0:
+		ctrl.offset_left -= dr
 	if ctrl.anchor_top == 0.0:
 		ctrl.offset_top += dt
+	if ctrl.anchor_top == 1.0:
+		ctrl.offset_top -= db
 	if ctrl.anchor_right == 1.0:
 		ctrl.offset_right -= dr
 	if ctrl.anchor_bottom == 1.0:
