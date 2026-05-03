@@ -84,6 +84,64 @@ func _ready() -> void:
 	call_deferred("_apply_supercell_topup_btn")
 
 
+## Override classic's entrance animation. The supercell sub-script issues
+## ~11 call_deferred decorations (button sizes, relocations, font swaps,
+## hand spacing) that trigger BoxContainer reflow during the brief 4-frame
+## await classic uses, which snaps children back to layout-default
+## positions and visually kills the mid-slide tween. Extending the wait so
+## the layout settles BEFORE we capture base positions and start the
+## tween restores the slide-bounce identical to classic.
+func _play_entrance_animation() -> void:
+	var title_bar: Control = get_node_or_null("VBoxContainer/TitleBar") as Control
+	var top_nodes: Array[Control] = []
+	if is_instance_valid(title_bar):
+		top_nodes.append(title_bar)
+	if is_instance_valid(_hands_area):
+		top_nodes.append(_hands_area)
+	var bottom_nodes: Array[Control] = []
+	if is_instance_valid(_bottom_section):
+		bottom_nodes.append(_bottom_section)
+	var badge_nodes: Array[Control] = []
+	if is_instance_valid(_left_badges):
+		badge_nodes.append(_left_badges)
+	if is_instance_valid(_right_badges):
+		badge_nodes.append(_right_badges)
+	# Hide synchronously before the first frame renders.
+	for n in top_nodes + bottom_nodes + badge_nodes:
+		n.modulate.a = 0.0
+	# Wait long enough for every supercell decoration call_deferred to
+	# finish AND for the resulting BoxContainer reflow to settle. 12 frames
+	# (~0.2s @ 60fps) covers the 11 deferred calls comfortably.
+	for i in 12:
+		await get_tree().process_frame
+	var vp_h: float = get_viewport_rect().size.y
+	var slide: float = vp_h * 0.6
+	var dur: float = 0.6
+	var overshoot_px: float = 9.0
+	for n in top_nodes:
+		if not is_instance_valid(n):
+			continue
+		var base_y: float = n.position.y
+		n.position.y = base_y - slide
+		n.modulate.a = 1.0
+		_tween_mh_section_bounce(n, base_y, overshoot_px, dur, 0.0)
+	for n in bottom_nodes:
+		if not is_instance_valid(n):
+			continue
+		var base_y: float = n.position.y
+		n.position.y = base_y + slide
+		n.modulate.a = 1.0
+		_tween_mh_section_bounce(n, base_y, -overshoot_px, dur, 0.0)
+	var badge_delay: float = 0.18
+	for n in badge_nodes:
+		if not is_instance_valid(n):
+			continue
+		var base_y: float = n.position.y
+		n.position.y = base_y - slide
+		n.visible = true
+		_tween_mh_section_bounce(n, base_y, overshoot_px, dur, badge_delay)
+
+
 ## Re-skin the classic "+" topup button (small text "+" on a blue plate)
 ## with the supercell PNG plate used in single-hand: 72×72 plate carrying
 ## the baked-in "+" glyph. Without this the button shrinks to ~24px on the
@@ -131,82 +189,101 @@ func _lock_supercell_bet_to_one() -> void:
 	if _bet_max_btn != null and is_instance_valid(_bet_max_btn):
 		_bet_max_btn.visible = false
 		_bet_max_btn.disabled = true
-	# Refresh the calc suffix on the TOTAL BET row (driven by current bet).
+	# Refresh the COINS button so the displayed denom × 5 × (1 or 2) +
+	# yellow accent reflect the current feature state.
 	if _ultra_vp:
-		call_deferred("_refresh_ultra_calc_suffix")
+		call_deferred("_update_bet_amount_btn")
+		call_deferred("_install_ultra_x2_badge")
 	# Force LilitaOne onto every label / button classic just built. The
 	# subclass's own ctor doesn't touch them, so without this they keep
 	# the engine default font even with the supercell theme active.
 	call_deferred("_apply_supercell_font_recursive", self)
 
 
-var _ultra_calc_box: HBoxContainer = null
-var _ultra_calc_text: Label = null
-var _ultra_calc_value_cd: Dictionary = {}
+var _ultra_x2_badge: Panel = null
 
-## In Ultra mode, TOTAL BET shows the BASE wager (bet=5 × N × denom)
-## with a calc tail "× 2 = {doubled}" appended only when the feature
-## is ON. The doubled value is rendered with the same currency-display
-## glyphs as the base (just without the chip prefix), so they visually
-## match. Calc tail hidden when feature OFF.
-func _refresh_ultra_calc_suffix() -> void:
+## Compact "×2" sticker glued to the COINS button's top-right corner.
+## Attached to the scene root with manual positioning so it sits OUTSIDE
+## every layout container — it cannot push or shift any sibling.
+## Position is synced to the button's global rect via the button's
+## `item_rect_changed` signal. Visibility tracks the feature state.
+func _install_ultra_x2_badge() -> void:
 	if not _ultra_vp:
 		return
-	if _bet_cd.is_empty():
+	if _bet_amount_btn == null or not is_instance_valid(_bet_amount_btn):
+		call_deferred("_install_ultra_x2_badge")
 		return
-	var bet_box: Node = _bet_cd.get("box")
-	if bet_box == null or not is_instance_valid(bet_box):
+	if _ultra_x2_badge != null and is_instance_valid(_ultra_x2_badge):
+		_refresh_ultra_x2_badge()
 		return
-	if _ultra_calc_box == null or not is_instance_valid(_ultra_calc_box):
-		_ultra_calc_box = HBoxContainer.new()
-		_ultra_calc_box.alignment = BoxContainer.ALIGNMENT_CENTER
-		_ultra_calc_box.add_theme_constant_override("separation", 0)
-		_ultra_calc_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var parent: Node = bet_box.get_parent()
-		if parent != null and parent.has_method("add_child"):
-			parent.add_child(_ultra_calc_box)
-			parent.move_child(_ultra_calc_box, bet_box.get_index() + 1)
-		else:
-			return
-		_ultra_calc_text = Label.new()
-		_ultra_calc_text.text = " × 2 = "
-		_ultra_calc_text.add_theme_font_size_override("font_size", _info_glyph_h)
-		_ultra_calc_text.add_theme_color_override("font_color", Color("FFCC2E"))
-		_ultra_calc_text.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-		_ultra_calc_text.add_theme_constant_override("outline_size", 4)
-		var f: Font = ThemeManager.font()
-		if f != null:
-			_ultra_calc_text.add_theme_font_override("font", f)
-		_ultra_calc_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_ultra_calc_box.add_child(_ultra_calc_text)
-		_ultra_calc_value_cd = SaveManager.create_currency_display(_info_glyph_h, COL_YELLOW)
-		_ultra_calc_value_cd["box"].mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_ultra_calc_box.add_child(_ultra_calc_value_cd["box"])
+	const BADGE_W := 40
+	const BADGE_H := 26
+	_ultra_x2_badge = Panel.new()
+	_ultra_x2_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ultra_x2_badge.custom_minimum_size = Vector2(BADGE_W, BADGE_H)
+	_ultra_x2_badge.size = Vector2(BADGE_W, BADGE_H)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color("FFCC2E")
+	sb.border_color = Color("152033")
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(8)
+	sb.anti_aliasing = true
+	_ultra_x2_badge.add_theme_stylebox_override("panel", sb)
+	var lbl := Label.new()
+	lbl.text = "×2"
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_color_override("font_color", Color("152033"))
+	var f: Font = ThemeManager.font()
+	if f != null:
+		lbl.add_theme_font_override("font", f)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ultra_x2_badge.add_child(lbl)
+	# Attach to scene root so the badge sits ABOVE the bottom bar and
+	# isn't clipped by any container.
+	add_child(_ultra_x2_badge)
+	_ultra_x2_badge.z_index = 100
+	if not _bet_amount_btn.item_rect_changed.is_connected(_position_ultra_x2_badge):
+		_bet_amount_btn.item_rect_changed.connect(_position_ultra_x2_badge)
+	_position_ultra_x2_badge()
+	_refresh_ultra_x2_badge()
+
+
+func _position_ultra_x2_badge() -> void:
+	if _ultra_x2_badge == null or not is_instance_valid(_ultra_x2_badge):
+		return
+	if _bet_amount_btn == null or not is_instance_valid(_bet_amount_btn):
+		return
+	# Mostly tucked inside the COINS button's top-right corner — only a
+	# small lip overhangs (≈10% top / 20% right) so it reads as a sticker
+	# without floating away from the button.
+	var btn_rect: Rect2 = _bet_amount_btn.get_global_rect()
+	var bw: float = _ultra_x2_badge.size.x
+	var bh: float = _ultra_x2_badge.size.y
+	_ultra_x2_badge.global_position = Vector2(
+		btn_rect.position.x + btn_rect.size.x - bw * 0.8,
+		btn_rect.position.y - bh * 0.1
+	)
+
+
+func _refresh_ultra_x2_badge() -> void:
+	if _ultra_x2_badge == null or not is_instance_valid(_ultra_x2_badge):
+		return
 	var feature_on: bool = _manager != null and is_instance_valid(_manager) and _manager.bet >= 10
-	if feature_on:
-		var base: int = 5 * _num_hands * SaveManager.denomination
-		SaveManager.set_currency_value(_ultra_calc_value_cd, SaveManager.format_short(base * 2), 0, Color(-1, 0, 0), false)
-		_ultra_calc_box.visible = true
-	else:
-		_ultra_calc_box.visible = false
+	_ultra_x2_badge.visible = feature_on
 
 
-## Override classic's _update_bet_display: in Ultra mode, the chip+amount
-## currency display always shows the BASE total bet (bet=5 × N × denom),
-## regardless of current bet. The doubled value lives in the calc suffix.
-func _update_bet_display(bet: int) -> void:
-	if not _ultra_vp:
-		super._update_bet_display(bet)
-		return
-	var base: int = 5 * _num_hands * SaveManager.denomination
-	if _balance_show_depth:
-		var credits_total: int = 5 * _num_hands
-		SaveManager.set_currency_value(_bet_cd, str(credits_total), 0, Color(-1, 0, 0), false)
-	else:
-		SaveManager.set_currency_value(_bet_cd, SaveManager.format_short(base))
-		_flash_bet_display()
-	_refresh_ultra_calc_suffix()
-	_refresh_ux_visibility()
+## Whenever the bet flips (info-card toggle, save load, hand-count
+## reset), repaint the COINS button so its value shows denom × 5 × 2
+## and tints yellow when the feature is ON. Classic's `_on_bet_changed`
+## doesn't touch this button, so we restamp it here.
+func _on_bet_changed(new_bet: int) -> void:
+	super._on_bet_changed(new_bet)
+	if _ultra_vp:
+		_update_bet_amount_btn()
+		_refresh_ultra_x2_badge()
 
 
 ## Defensive override: classic's HOLDING / DRAWING branches don't
@@ -425,7 +502,8 @@ func _switch_hand_count(new_count: int) -> void:
 	_apply_font_to_badges()
 	_skin_ultra_multiplier_plaques()
 	if _ultra_vp:
-		_refresh_ultra_calc_suffix()
+		# Hand-count switch may rebuild buttons — restamp COINS.
+		call_deferred("_update_bet_amount_btn")
 
 
 ## Replace the dark-blue procedural plaque drawn behind every Ultra VP
@@ -513,12 +591,21 @@ func _update_bet_amount_btn() -> void:
 	# Force the compact "5K" / "1.2M" form instead of `format_auto` —
 	# the COINS button only has ~60px left after the "COINS:" prefix and
 	# chip glyph, so a 4-digit "5,000" overflows the rounded plate.
-	# Ultra: display the denomination × 5 (matches picker rows). Static —
-	# does NOT scale with num_hands.
+	# Ultra: display the denomination × 5 (matches picker rows). When the
+	# ×2 multiplier feature is ON (bet == 10), the displayed amount is
+	# doubled AND the prefix + digits switch from white to yellow so the
+	# player sees at a glance they're paying the boosted price.
 	var shown_amount: int = _current_denomination
+	var feature_on: bool = false
 	if _ultra_vp:
 		shown_amount = _current_denomination * 5
-	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_short(shown_amount))
+		feature_on = _manager != null and is_instance_valid(_manager) and _manager.bet >= 10
+		if feature_on:
+			shown_amount *= 2
+	var col: Color = COL_YELLOW if feature_on else Color.WHITE
+	if _coins_prefix_in_bet_btn != null and is_instance_valid(_coins_prefix_in_bet_btn):
+		_coins_prefix_in_bet_btn.add_theme_color_override("font_color", col)
+	SaveManager.set_currency_value(_bet_btn_cd, SaveManager.format_short(shown_amount), 0, col)
 
 
 func _relocate_speed_to_middle() -> void:
