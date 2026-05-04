@@ -5,6 +5,59 @@
 
 ---
 
+## 2026-05-04 — Safe-area: letterbox ≠ notch, и якорь=1 нужно двигать симметрично
+
+**Симптом 1 (build 3 → 4):** В iOS landscape по краям лобби и игровых
+сцен видны тёмно-синие полосы. Background ColorRect размечен FULL_RECT,
+визуально кажется full-bleed. На скриншотах Supercell single-hand
+полосы остались даже после первого фикса safe-area.
+
+**Корневая причина 1:** Это не safe-area inset — это **letterbox** от
+`window/stretch/aspect = "keep_height"`. Базовый viewport `1476×680`
+(aspect 2.17), iPhone 14 Pro в landscape ~2.12 — окно шире вьюпорта,
+Godot оставляет полосы, в которых виден `RenderingServer` clear color.
+FULL_RECT ColorRect покрывает только viewport, не window.
+
+**Фикс 1:** `aspect = "expand"` в `project.godot`. Viewport == window,
+полосы исчезают.
+
+---
+
+**Симптом 2 (build 4 → 5):** В Classic single-hand после safe-area
+inset «TOTAL BET» налезает на нижний край карт, кнопки прижаты впритык
+к нижнему краю.
+
+**Корневая причина 2:** В `safe_area_manager.gd._apply_to` бывшая
+правка двигала только нижнее ребро bottom-anchored контейнера
+(`anchor_bottom == 1` → `offset_bottom -= db`). Но у `BottomSection`
+**оба** ребра привязаны к низу (`anchor_top = 1`, `anchor_bottom = 1`,
+`grow_vertical = 0` — растёт ВВЕРХ от дна). Сдвиг только нижнего ребра
+сжимает контейнер на `db` пикселей сверху вниз → дочерний VBox с
+`TOTAL BET` + кнопками + padding получает меньше высоты, элементы
+налезают друг на друга и на карты сверху.
+
+**Фикс 2:** Симметричное правило в `_apply_to` — когда оба ребра
+оси привязаны к одному анкору, нужно сдвигать оба:
+- `anchor_top == 1` → `offset_top -= db` *(в дополнение к bottom)*
+- `anchor_left == 1` → `offset_left -= dr`
+
+**Правило для будущего:**
+
+1. **Жалоба «полосы по краям» в одинаковом месте на всех сценах** →
+   letterbox, чини aspect.
+2. **Жалоба «контент сжимается / налезает после safe-area фикса»** →
+   проверь, не bottom/right-anchored ли контейнер; не сжимаешь ли его
+   вместо смещения.
+3. **Жалоба «затемнение popup'а не дотягивается до края»** →
+   а) до фикса aspect — letterbox; б) после — popup инсетится
+   (попал в `_tracked` SafeAreaManager). Проверь, что popup
+   добавляется как dynamic child после `_make_full_rect`.
+
+Полный справочник — `docs/SAFE_AREA.md`. Подгружай его при любой
+работе с layout / safe-area / новыми popup'ами.
+
+---
+
 ## 2026-04-30 — Supercell переопределяет балансовый путь — звук нужно добавить отдельно
 
 **Симптом:** Звук `balance_increment` добавлен в `game.gd`, слышен в обычной теме,

@@ -3,6 +3,9 @@
 /android/
 /ios/
 
+# Local Claude Code settings (per-machine plugin selection)
+.claude/
+
 # Godot exports
 *.export.cfg
 *.pck

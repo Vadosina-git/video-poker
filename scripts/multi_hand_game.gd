@@ -2807,10 +2807,10 @@ func _show_bet_picker() -> void:
 		grid.add_child(btn)
 
 
-# --- Shop popup ---
-
 var SHOP_AMOUNTS: Array = []
-var _shop_overlay: Control = null
+
+
+# --- Shop popup ---
 
 func _show_shop() -> void:
 	ShopOverlay.show(self)
@@ -2823,96 +2823,6 @@ func _on_shop_closed_refresh() -> void:
 	_update_balance(SaveManager.credits)
 
 
-func _legacy_show_shop_unused() -> void:
-	if _shop_overlay:
-		_shop_overlay.queue_free()
-		_shop_overlay = null
-
-	_shop_overlay = Control.new()
-	_shop_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_shop_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	_shop_overlay.z_index = 50
-	add_child(_shop_overlay)
-
-	var dim := ColorRect.new()
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.7)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	dim.gui_input.connect(func(event: InputEvent) -> void:
-		if event is InputEventMouseButton and event.pressed:
-			_hide_shop()
-	)
-	_shop_overlay.add_child(dim)
-
-	var panel := PanelContainer.new()
-	# Supercell-themed popup chrome when active; classic keeps its hard-
-	# coded blue panel verbatim so the legacy look is bit-preserved.
-	var panel_style: StyleBoxFlat
-	if ThemeManager.current_id == "supercell":
-		panel_style = ThemeManager.make_popup_stylebox()
-	else:
-		panel_style = StyleBoxFlat.new()
-		panel_style.bg_color = Color("000086")
-		panel_style.set_border_width_all(3)
-		panel_style.border_color = COL_YELLOW
-		panel_style.set_corner_radius_all(12)
-		panel_style.content_margin_left = 28
-		panel_style.content_margin_right = 28
-		panel_style.content_margin_top = 20
-		panel_style.content_margin_bottom = 20
-	panel.add_theme_stylebox_override("panel", panel_style)
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_shop_overlay.add_child(panel)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 16)
-	panel.add_child(vbox)
-
-	var title := Label.new()
-	title.text = Translations.tr_key("shop.title")
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
-	title.add_theme_color_override("font_color", COL_YELLOW)
-	vbox.add_child(title)
-
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 14)
-	grid.add_theme_constant_override("v_separation", 14)
-	vbox.add_child(grid)
-
-	var tex_green := load("res://assets/themes/classic/controls/btn_rect_blue.svg")
-
-	for amount in SHOP_AMOUNTS:
-		var item := VBoxContainer.new()
-		item.add_theme_constant_override("separation", 6)
-
-		var cl := SaveManager.create_currency_display(22, Color.WHITE)
-		SaveManager.set_currency_value(cl, SaveManager.format_short(amount))
-		cl["box"].alignment = BoxContainer.ALIGNMENT_CENTER
-		item.add_child(cl["box"])
-
-		var buy_btn := Button.new()
-		buy_btn.text = Translations.tr_key("common.free")
-		_style_btn(buy_btn, tex_green, Color.WHITE, 16, 120, 36)
-		buy_btn.pressed.connect(_on_shop_buy.bind(amount))
-		item.add_child(buy_btn)
-
-		grid.add_child(item)
-
-
-func _on_shop_buy(amount: int) -> void:
-	SaveManager.add_credits(amount)
-	_update_balance(SaveManager.credits)
-	_hide_shop()
-
-
-func _hide_shop() -> void:
-	if _shop_overlay:
-		_shop_overlay.queue_free()
-		_shop_overlay = null
 
 
 # --- Info screen ---
