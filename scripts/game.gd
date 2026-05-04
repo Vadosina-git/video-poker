@@ -66,6 +66,7 @@ var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 var _idle_blink_tween: Tween = null
 var _idle_timer: Timer = null
+var _layout_middle_pending: bool = false
 
 
 func setup(variant: BaseVariant) -> void:
@@ -184,6 +185,20 @@ func _apply_theme() -> void:
 	_bottom_section.add_theme_constant_override("separation", 4)
 	_middle_section.add_theme_constant_override("separation", 2)
 	_layout_middle.call_deferred()
+	# Re-run layout whenever Top or BottomSection re-sizes. This happens
+	# repeatedly during the first few frames as the paytable fills in
+	# (labels added → grid recomputes min_size → TopSection grows), and
+	# again on safe-area changes (rotation, focus return) as both sections
+	# slide via SafeAreaManager. Without this hook MiddleSection latches
+	# onto stale (small) section sizes and the cards rect stretches across
+	# almost the entire viewport — exactly the build 6/7 regression where
+	# cards covered the paytable and TOTAL BET.
+	if not _top_section.resized.is_connected(_on_section_resized):
+		_top_section.resized.connect(_on_section_resized)
+	if not _bottom_section.resized.is_connected(_on_section_resized):
+		_bottom_section.resized.connect(_on_section_resized)
+	if not SafeAreaManager.safe_area_changed.is_connected(_on_safe_area_changed):
+		SafeAreaManager.safe_area_changed.connect(_on_safe_area_changed)
 
 	# Back button — exit icon, aligned with controlbar
 	TopBarBuilder.style_exit_button(_back_btn)
@@ -505,34 +520,58 @@ func _add_press_effect(btn: Button) -> void:
 
 
 func _layout_middle() -> void:
-	# Wait one more frame so TopSection/BottomSection have final sizes
+	# Wait two frames so TopSection / BottomSection have been laid out by
+	# their respective Container parents AFTER SafeAreaManager has applied
+	# offsets (one frame for the offset write, one for layout to settle).
 	await get_tree().process_frame
-	var top_h: float = _top_section.size.y
-	var bot_h: float = _bottom_section.size.y
+	await get_tree().process_frame
+	# Use ACTUAL post-inset positions of the top and bottom sections
+	# instead of recomputing them from sizes + SafeAreaManager.margins.
+	# That way it's robust no matter the device safe-area or whether the
+	# margins were available at the right moment.
+	var top_y: float = _top_section.position.y + _top_section.size.y
+	var bot_y: float = _bottom_section.position.y
 	var total_h: float = size.y
 	if total_h < 1:
 		total_h = get_viewport_rect().size.y
-	# Account for safe-area inset: TopSection actually sits at [dt .. dt+top_h]
-	# (anchored to top, pushed down by `dt`), and BottomSection at
-	# [total_h-db-bot_h .. total_h-db] (anchored to bottom, pushed up by `db`).
-	# Without these offsets the cards container would overshoot and cover the
-	# `HELD` labels under the cards plus TOTAL BET — exactly the regression
-	# build 6 hit on classic single-hand.
-	var safe_top: float = float(SafeAreaManager.margins.get("top", 0.0))
-	var safe_bottom: float = float(SafeAreaManager.margins.get("bottom", 0.0))
-	# Position MiddleSection between TopSection and BottomSection
-	_middle_section.anchor_top = (top_h + safe_top) / total_h
-	_middle_section.anchor_bottom = 1.0 - (bot_h + safe_bottom) / total_h
+	# Sanity guard for the rare case sections haven't been positioned yet.
+	if bot_y <= top_y or bot_y > total_h:
+		bot_y = total_h - _bottom_section.size.y
+	# Anchor MiddleSection at top of parent and use offsets for both edges.
+	# This is simpler than ratio-based anchors and uses the same units we
+	# read from (pixels), so there's no rounding mismatch.
 	_middle_section.anchor_left = 0.0
 	_middle_section.anchor_right = 1.0
-	_middle_section.offset_top = 0
-	_middle_section.offset_bottom = 0
+	_middle_section.anchor_top = 0.0
+	_middle_section.anchor_bottom = 0.0
 	_middle_section.offset_left = 0
 	_middle_section.offset_right = 0
-	# Wait another frame for MiddleSection to get its size
+	_middle_section.offset_top = top_y
+	_middle_section.offset_bottom = bot_y
+	# Wait one more frame for MiddleSection to get its size
 	await get_tree().process_frame
 	_resize_cards()
 	_position_status_label()
+	_layout_middle_pending = false
+
+
+## Re-runs the middle layout when the device safe-area changes (rotation,
+## focus return). TopSection / BottomSection have already been re-inset by
+## SafeAreaManager via their tracked offsets — we need to follow them.
+func _on_safe_area_changed(_margins: Dictionary) -> void:
+	_layout_middle()
+
+
+## Triggered whenever TopSection or BottomSection re-sizes (paytable
+## populates, labels finalize their min_size, font loads, theme overrides
+## land). Coalesces via call_deferred so multiple `resized` events in the
+## same frame collapse into a single re-layout.
+func _on_section_resized() -> void:
+	if _layout_middle_pending:
+		return
+	_layout_middle_pending = true
+	_layout_middle.call_deferred()
+	# Reset the flag at the end of the deferred chain — see _layout_middle.
 
 
 func _resize_cards() -> void:
