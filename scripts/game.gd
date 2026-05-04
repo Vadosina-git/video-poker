@@ -512,9 +512,17 @@ func _layout_middle() -> void:
 	var total_h: float = size.y
 	if total_h < 1:
 		total_h = get_viewport_rect().size.y
+	# Account for safe-area inset: TopSection actually sits at [dt .. dt+top_h]
+	# (anchored to top, pushed down by `dt`), and BottomSection at
+	# [total_h-db-bot_h .. total_h-db] (anchored to bottom, pushed up by `db`).
+	# Without these offsets the cards container would overshoot and cover the
+	# `HELD` labels under the cards plus TOTAL BET — exactly the regression
+	# build 6 hit on classic single-hand.
+	var safe_top: float = float(SafeAreaManager.margins.get("top", 0.0))
+	var safe_bottom: float = float(SafeAreaManager.margins.get("bottom", 0.0))
 	# Position MiddleSection between TopSection and BottomSection
-	_middle_section.anchor_top = top_h / total_h
-	_middle_section.anchor_bottom = 1.0 - (bot_h / total_h)
+	_middle_section.anchor_top = (top_h + safe_top) / total_h
+	_middle_section.anchor_bottom = 1.0 - (bot_h + safe_bottom) / total_h
 	_middle_section.anchor_left = 0.0
 	_middle_section.anchor_right = 1.0
 	_middle_section.offset_top = 0
