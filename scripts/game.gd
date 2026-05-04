@@ -66,7 +66,6 @@ var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 var _idle_blink_tween: Tween = null
 var _idle_timer: Timer = null
-var _layout_middle_pending: bool = false
 
 
 func setup(variant: BaseVariant) -> void:
@@ -147,25 +146,29 @@ func _play_entrance_animation() -> void:
 		return
 	var vp_h: float = get_viewport_rect().size.y
 	var top_base_y: float = _top_section.position.y
-	var middle_base_y: float = _middle_section.position.y
 	var bottom_base_y: float = _bottom_section.position.y
 	var slide_up: float = vp_h * 0.6
 	var slide_down: float = vp_h * 0.6
 	_top_section.position.y = top_base_y - slide_up
-	_middle_section.position.y = middle_base_y - slide_up
 	_bottom_section.position.y = bottom_base_y + slide_down
-	# Now reveal — positions are already offset, so reveal happens at the
-	# pre-animation pose, not at the final layout.
+	# IMPORTANT: do NOT slide MiddleSection. _layout_middle() drives its
+	# position by writing offset_top/offset_bottom, but tween_property on
+	# `position:y` would overwrite those offsets every frame and lock the
+	# section onto whatever `position.y` was when this animation read it
+	# (typically 0 — before _layout_middle had a chance to run). The cards
+	# would then end up stuck at the top of the viewport with the rest of
+	# the layout collapsed underneath. Instead, fade MiddleSection in via
+	# modulate alongside the slide; its position stays under _layout_middle
+	# control throughout.
 	_top_section.modulate.a = 1.0
-	_middle_section.modulate.a = 1.0
 	_bottom_section.modulate.a = 1.0
 	var dur: float = 0.6
-	# Manual two-phase bounce: slide past target by a small overshoot, then
-	# settle. Overshoot reduced further per user feedback.
 	var overshoot_px: float = 9.0
 	_tween_section_bounce(_top_section, top_base_y, overshoot_px, dur)
-	_tween_section_bounce(_middle_section, middle_base_y, overshoot_px, dur)
 	_tween_section_bounce(_bottom_section, bottom_base_y, -overshoot_px, dur)
+	var fade_tw := _middle_section.create_tween()
+	fade_tw.tween_property(_middle_section, "modulate:a", 1.0, dur) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 
 func _tween_section_bounce(section: Control, target_y: float, overshoot: float, dur: float) -> void:
@@ -525,21 +528,25 @@ func _layout_middle() -> void:
 	# offsets (one frame for the offset write, one for layout to settle).
 	await get_tree().process_frame
 	await get_tree().process_frame
-	# Use ACTUAL post-inset positions of the top and bottom sections
-	# instead of recomputing them from sizes + SafeAreaManager.margins.
-	# That way it's robust no matter the device safe-area or whether the
-	# margins were available at the right moment.
-	var top_y: float = _top_section.position.y + _top_section.size.y
-	var bot_y: float = _bottom_section.position.y
+	# Compute SETTLED positions analytically. We CANNOT read
+	# `_top_section.position.y` here because `_play_entrance_animation()`
+	# (called from _ready right after _apply_theme) temporarily shoves the
+	# top/middle/bottom sections way off-screen via direct position writes,
+	# then tweens them back over 0.6s. If `_layout_middle` happens to read
+	# during the off-screen phase (which it does — both scheduled in the
+	# same frame), it would see the bogus positions and lock MiddleSection
+	# at huge offsets that the tween-back never restores.
+	# Settled formula: TopSection has anchor_top=0, offset_top=safe.top.
+	#                  BottomSection has anchor_top=1, offset_top=-(bot.size+safe.bottom).
+	var safe_top: float = float(SafeAreaManager.margins.get("top", 0.0))
+	var safe_bottom: float = float(SafeAreaManager.margins.get("bottom", 0.0))
 	var total_h: float = size.y
 	if total_h < 1:
 		total_h = get_viewport_rect().size.y
-	# Sanity guard for the rare case sections haven't been positioned yet.
-	if bot_y <= top_y or bot_y > total_h:
-		bot_y = total_h - _bottom_section.size.y
-	# Anchor MiddleSection at top of parent and use offsets for both edges.
-	# This is simpler than ratio-based anchors and uses the same units we
-	# read from (pixels), so there's no rounding mismatch.
+	var top_y: float = safe_top + _top_section.size.y
+	var bot_y: float = total_h - _bottom_section.size.y - safe_bottom
+	if bot_y <= top_y:
+		return
 	_middle_section.anchor_left = 0.0
 	_middle_section.anchor_right = 1.0
 	_middle_section.anchor_top = 0.0
@@ -548,11 +555,9 @@ func _layout_middle() -> void:
 	_middle_section.offset_right = 0
 	_middle_section.offset_top = top_y
 	_middle_section.offset_bottom = bot_y
-	# Wait one more frame for MiddleSection to get its size
 	await get_tree().process_frame
 	_resize_cards()
 	_position_status_label()
-	_layout_middle_pending = false
 
 
 ## Re-runs the middle layout when the device safe-area changes (rotation,
@@ -564,14 +569,14 @@ func _on_safe_area_changed(_margins: Dictionary) -> void:
 
 ## Triggered whenever TopSection or BottomSection re-sizes (paytable
 ## populates, labels finalize their min_size, font loads, theme overrides
-## land). Coalesces via call_deferred so multiple `resized` events in the
-## same frame collapse into a single re-layout.
+## land). We deliberately do NOT coalesce here: the section sizes can
+## update over a sequence of frames (paytable cell labels each finalizing
+## their text metrics on a different frame), and any throttling drops the
+## *last* event that has the final correct size, leaving MiddleSection
+## locked onto an early stale measurement. `_layout_middle` is cheap and
+## idempotent — let it run for every event.
 func _on_section_resized() -> void:
-	if _layout_middle_pending:
-		return
-	_layout_middle_pending = true
 	_layout_middle.call_deferred()
-	# Reset the flag at the end of the deferred chain — see _layout_middle.
 
 
 func _resize_cards() -> void:
