@@ -230,8 +230,12 @@ func _apply_theme() -> void:
 	title_spacer.custom_minimum_size.x = _back_btn.custom_minimum_size.x
 	_back_btn.get_parent().add_child(title_spacer)
 
-	# Paytable & InfoBar margins
-	var side_m := 160
+	# Side margins for the three full-width blocks (paytable, info row,
+	# control bar). Was 160 — a holdover from a much wider design viewport
+	# that ate ~22% of the screen and left the bottom-bar button groups
+	# squished against each other. 40 keeps a tiny visual clearance from
+	# the very edge while letting safe-area inset handle notch clearance.
+	var side_m := 40
 	$TopSection/PaytableMargin.add_theme_constant_override("margin_left", side_m)
 	$TopSection/PaytableMargin.add_theme_constant_override("margin_right", side_m)
 	_info_bar_margin.add_theme_constant_override("margin_left", side_m)
@@ -291,6 +295,14 @@ func _apply_theme() -> void:
 	bal_block.add_child(_topup_btn)
 
 	# === CENTER: Hints (expand, centered) ===
+	# Label takes the EXPAND share of the row's leftover space (between
+	# the fixed 320-px BALANCE and WIN blocks). custom_minimum_size.x = 0
+	# + clip_text = true together prevent the label's text width from
+	# pushing other siblings around when the hint is long
+	# ("HOLD CARDS, THEN DRAW") — the slot stays the same width regardless
+	# of text, and `_fit_status_font()` picks a font size that fits the
+	# slot. If text still doesn't fit at the smallest size, clip_text
+	# gracefully clips instead of overflowing the layout.
 	_status_label = Label.new()
 	_status_label.text = ""
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -300,6 +312,8 @@ func _apply_theme() -> void:
 	bold_hint.font_weight = 700
 	_status_label.add_theme_font_override("font", bold_hint)
 	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_label.custom_minimum_size = Vector2(0, 0)
+	_status_label.clip_text = true
 	_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	info_row.add_child(_status_label)
 
@@ -778,9 +792,47 @@ func _flash_bet_display() -> void:
 
 var _last_win_amount: int = 0
 
+## Hint font sizes used by `_fit_status_font`. Highest first; we walk
+## down until the rendered width fits the label slot. 12 is the floor —
+## below that the hint becomes unreadable and clip_text kicks in.
+const _STATUS_FONT_SIZES := [20, 18, 16, 14, 12]
+
+
 func _set_status(text: String) -> void:
 	if _status_label:
 		_status_label.text = text
+		_fit_status_font()
+
+
+## Auto-fit the status label's font size to the slot width. The hint
+## sits between the fixed 320-px BALANCE / WIN blocks; its slot is
+## whatever's left over after those plus side margins. With longer
+## hints ("HOLD CARDS, THEN DRAW", "DOUBLE OR NOTHING?", etc.) at
+## 20-pt the text would push InfoBar wider than its container if it
+## could — instead we shrink the font in 2-pt steps until it fits.
+func _fit_status_font() -> void:
+	if _status_label == null or _status_label.text.is_empty():
+		return
+	# If layout hasn't run yet (e.g. setup time), wait one frame so
+	# `_status_label.size.x` reflects the allocated slot width.
+	if _status_label.size.x <= 1.0:
+		await get_tree().process_frame
+		if _status_label == null or not is_instance_valid(_status_label):
+			return
+	var avail: float = _status_label.size.x - 4.0
+	if avail <= 0.0:
+		return
+	var font: Font = _status_label.get_theme_font("font")
+	if font == null:
+		font = ThemeDB.fallback_font
+	var picked: int = _STATUS_FONT_SIZES[-1]
+	for fs in _STATUS_FONT_SIZES:
+		var w: float = font.get_string_size(_status_label.text,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		if w <= avail:
+			picked = fs
+			break
+	_status_label.add_theme_font_size_override("font_size", picked)
 
 func _format_win(amount: int) -> String:
 	if _balance_show_depth:
