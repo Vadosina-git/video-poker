@@ -66,6 +66,16 @@ var _current_denomination: int = 1
 var _bet_picker_overlay: Control = null
 var _idle_blink_tween: Tween = null
 var _idle_timer: Timer = null
+# After two consecutive _layout_middle runs that produce the same
+# offsets, the layout has settled and we disconnect the section.resized
+# listeners. This prevents in-game text changes (e.g. status label
+# "PLACE YOUR BET" → "HOLD CARDS, THEN DRAW") from re-running the layout
+# and shrinking the cards mid-deal. Real viewport resizes (rotation,
+# window resize, safe-area change) are handled by separate listeners
+# that reconnect these on demand.
+var _layout_locked: bool = false
+var _layout_last_top_y: float = -1.0
+var _layout_last_bot_y: float = -1.0
 
 
 func setup(variant: BaseVariant) -> void:
@@ -202,6 +212,11 @@ func _apply_theme() -> void:
 		_bottom_section.resized.connect(_on_section_resized)
 	if not SafeAreaManager.safe_area_changed.is_connected(_on_safe_area_changed):
 		SafeAreaManager.safe_area_changed.connect(_on_safe_area_changed)
+	# Genuine viewport changes (rotation, window resize) reconnect section
+	# listeners to handle the new layout cycle.
+	var vp := get_viewport()
+	if not vp.size_changed.is_connected(_on_viewport_size_changed):
+		vp.size_changed.connect(_on_viewport_size_changed)
 
 	# Back button — exit icon, aligned with controlbar
 	TopBarBuilder.style_exit_button(_back_btn)
@@ -558,25 +573,56 @@ func _layout_middle() -> void:
 	await get_tree().process_frame
 	_resize_cards()
 	_position_status_label()
+	# Layout-lock: when two consecutive runs converge to the same offsets
+	# the layout has settled. Disconnect section.resized so in-game text
+	# changes (status label, paytable highlight) don't re-trigger layout
+	# and shrink the cards mid-deal. Real viewport changes reconnect via
+	# `_unlock_layout()`.
+	if abs(top_y - _layout_last_top_y) < 1.0 and abs(bot_y - _layout_last_bot_y) < 1.0:
+		_layout_locked = true
+		if _top_section.resized.is_connected(_on_section_resized):
+			_top_section.resized.disconnect(_on_section_resized)
+		if _bottom_section.resized.is_connected(_on_section_resized):
+			_bottom_section.resized.disconnect(_on_section_resized)
+	_layout_last_top_y = top_y
+	_layout_last_bot_y = bot_y
 
 
 ## Re-runs the middle layout when the device safe-area changes (rotation,
 ## focus return). TopSection / BottomSection have already been re-inset by
 ## SafeAreaManager via their tracked offsets — we need to follow them.
 func _on_safe_area_changed(_margins: Dictionary) -> void:
+	_unlock_layout()
 	_layout_middle()
 
 
-## Triggered whenever TopSection or BottomSection re-sizes (paytable
-## populates, labels finalize their min_size, font loads, theme overrides
-## land). We deliberately do NOT coalesce here: the section sizes can
-## update over a sequence of frames (paytable cell labels each finalizing
-## their text metrics on a different frame), and any throttling drops the
-## *last* event that has the final correct size, leaving MiddleSection
-## locked onto an early stale measurement. `_layout_middle` is cheap and
-## idempotent — let it run for every event.
+## Triggered whenever TopSection or BottomSection re-sizes during the
+## INIT phase (paytable populates, labels finalize their min_size, font
+## loads, theme overrides land). After the layout settles we disconnect
+## ourselves to keep ongoing in-game text changes (status label, paytable
+## column highlight) from re-triggering layout and shrinking the cards.
 func _on_section_resized() -> void:
+	if _layout_locked:
+		return
 	_layout_middle.call_deferred()
+
+
+## Called when the viewport itself resizes — true layout change (window
+## resized on desktop, device rotated, etc.). Reset the lock so the next
+## sequence of section.resized events drives a fresh layout pass.
+func _on_viewport_size_changed() -> void:
+	_unlock_layout()
+	_layout_middle.call_deferred()
+
+
+func _unlock_layout() -> void:
+	_layout_locked = false
+	_layout_last_top_y = -1.0
+	_layout_last_bot_y = -1.0
+	if not _top_section.resized.is_connected(_on_section_resized):
+		_top_section.resized.connect(_on_section_resized)
+	if not _bottom_section.resized.is_connected(_on_section_resized):
+		_bottom_section.resized.connect(_on_section_resized)
 
 
 func _resize_cards() -> void:
