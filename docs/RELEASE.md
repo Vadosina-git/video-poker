@@ -9,7 +9,7 @@ Play developer name) — в `/Users/vadimprokop/Downloads/SHARED_ACCOUNTS_REFERE
 
 | Параметр | Значение |
 |---|---|
-| App Name | **Video Poker Vegas Classic 3D** |
+| App Name | **Video Poker Trainer** |
 | Bundle ID | `com.khralz.videopoker` |
 | SKU | `videopoker-classic-001` |
 | Platform | iOS (iPhone only) |
@@ -19,19 +19,19 @@ Play developer name) — в `/Users/vadimprokop/Downloads/SHARED_ACCOUNTS_REFERE
 | Privacy Policy URL | https://vadosina-git.github.io/privacy-policy/video-poker-privacy.html |
 | Support URL | https://vadosina-git.github.io/privacy-policy/video-poker-support.html |
 | Copyright | © 2026 Ivan Al Zeidi |
-| Age Rating | 17+ (Frequent/Intense Simulated Gambling) |
+| Age Rating | 4+ (no gambling content) |
 | Min iOS | 15.0 |
 
 ## Google Play Console
 
 | Параметр | Значение |
 |---|---|
-| App name | **Video Poker Vegas Classic 3D** |
+| App name | **Video Poker Trainer** |
 | Package name | `com.khralz.videopoker` |
 | Developer | KHRALZ |
 | Target SDK | 35 |
 | Min SDK | 24 |
-| Target Audience | 18+ (simulated gambling) |
+| Target Audience | Everyone (educational / card game trainer) |
 
 ## Версионирование
 

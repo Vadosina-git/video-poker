@@ -133,7 +133,6 @@ func _ready() -> void:
 	_cash_pill.add_child(_cash_cd["box"])
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
 	_build_carousel()
-	_build_theme_cheat_btn()
 
 
 ## Paint the existing full-rect Background node from the active theme and
@@ -221,33 +220,6 @@ func _build_bg_layer() -> void:
 	# Age gate — classic-skin only (same reason as above branch).
 	if ThemeManager.current_id == "classic":
 		AgeGate.show_if_needed(self)
-
-
-func _build_theme_cheat_btn() -> void:
-	var btn := Button.new()
-	btn.text = "THEME: %s" % ThemeManager.display_name(ThemeManager.current_id)
-	btn.add_theme_font_size_override("font_size", 12)
-	btn.add_theme_color_override("font_color", Color(1, 1, 1, 0.6))
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color(0, 0, 0, 0.5)
-	st.set_corner_radius_all(6)
-	st.content_margin_left = 8
-	st.content_margin_right = 8
-	st.content_margin_top = 4
-	st.content_margin_bottom = 4
-	btn.add_theme_stylebox_override("normal", st)
-	btn.add_theme_stylebox_override("hover", st)
-	btn.add_theme_stylebox_override("pressed", st)
-	btn.add_theme_stylebox_override("focus", st)
-	btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	btn.position = Vector2(8, -34)
-	btn.z_index = 200
-	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	btn.pressed.connect(func() -> void:
-		ThemeManager.cycle_theme()
-		get_tree().reload_current_scene()
-	)
-	add_child(btn)
 
 
 ## Was 20px before edge-to-edge carousel work. Now the machine carousel
@@ -728,8 +700,10 @@ func _on_mode_selected(index: int) -> void:
 	_active_mode = index
 	var selected_mode_id: String = PLAY_MODES[index].get("id", "single_play")
 	SaveManager.mode_id = selected_mode_id
-	var default_hands: int = PLAY_MODES[index]["hands"]
-	SaveManager.hand_count = SaveManager.mode_hand_counts.get(selected_mode_id, default_hands)
+	# Pre-release: force canonical hand count per mode (3/5/10) — ignore any
+	# previously saved override so reviewer always sees Triple Play=3,
+	# Five Play=5, Ten Play=10 on entry, regardless of last session.
+	SaveManager.hand_count = MODE_HANDS.get(selected_mode_id, PLAY_MODES[index]["hands"])
 	SaveManager.ultra_vp = PLAY_MODES[index]["ultra_vp"]
 	SaveManager.spin_poker = PLAY_MODES[index].get("spin_poker", false)
 	if PLAY_MODES[index].get("ultra_vp", false) and not was_ultra:

@@ -363,7 +363,7 @@ func _default_features() -> Dictionary:
 		"feature_flags": {
 			"age_gate_enabled": true,
 			"big_win_overlay_enabled": true,
-			"double_or_nothing_enabled": true,
+			"double_or_nothing_enabled": false,
 			"ultra_vp_enabled": true,
 			"spin_poker_enabled": true,
 			"multi_hand_enabled": true,
@@ -373,7 +373,7 @@ func _default_features() -> Dictionary:
 			"sound_fx_default": true,
 		},
 		"ui_visibility": {},
-		"theme": {"default_theme": "classic", "allow_theme_switching": false, "available_themes": ["classic"]},
+		"theme": {"default_theme": "supercell", "allow_theme_switching": false, "available_themes": ["supercell"]},
 		"debug": {},
 	}
 

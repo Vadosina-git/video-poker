@@ -6,7 +6,7 @@
     "_doc": "Top-level on/off switches. Disable to hide entire features.",
     "age_gate_enabled": false,
     "big_win_overlay_enabled": true,
-    "double_or_nothing_enabled": true,
+    "double_or_nothing_enabled": false,
     "ultra_vp_enabled": true,
     "spin_poker_enabled": false,
     "multi_hand_enabled": true,

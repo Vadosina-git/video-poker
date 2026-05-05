@@ -19,7 +19,7 @@ var pack_claim_times: Dictionary = {}  # product_id → unix ts of last free-tim
 var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
 var language: String = "system"  # "system" | "en" | "ru" | "es"
 var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (classic-only, see age_gate.gd)
-var theme_name: String = "classic"  # Active visual theme id (ThemeManager reads on _ready)
+var theme_name: String = "supercell"  # Active visual theme id (ThemeManager reads on _ready)
 var app_instance_id: String = ""  # Stable Firebase Remote Config client id; generated once on first launch
 ## Player-toggleable settings persisted in save file. Currently only sound_fx
 ## and vibration have UI controls / runtime consumers — music / casino_ambient /
@@ -382,7 +382,11 @@ func load_game() -> void:
 	ultra_multipliers = data.get("ultra_multipliers", {})
 	language = String(data.get("language", "system"))
 	age_gate_confirmed = bool(data.get("age_gate_confirmed", false))
-	theme_name = String(data.get("theme_name", "classic"))
+	theme_name = String(data.get("theme_name", "supercell"))
+	# Force-migrate any pre-release "classic" save to supercell so existing
+	# tester installs don't get stuck on the hidden theme after update.
+	if theme_name != "supercell":
+		theme_name = "supercell"
 	app_instance_id = String(data.get("app_instance_id", ""))
 	var saved_settings: Dictionary = data.get("settings", {})
 	for key in saved_settings:
