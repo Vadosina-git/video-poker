@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-05-05 — Theme-specific game scripts параллельны базовым, хук в одном не покрывает другое
+
+**Симптом:** Добавил `SaveManager.record_machine_win(...)` в
+`scripts/game.gd._on_hand_evaluated`. На multi-hand и spin сработало;
+на supercell single-hand — нет. Игрок выбил комбо, статистика осталась
+пустой.
+
+**Корневая причина:** Supercell single-hand использует
+`scripts/themes/supercell/game_supercell.gd` (extends Control), который
+дублирует логику game.gd, а не наследуется от него. Multi-hand и Spin
+тематические скрипты, наоборот, наследуют базу через
+`extends "res://scripts/multi_hand_game.gd"` / `spin_poker_game.gd`,
+поэтому хуки в базе работают для них автоматически.
+
+**Правило:** При добавлении логики в `_on_hand_evaluated` /
+`_on_hands_evaluated` / `_on_lines_evaluated` (или любой другой
+обработчик сигнала менеджера) проверь все три класса:
+- `scripts/game.gd` (классическая база single-hand)
+- `scripts/themes/<theme>/game_<theme>.gd` (тематические single-hand,
+  могут НЕ наследоваться от game.gd)
+- `scripts/multi_hand_game.gd` + `scripts/spin_poker_game.gd`
+  (тематические подклассы их наследуют)
+
+Перед коммитом: `grep -rn "func _on_<event>" scripts/`. Больше одной
+реализации — обнови все.
+
+---
+
+## 2026-05-05 — HBox/VBox с EXPAND_FILL внутри ScrollContainer растягивает детей вопреки custom_minimum_size
+
+**Симптом:** Карточки магазина (`scripts/shop_overlay.gd._build_pack_card`,
+`custom_minimum_size = Vector2(240, 460)`) рендерились высотой ~800px
+вместо 460. Картинка фишек болталась в центре с большими пустыми
+зонами. Баг жил давно, заметили случайно.
+
+**Корневая причина:** `HBoxContainer row` внутри `ScrollContainer`
+имел `size_flags_vertical = EXPAND_FILL`. Скролл занимал всю высоту
+`_overlay`, row растягивался по нему, дети HBox наследовали row.size.y
+(Control default = SIZE_FILL), игнорируя свой `custom_minimum_size.y`.
+
+**Правило:** Любой ребёнок `H/VBoxContainer`, у которого declaring
+fixed size в перпендикулярной оси, должен явно объявить
+`size_flags_<perp_axis> = SIZE_SHRINK_CENTER` (или _BEGIN/_END), если
+сам контейнер имеет `EXPAND_FILL` по той оси.
+custom_minimum_size — это нижний пол, не верхний потолок.
+
+---
+
 ## 2026-05-05 — Async layout race conditions: координаты могут быть «переписаны» соседней корутиной
 
 **Симптом:** В Classic single-hand карты после первого DEAL внезапно

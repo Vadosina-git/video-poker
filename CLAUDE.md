@@ -337,6 +337,32 @@ Translations.tr_key("machine.%s.feature" % variant_id)
 4. В `.tscn` оставлять пустым — финальное значение в `_ready()`.
 5. Новая рука → `hand.{paytable_key}` во все языки. Новая машина → `machine.{id}.name/mini/feature`.
 
+### Bulk-добавление (3+ ключей × 3 языка)
+
+Серия `Edit` по `data/translations.json` хрупкая: Read tool показывает
+`\t\t\t<text>` где первый таб — line-prefix, а реальная индентация на
+один таб меньше; легко получить «String not found» и потерять время.
+Для пакетного добавления использовать Python:
+
+```python
+import json
+path = 'data/translations.json'
+d = json.load(open(path))
+new_keys = {
+    "en": {"tutor.slide1_l1": "Welcome!", ...},
+    "ru": {"tutor.slide1_l1": "Привет!", ...},
+    "es": {"tutor.slide1_l1": "¡Bienvenido!", ...},
+}
+for lang, kv in new_keys.items():
+    for k, v in kv.items():
+        d['languages'][lang][k] = v
+json.dump(d, open(path,'w'), indent='\t', ensure_ascii=False)
+print({k: len(v) for k, v in d['languages'].items()})
+```
+
+Бонусы: автоматическая валидация JSON-синтаксиса, единая индентация,
+немедленная проверка parity через распечатку длин словарей.
+
 ### Валидация
 
 ```bash
@@ -378,6 +404,14 @@ python3 -c "import json; d=json.load(open('data/translations.json')); print({k: 
   имена новых рук/машин) сначала добавь ключ в `data/translations.json`
   во все три языка. Имена рук — всегда через
   `Paytable.get_hand_display_name(key)`. Текст в `.tscn` оставляй пустым.
+- **Цветные эмодзи в UI — через SVG-ассет, не через шрифт.** Эмодзи
+  (👑🔥🃏 и т. п.) рендерятся через системный fallback font. iOS/Android
+  работают, HTML5 web-export — НЕТ (Godot не бандлит emoji-font в
+  web build). Если эмодзи нужен в UI — клади SVG (Twemoji CC-BY 4.0
+  ок: `cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/<codepoint>.svg`)
+  в `assets/themes/<id>/icons/` и рендерь через `TextureRect`.
+  Текстовая Label-эмодзи допустима только как fallback при отсутствии
+  файла. Пример: `machine_card.gd._make_emoji_node()`.
 - **Магические числа в layout-коде запрещены без объяснения.** Любой
   hardcoded литерал > 20 в позиционировании / margin / padding / offset
   должен либо иметь комментарий с обоснованием и тюнинг-контекстом
