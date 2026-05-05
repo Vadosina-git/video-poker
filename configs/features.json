@@ -15,7 +15,8 @@
     "lobby_store_indicator": true,
     "exit_confirm_dialog": true,
     "sound_fx_default": true,
-    "vibration_default": true
+    "vibration_default": true,
+    "tutorial_enabled": true
   },
 
   "ui_visibility": {

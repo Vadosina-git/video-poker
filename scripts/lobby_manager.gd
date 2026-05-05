@@ -133,6 +133,46 @@ func _ready() -> void:
 	_cash_pill.add_child(_cash_cd["box"])
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
 	_build_carousel()
+	_add_tutor_debug_cheat()
+
+
+## Debug-only: tiny button in the top-left corner that re-presents the
+## first-launch tutorial overlay. Lets QA / design replay the tutorial
+## any number of times without wiping the save file. Also bound to
+## Shift+T on desktop. Force-presents regardless of `tutor_shown`,
+## `tutorial_enabled`, or theme — intentional, since the cheat exists
+## solely to inspect the overlay.
+func _add_tutor_debug_cheat() -> void:
+	var btn := Button.new()
+	btn.text = "T"
+	btn.flat = true
+	btn.modulate = Color(1, 1, 1, 0.25)
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	btn.offset_left = 8
+	btn.offset_top = 8
+	btn.custom_minimum_size = Vector2(56, 56)
+	btn.size = btn.custom_minimum_size
+	btn.z_index = 100
+	btn.pressed.connect(_force_show_tutorial)
+	add_child(btn)
+
+
+func _force_show_tutorial() -> void:
+	var host: Node = get_parent()
+	if host == null:
+		return
+	for child in host.get_children():
+		if child is TutorialOverlay:
+			return  # already showing — don't stack
+	TutorialOverlay.present(host)
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo \
+			and event.keycode == KEY_T and event.shift_pressed:
+		_force_show_tutorial()
+		get_viewport().set_input_as_handled()
 
 
 ## Paint the existing full-rect Background node from the active theme and
