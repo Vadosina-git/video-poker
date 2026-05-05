@@ -10,7 +10,7 @@ extends Node
 signal theme_changed(new_id: String)
 
 const THEMES_DIR := "res://configs/themes/"
-const DEFAULT_THEME := "classic"
+const DEFAULT_THEME := "supercell"
 
 var current_id: String = DEFAULT_THEME
 var _themes: Dictionary = {}          # id → full theme dict
@@ -95,6 +95,11 @@ func _apply_chip_glyph() -> void:
 ## Switch active theme. Persists to SaveManager and fires `theme_changed` so
 ## scenes can reload. No-op if the id is unknown.
 func set_theme(theme_id: String) -> void:
+	# Pre-release lockdown: only supercell is shippable. Any attempt to switch
+	# to a hidden theme (classic) is rejected so Remote Config or stale saves
+	# can't surface it.
+	if theme_id != DEFAULT_THEME:
+		return
 	if theme_id == current_id:
 		return
 	if not (theme_id in _themes):
@@ -107,17 +112,6 @@ func set_theme(theme_id: String) -> void:
 	_apply_window_bg()
 	_apply_chip_glyph()
 	theme_changed.emit(theme_id)
-
-
-## Cycle to the next available theme — useful for a dev cheat toggle.
-func cycle_theme() -> void:
-	var ids: Array = _themes.keys()
-	ids.sort()
-	if ids.is_empty():
-		return
-	var idx: int = ids.find(current_id)
-	var next_id: String = str(ids[(idx + 1) % ids.size()])
-	set_theme(next_id)
 
 
 func list_theme_ids() -> Array:
@@ -163,7 +157,7 @@ func size(key: String, fallback: float = 0.0) -> float:
 
 
 func card_path() -> String:
-	return _get_asset("card_path", "res://assets/themes/classic/cards/")
+	return _get_asset("card_path", "res://assets/themes/supercell/cards/")
 
 
 func spin_card_path() -> String:

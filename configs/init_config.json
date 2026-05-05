@@ -12,7 +12,7 @@
   "default_theme": "supercell",
 
   "show_speed_button": true,
-  "show_double_button": true,
+  "show_double_button": false,
 
   "tutorial_enabled": true,
   "first_gift_delay_hours": 0
