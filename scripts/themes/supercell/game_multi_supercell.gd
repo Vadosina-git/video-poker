@@ -67,6 +67,10 @@ func _ready() -> void:
 	# SPEED out of the left cluster into the middle so it sits next to
 	# HANDS / DENOM.
 	call_deferred("_relocate_speed_to_middle")
+	# Insert the TUTOR replay button left of SPEED. Must run AFTER
+	# _relocate_speed_to_middle so the button is parented next to SPEED
+	# in its final container, not in the original left cluster.
+	call_deferred("_attach_tutor_button")
 	# Move the INFO "i" button from bottom bar to the top header so the
 	# top bar matches single-hand supercell.
 	call_deferred("_relocate_info_to_top_bar")
@@ -986,6 +990,15 @@ func _draw_vertical_gradient(ci: RID, rect: Rect2, top: Color, bot: Color, slice
 			Rect2(rect.position.x, rect.position.y + step * float(i),
 				rect.size.x, step + 1.0),
 			col)
+
+
+## Insert TUTOR button immediately left of SPEED. _manager is the classic
+## MultiHandManager; its `state_changed` signal drives the disable flag.
+func _attach_tutor_button() -> void:
+	if _speed_btn == null or not is_instance_valid(_speed_btn):
+		return
+	var mgr: Object = _manager if _manager != null and is_instance_valid(_manager) else null
+	TutorialOverlay.attach_tutor_button(_speed_btn, mgr)
 
 
 func _draw_diagonal_stripes(ci: RID, rect: Rect2, col: Color, spacing: float, width: float) -> void:

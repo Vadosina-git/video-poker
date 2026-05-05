@@ -14,6 +14,7 @@ var spin_poker: bool = false   # Spin Poker mode flag
 var mode_id: String = "single_play"  # Last selected lobby mode
 var mode_hand_counts: Dictionary = {}  # Per-mode saved hand count
 var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
+var tutor_shown: bool = false  # True once the first-launch tutorial has been completed
 var last_gift_time: int = 0         # Unix timestamp of last gift claim
 var pack_claim_times: Dictionary = {}  # product_id → unix ts of last free-timed pack claim
 var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
@@ -301,6 +302,7 @@ func save_game() -> void:
 		"mode_id": mode_id,
 		"mode_hand_counts": mode_hand_counts,
 		"depth_hint_shown": depth_hint_shown,
+		"tutor_shown": tutor_shown,
 		"last_gift_time": last_gift_time,
 		"pack_claim_times": pack_claim_times,
 		"ultra_multipliers": ultra_multipliers,
@@ -374,6 +376,7 @@ func load_game() -> void:
 	for key in saved_mode_hands:
 		mode_hand_counts[str(key)] = int(saved_mode_hands[key])
 	depth_hint_shown = bool(data.get("depth_hint_shown", false))
+	tutor_shown = bool(data.get("tutor_shown", false))
 	last_gift_time = int(data.get("last_gift_time", 0))
 	var saved_claims: Dictionary = data.get("pack_claim_times", {})
 	pack_claim_times.clear()
@@ -464,6 +467,13 @@ func set_bet_level(_mode_id: String, level: int) -> void:
 	# the same global value — no mode "remembers" its own stale bet.
 	for key in bet_levels:
 		bet_levels[key] = level
+	save_game()
+
+
+func mark_tutor_shown() -> void:
+	if tutor_shown:
+		return
+	tutor_shown = true
 	save_game()
 
 

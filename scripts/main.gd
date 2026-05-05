@@ -33,6 +33,13 @@ func _show_lobby() -> void:
 	_current_scene = lobby
 	lobby.machine_selected.connect(_on_machine_selected)
 	_fade_in_scene(lobby)
+	_maybe_show_tutorial()
+
+
+func _maybe_show_tutorial() -> void:
+	if not TutorialOverlay.should_show():
+		return
+	TutorialOverlay.present(self)
 
 
 ## Fade a freshly-shown scene in from transparent → opaque.

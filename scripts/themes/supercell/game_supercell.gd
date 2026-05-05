@@ -59,6 +59,7 @@ var _draw_btn: Button = null
 var _max_bet_btn: Button = null
 var _bet_lvl_btn: Button = null
 var _speed_btn: Button = null
+var _tutor_btn: Button = null
 var _double_btn: Button = null
 var _win_name_label: Label = null
 var _lose_name_label: RichTextLabel = null
@@ -1293,6 +1294,17 @@ func _build_bottom_bar() -> void:
 	_refresh_speed_label()
 	_apply_btn_png(speed_btn, "btn_speed.png")
 
+	# TUTOR button — sits immediately to the left of SPEED. Replays the
+	# tutorial overlay starting from slide 2 (the cheat path inside
+	# `TutorialOverlay.attach_tutor_button`). Pass `null` for the
+	# manager — `_game_manager` doesn't exist yet at _build_bottom_bar
+	# time. The disable flag is driven from `_on_state_changed` instead,
+	# which runs once `_game_manager` is wired and emits the initial
+	# state.
+	_tutor_btn = TutorialOverlay.attach_tutor_button(speed_btn, null)
+	if _tutor_btn != null:
+		_tutor_btn.disabled = false
+
 	# Coins/denomination picker — right cluster. Uses the blank speed
 	# plate for the background; `btn_denom.png` has baked-in "DENOM"
 	# text that would collide with our dynamic coin + amount row.
@@ -1680,6 +1692,10 @@ func _on_state_changed(state: int) -> void:
 	# DOUBLE is only eligible right after a winning hand.
 	if _double_btn != null:
 		_double_btn.disabled = not (state == GameManager.State.WIN_DISPLAY and _game_manager.last_win > 0)
+	# TUTOR is only available between rounds (idle / post-result).
+	if _tutor_btn != null and is_instance_valid(_tutor_btn):
+		_tutor_btn.disabled = not (state == GameManager.State.IDLE \
+				or state == GameManager.State.WIN_DISPLAY)
 	# Status hint per state — classic-parity strings.
 	match state:
 		GameManager.State.IDLE:

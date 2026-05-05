@@ -34,6 +34,16 @@ func _apply_supercell_overrides() -> void:
 	_lock_supercell_bet_to_one()
 	_relocate_info_to_top_bar()
 	_apply_supercell_info_row_sizes()
+	_attach_tutor_button()
+
+
+## Insert TUTOR button immediately left of SPEED. _manager is the classic
+## SpinPokerManager; its `state_changed` signal drives the disable flag.
+func _attach_tutor_button() -> void:
+	if _speed_btn == null or not is_instance_valid(_speed_btn):
+		return
+	var mgr: Object = _manager if _manager != null and is_instance_valid(_manager) else null
+	TutorialOverlay.attach_tutor_button(_speed_btn, mgr)
 
 
 ## Move the SEE PAYS button from the bottom bar to the top header (next
