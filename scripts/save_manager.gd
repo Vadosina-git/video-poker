@@ -18,6 +18,9 @@ var tutor_shown: bool = false  # True once the first-launch tutorial has been co
 var last_gift_time: int = 0         # Unix timestamp of last gift claim
 var pack_claim_times: Dictionary = {}  # product_id → unix ts of last free-timed pack claim
 var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
+# Per-mode per-machine lobby stats:
+#   mode_id → variant_id → {best_rank:int, best_key:String, score:int}
+var machine_stats: Dictionary = {}
 var language: String = "system"  # "system" | "en" | "ru" | "es"
 var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (classic-only, see age_gate.gd)
 var theme_name: String = "supercell"  # Active visual theme id (ThemeManager reads on _ready)
@@ -306,6 +309,7 @@ func save_game() -> void:
 		"last_gift_time": last_gift_time,
 		"pack_claim_times": pack_claim_times,
 		"ultra_multipliers": ultra_multipliers,
+		"machine_stats": machine_stats,
 		"language": language,
 		"age_gate_confirmed": age_gate_confirmed,
 		"theme_name": theme_name,
@@ -383,6 +387,31 @@ func load_game() -> void:
 	for key in saved_claims:
 		pack_claim_times[str(key)] = int(saved_claims[key])
 	ultra_multipliers = data.get("ultra_multipliers", {})
+	var saved_stats: Dictionary = data.get("machine_stats", {})
+	machine_stats.clear()
+	for mk in saved_stats:
+		var raw: Variant = saved_stats[mk]
+		if raw is Dictionary and raw.has("best_rank"):
+			# Legacy flat shape (variant_id → entry). Migrate under single_play.
+			var bucket: Dictionary = machine_stats.get("single_play", {})
+			bucket[str(mk)] = {
+				"best_rank": int(raw.get("best_rank", 0)),
+				"best_key": String(raw.get("best_key", "")),
+				"score": int(raw.get("score", 0)),
+			}
+			machine_stats["single_play"] = bucket
+			continue
+		if not (raw is Dictionary):
+			continue
+		var inner: Dictionary = {}
+		for vk in raw:
+			var entry: Dictionary = raw[vk]
+			inner[str(vk)] = {
+				"best_rank": int(entry.get("best_rank", 0)),
+				"best_key": String(entry.get("best_key", "")),
+				"score": int(entry.get("score", 0)),
+			}
+		machine_stats[str(mk)] = inner
 	language = String(data.get("language", "system"))
 	age_gate_confirmed = bool(data.get("age_gate_confirmed", false))
 	theme_name = String(data.get("theme_name", "supercell"))
@@ -497,6 +526,32 @@ func get_pack_cooldown_remaining(product_id: String, cooldown_seconds: int) -> i
 func mark_pack_claimed(product_id: String) -> void:
 	pack_claim_times[product_id] = int(Time.get_unix_time_from_system())
 	save_game()
+
+
+## Per-machine lobby stats — best combo (highest HandRank ever) + cumulative
+## payout sum. Called from game / multi_hand_game / spin_poker_game once a
+## round resolves; the lobby supercell card reads via get_machine_stats().
+func record_machine_win(p_mode_id: String, variant_id: String, rank: int, paytable_key: String, payout: int) -> void:
+	if variant_id == "" or p_mode_id == "":
+		return
+	var bucket: Dictionary = machine_stats.get(p_mode_id, {})
+	var entry: Dictionary = bucket.get(variant_id, {
+		"best_rank": 0, "best_key": "", "score": 0,
+	})
+	if rank > int(entry.get("best_rank", 0)) and paytable_key != "":
+		entry["best_rank"] = rank
+		entry["best_key"] = paytable_key
+	entry["score"] = int(entry.get("score", 0)) + maxi(payout, 0)
+	bucket[variant_id] = entry
+	machine_stats[p_mode_id] = bucket
+	save_game()
+
+
+func get_machine_stats(p_mode_id: String, variant_id: String) -> Dictionary:
+	var bucket: Dictionary = machine_stats.get(p_mode_id, {})
+	return bucket.get(variant_id, {
+		"best_rank": 0, "best_key": "", "score": 0,
+	})
 
 
 func deduct_credits(amount: int) -> bool:

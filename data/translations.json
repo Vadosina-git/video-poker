@@ -15,6 +15,9 @@
 			"lobby.support": "Support",
 			"lobby.settings": "Settings",
 			"lobby.coming_soon": "Coming Soon",
+			"lobby.stats.best_combo": "Best Combo:",
+			"lobby.stats.score": "Score:",
+			"lobby.more_coming": "MORE IS COMING…",
 			"support.title": "HOW TO PLAY",
 			"support.single_play_title": "Single Play",
 			"support.single_play_rules": "One hand, one deck. Pick cards to hold, then draw replacements. Paytable at the top shows payouts for each hand.",
@@ -249,7 +252,8 @@
 			"tutor.tile.wild_twos.title": "WILD TWOS",
 			"tutor.tile.wild_twos.tagline": "Twos are boss",
 			"tutor.tile.five_wilds.title": "FIVE WILDS",
-			"tutor.tile.five_wilds.tagline": "Five wildcards"
+			"tutor.tile.five_wilds.tagline": "Five wildcards",
+			"tutor.disclaimer": "This is not a gambling game.\nIt's a video poker trainer."
 		},
 		"ru": {
 			"common.got_it": "GOT IT",
@@ -265,6 +269,9 @@
 			"lobby.support": "Support",
 			"lobby.settings": "Settings",
 			"lobby.coming_soon": "Coming Soon",
+			"lobby.stats.best_combo": "Best Combo:",
+			"lobby.stats.score": "Score:",
+			"lobby.more_coming": "MORE IS COMING…",
 			"support.title": "HOW TO PLAY",
 			"support.single_play_title": "Single Play",
 			"support.single_play_rules": "One hand, one deck. Pick cards to hold, then draw replacements. Paytable at the top shows payouts for each hand.",
@@ -499,7 +506,8 @@
 			"tutor.tile.wild_twos.title": "WILD TWOS",
 			"tutor.tile.wild_twos.tagline": "Двойки правят",
 			"tutor.tile.five_wilds.title": "FIVE WILDS",
-			"tutor.tile.five_wilds.tagline": "Пять wild-карт"
+			"tutor.tile.five_wilds.tagline": "Пять wild-карт",
+			"tutor.disclaimer": "Это не азартная игра.\nЭто тренажёр видеопокера."
 		},
 		"es": {
 			"common.got_it": "GOT IT",
@@ -515,6 +523,9 @@
 			"lobby.support": "Support",
 			"lobby.settings": "Settings",
 			"lobby.coming_soon": "Coming Soon",
+			"lobby.stats.best_combo": "Best Combo:",
+			"lobby.stats.score": "Score:",
+			"lobby.more_coming": "MORE IS COMING…",
 			"support.title": "HOW TO PLAY",
 			"support.single_play_title": "Single Play",
 			"support.single_play_rules": "One hand, one deck. Pick cards to hold, then draw replacements. Paytable at the top shows payouts for each hand.",
@@ -749,7 +760,8 @@
 			"tutor.tile.wild_twos.title": "WILD TWOS",
 			"tutor.tile.wild_twos.tagline": "Mandan los doses",
 			"tutor.tile.five_wilds.title": "FIVE WILDS",
-			"tutor.tile.five_wilds.tagline": "Cinco comodines"
+			"tutor.tile.five_wilds.tagline": "Cinco comodines",
+			"tutor.disclaimer": "Esto no es un juego de azar.\nEs un entrenador de video póker."
 		}
 	}
 }

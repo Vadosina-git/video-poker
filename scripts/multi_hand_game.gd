@@ -1758,6 +1758,14 @@ func _on_hands_evaluated(results: Array, total_payout: int) -> void:
 
 	# Primary hand result already shown during draw animation (in _on_hands_drawn)
 
+	if total_payout > 0 and _variant != null:
+		var best_rank: int = 0
+		for r in results:
+			var rk: int = int(r.get("hand_rank", 0))
+			if rk > best_rank and int(r.get("payout", 0)) > 0:
+				best_rank = rk
+		var best_key: String = _variant.get_paytable_key(best_rank) if best_rank > 0 else ""
+		SaveManager.record_machine_win(SaveManager.mode_id, _variant.variant_id, best_rank, best_key, total_payout)
 	# Show total win + animate credits
 	if total_payout > 0:
 		VibrationManager.vibrate("win_small")

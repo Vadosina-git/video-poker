@@ -219,8 +219,40 @@ func _build_slide_simple(folder: String, index: int) -> Control:
 	vb.add_child(_make_grad_label(
 		Translations.tr_key("tutor.slide%d_l2" % index), 60, C_TEAL, C_GREEN))
 
+	# Slide 1 only: subdued legal-style disclaimer in the bottom-left so
+	# the player understands up-front this is a trainer, not a gambling
+	# product. Subtle styling — low opacity, small font, no gradient.
+	if index == 1:
+		slide.add_child(_make_disclaimer_label())
+
 	slide.add_child(_make_corner_hint("tutor.tap_to_continue"))
 	return slide
+
+
+func _make_disclaimer_label() -> Label:
+	var lab := Label.new()
+	lab.text = Translations.tr_key("tutor.disclaimer")
+	var f: Font = ThemeManager.font()
+	if f != null:
+		lab.add_theme_font_override("font", f)
+	lab.add_theme_font_size_override("font_size", 30)
+	lab.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Anchor horizontally under the girl rect (uses GIRL_ANCHOR_*).
+	# Vertically: just below the girl, leaving a small gap above the
+	# bottom-edge icons of the lobby behind the dim.
+	lab.anchor_left = GIRL_ANCHOR_LEFT
+	lab.anchor_right = GIRL_ANCHOR_RIGHT
+	lab.anchor_top = GIRL_ANCHOR_BOTTOM
+	lab.anchor_bottom = GIRL_ANCHOR_BOTTOM
+	lab.offset_left = 0
+	lab.offset_right = 0
+	lab.offset_top = 16
+	lab.offset_bottom = 120
+	return lab
 
 
 func _build_slide_three(folder: String) -> Control:

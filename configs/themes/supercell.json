@@ -79,7 +79,7 @@
   "tile_outline_color": "#000000",
   "tile_shadow_color": "#000000",
   "machine_gradients": {
-    "jacks_or_better":     ["#7BB3FF", "#4A8FE5"],
+    "jacks_or_better":     ["#B968F7", "#8B3FE0"],
     "bonus_poker":         ["#FF7B54", "#E0573F"],
     "bonus_poker_deluxe":  ["#FFB347", "#FF8C42"],
     "double_bonus":        ["#FFD23F", "#F0A800"],
@@ -87,7 +87,7 @@
     "triple_double_bonus": ["#5DADE2", "#2980B9"],
     "aces_and_faces":      ["#7ED957", "#4CAF50"],
     "deuces_wild":         ["#26D0CE", "#1A9B96"],
-    "joker_poker":         ["#B968F7", "#8B3FE0"],
+    "joker_poker":         ["#7BB3FF", "#4A8FE5"],
     "deuces_and_joker":    ["#A47AE2", "#7E4FD0"]
   },
   "machine_titles": {

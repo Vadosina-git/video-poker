@@ -1032,6 +1032,8 @@ func _on_card_replaced(_index: int, _new_card: CardData) -> void:
 
 
 func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
+	if payout > 0 and _variant != null:
+		SaveManager.record_machine_win(SaveManager.mode_id, _variant.variant_id, hand_rank, _variant.get_paytable_key(hand_rank), payout)
 	if payout > 0:
 		if hand_rank == HandEvaluator.HandRank.ROYAL_FLUSH:
 			VibrationManager.vibrate("win_royal_flush")

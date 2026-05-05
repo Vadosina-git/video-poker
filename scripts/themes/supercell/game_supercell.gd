@@ -1812,6 +1812,8 @@ func _on_card_replaced(_index: int, _new_card: CardData) -> void:
 
 
 func _on_hand_evaluated(hand_rank: int, hand_name: String, payout: int) -> void:
+	if payout > 0 and _variant != null:
+		SaveManager.record_machine_win(SaveManager.mode_id, _variant.variant_id, hand_rank, _variant.get_paytable_key(hand_rank), payout)
 	_last_win_amount = payout
 	# Result is announced — the COINS picker becomes interactive again
 	# (unless we're in the middle of a Double sub-game, which keeps it

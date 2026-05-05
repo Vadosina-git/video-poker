@@ -311,7 +311,7 @@ func _apply_theme() -> void:
 	# Horizontal gap between columns; vertical gap is wider so the two
 	# rows have visible breathing room (the supercell sticker shadow needs
 	# vertical clearance to read as a separate plate, not as a connector).
-	_grid.add_theme_constant_override("h_separation", 8)
+	_grid.add_theme_constant_override("h_separation", 16)
 	_grid.add_theme_constant_override("v_separation", 24)
 	# Recompute tile size whenever the center area height changes (device
 	# rotation, safe-area insets, header/footer height adjustments).
@@ -839,6 +839,30 @@ func _make_footer_mode_btn(mode_id: String, label_text: String, active: bool) ->
 	btn.set_meta("mode_id", mode_id)
 	btn.set_meta("active", active)
 
+	# Active-mode highlight pill — soft gold backdrop with thin gold border.
+	# Sits as the first child so the icon + label render on top.
+	if active:
+		var pill := PanelContainer.new()
+		pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pill.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		pill.offset_left = -8
+		pill.offset_right = 8
+		var pill_style := StyleBoxFlat.new()
+		var fill_col: Color = active_col.darkened(0.35)
+		fill_col.a = 0.22
+		pill_style.bg_color = fill_col
+		pill_style.set_corner_radius_all(20)
+		pill_style.set_border_width_all(2)
+		var border_col: Color = active_col
+		border_col.a = 0.85
+		pill_style.border_color = border_col
+		pill_style.anti_aliasing = true
+		pill_style.shadow_color = Color(0, 0, 0, 0.45)
+		pill_style.shadow_offset = Vector2(0, 4)
+		pill_style.shadow_size = 0
+		pill.add_theme_stylebox_override("panel", pill_style)
+		btn.add_child(pill)
+
 	# Icon area: PNG if available, fallback to primitive glyph.
 	var icon_tex: Texture2D = _mode_icon_texture(mode_id)
 	if icon_tex != null:
@@ -854,6 +878,18 @@ func _make_footer_mode_btn(mode_id: String, label_text: String, active: bool) ->
 		tex_rect.offset_bottom = 96
 		# Dim non-active icons via modulate; active stays at full alpha.
 		tex_rect.modulate = Color(1, 1, 1, 1.0) if active else Color(1, 1, 1, 0.72)
+		if active:
+			tex_rect.pivot_offset = Vector2((176 - 0) * 0.5, (96 - 4) * 0.5)
+			tex_rect.scale = Vector2(1.0, 1.0)
+			# Smooth pop-in once added to tree — back-ease overshoots slightly
+			# so the active icon "bounces" into its enlarged state instead of
+			# snapping. Played on every _build_footer_modes() rebuild, which
+			# fires when player taps a different mode.
+			tex_rect.tree_entered.connect(func() -> void:
+				var tw := tex_rect.create_tween()
+				tw.tween_property(tex_rect, "scale", Vector2(1.22, 1.22), 0.32) \
+					.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			, CONNECT_ONE_SHOT)
 		btn.add_child(tex_rect)
 	else:
 		btn.draw.connect(func() -> void:
@@ -866,7 +902,7 @@ func _make_footer_mode_btn(mode_id: String, label_text: String, active: bool) ->
 	lab.add_theme_font_size_override("font_size", 28)
 	lab.add_theme_color_override("font_color", col)
 	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	lab.add_theme_constant_override("outline_size", 4)
+	lab.add_theme_constant_override("outline_size", 6 if active else 4)
 	var theme_font: Font = ThemeManager.font()
 	if theme_font != null:
 		lab.add_theme_font_override("font", theme_font)
@@ -1425,6 +1461,17 @@ func _build_carousel() -> void:
 	else:
 		for c in MACHINE_CONFIG:
 			configs.append(c)
+
+	# Trailing "COMING SOON" placeholder so players see the machine line-up
+	# is still growing. Hint card lives at the same grid coordinates as a
+	# regular machine, but renders a flat grey plate via machine_card's
+	# coming-soon path and refuses taps (locked=true, never emits selection).
+	if configs.size() > 0:
+		configs.append({
+			"id": "_coming_soon",
+			"accent": Color(0.6, 0.6, 0.6),
+			"locked": true,
+		})
 
 	# Center layout rule: ALWAYS 2 rows, columns grow with count so a
 	# longer machine list just extends the strip horizontally (rubber

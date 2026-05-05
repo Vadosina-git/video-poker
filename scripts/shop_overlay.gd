@@ -427,6 +427,10 @@ func _build_pack_card(item: Dictionary) -> PanelContainer:
 
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(240, 460)
+	# Keep card at its declared min size; without this the parent HBoxContainer
+	# (vertically EXPAND_FILL inside the scroll) would stretch each card to the
+	# scroll viewport height, leaving big empty bands above/below the chip art.
+	card.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var card_style := StyleBoxFlat.new()
 	card_style.bg_color = scheme["bg"]
 	card_style.set_border_width_all(4)

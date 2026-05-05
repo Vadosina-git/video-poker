@@ -50,6 +50,18 @@ func _apply_setup(p_locked: bool) -> void:
 	#   - PNG missing → constructed text layout (colored plate + title +
 	#     suits + RTP). This lets a theme ship partial machine art or
 	#     omit it entirely and get a code-built fallback for free.
+	# Coming-soon placeholder slot — flat grey tile, no machine layout,
+	# no tap response. Appended by lobby_manager at the end of every mode's
+	# configs so players read the line-up as expanding rather than fixed.
+	if variant_id == "_coming_soon":
+		_build_coming_soon_tile()
+		_icon_tex.visible = false
+		_lock_overlay.visible = false
+		visual_ready.emit()
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mouse_default_cursor_shape = Control.CURSOR_ARROW
+		return
+
 	var has_png: bool = _icon_path != "" and ResourceLoader.exists(_icon_path)
 	if has_png:
 		add_theme_stylebox_override("panel", StyleBoxEmpty.new())
@@ -106,6 +118,8 @@ func _build_text_label() -> void:
 	# Compact title band near the top third, leaving the rest for the
 	# short label, suits pattern and the RTP pill.
 	title_wrap.offset_top = 14
+	title_wrap.offset_left = 14
+	title_wrap.offset_right = -14
 	title_wrap.anchor_bottom = 0.42
 	title_wrap.offset_bottom = 0
 	layout.add_child(title_wrap)
@@ -130,8 +144,32 @@ func _build_text_label() -> void:
 	if theme_font != null:
 		title.add_theme_font_override("font", theme_font)
 	title.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_wrap.add_child(title)
+
+	# Emoji decoration on each side of the title, height = title row height.
+	# Two Labels render emoji glyphs (system fallback fonts handle color
+	# variants automatically); their font_size is recalculated on resize so
+	# the glyph keeps tracking the title row height regardless of viewport.
+	var title_row := HBoxContainer.new()
+	title_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	title_row.add_theme_constant_override("separation", 6)
+	title_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	title_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_wrap.add_child(title_row)
+	var emoji_left: Control = _make_emoji_node(variant_id)
+	var emoji_right: Control = _make_emoji_node(variant_id)
+	title_row.add_child(emoji_left)
+	title_row.add_child(title)
+	title_row.add_child(emoji_right)
+	var resize_emoji := func() -> void:
+		var h: float = max(title_row.size.y, 16.0)
+		var target: int = int(clamp(h * 0.55, 12.0, 40.0))
+		_apply_emoji_size(emoji_left, target)
+		_apply_emoji_size(emoji_right, target)
+	title_row.resized.connect(resize_emoji)
+	resize_emoji.call_deferred()
 	_fit_title_font(title)
 
 	# Short label directly under the title.
@@ -181,8 +219,14 @@ func _build_text_label() -> void:
 		suits.add_theme_constant_override("separation", 10)
 		suits.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		suits.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-		suits.offset_top = -56
-		suits.offset_bottom = -32
+		if ThemeManager.current_id == "supercell":
+			# Supercell tiles host a stats panel above the suits row, so the
+			# suits hug the bottom edge to free vertical space for the panel.
+			suits.offset_top = -42
+			suits.offset_bottom = -22
+		else:
+			suits.offset_top = -56
+			suits.offset_bottom = -32
 		layout.add_child(suits)
 		# Suit icons take their tint from the per-machine bottom gradient
 		# color so the row reads as a softer echo of the tile body — and
@@ -239,6 +283,245 @@ func _build_text_label() -> void:
 			rtp_lab.add_theme_font_override("font", theme_font)
 		rtp_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rtp_panel.add_child(rtp_lab)
+
+	if ThemeManager.current_id == "supercell":
+		_build_stats_panel(layout, theme_font)
+
+
+## Renders the per-machine stats card (Best Combo + Score) used by the
+## supercell lobby tile. Anchored to the bottom-wide region above the
+## suits row. Reads SaveManager.get_machine_stats(variant_id); shows "—"
+## when no win has been recorded yet.
+func _build_stats_panel(layout: Control, theme_font: Font) -> void:
+	var stats: Dictionary = SaveManager.get_machine_stats(SaveManager.mode_id, variant_id)
+	var best_key: String = String(stats.get("best_key", ""))
+	var score: int = int(stats.get("score", 0))
+	var best_rank: int = int(stats.get("best_rank", 0))
+	# "Big combo" threshold mirrors the game.gd win_large vibration cutoff —
+	# Four of a Kind or higher on standard variants; wild-variant ranks
+	# beyond FOUR_OF_A_KIND (5oak, four deuces, etc.) inherit the gold tint
+	# automatically since their enum values are larger.
+	var is_big_combo: bool = best_rank >= HandEvaluator.HandRank.FOUR_OF_A_KIND
+
+	var grad: Array = ThemeManager.machine_gradient(variant_id)
+	var base_col: Color = grad[1] if grad.size() == 2 else _bg_color
+	var bg_col: Color = base_col.darkened(0.30)
+	if is_big_combo:
+		# Warm gold tint blended over the darkened machine color so the panel
+		# still reads as part of the tile but pops as a "trophy" state.
+		bg_col = bg_col.lerp(Color("C8A23A"), 0.55)
+	bg_col.a = 0.9 if is_big_combo else 0.85
+
+	var panel := PanelContainer.new()
+	panel.name = "StatsPanel"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	panel.offset_top = -132
+	panel.offset_bottom = -52
+	panel.offset_left = 12
+	panel.offset_right = -12
+
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg_col
+	sb.set_corner_radius_all(12)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 0
+	sb.shadow_offset = Vector2(0, 2)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	if is_big_combo:
+		sb.set_border_width_all(2)
+		sb.border_color = Color("FFD24A")
+		sb.anti_aliasing = true
+	panel.add_theme_stylebox_override("panel", sb)
+	layout.add_child(panel)
+
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 0)
+	rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rows.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(rows)
+
+	var combo_value: String = "—"
+	if best_key != "":
+		var localized: String = Translations.tr_key("hand." + best_key)
+		if localized != "" and localized != "hand." + best_key:
+			combo_value = localized
+
+	rows.add_child(_build_stats_label(Translations.tr_key("lobby.stats.best_combo"), HORIZONTAL_ALIGNMENT_LEFT, theme_font))
+	rows.add_child(_build_stats_label(combo_value, HORIZONTAL_ALIGNMENT_RIGHT, theme_font))
+	rows.add_child(_build_stats_label(Translations.tr_key("lobby.stats.score"), HORIZONTAL_ALIGNMENT_LEFT, theme_font))
+	if score > 0:
+		rows.add_child(_build_stats_score_row(score))
+	else:
+		rows.add_child(_build_stats_label("—", HORIZONTAL_ALIGNMENT_RIGHT, theme_font))
+
+
+func _build_stats_label(text_value: String, align: int, theme_font: Font) -> Label:
+	var lab := Label.new()
+	lab.text = text_value
+	lab.horizontal_alignment = align
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.add_theme_font_size_override("font_size", 14)
+	lab.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	lab.add_theme_constant_override("outline_size", 3)
+	if theme_font != null:
+		lab.add_theme_font_override("font", theme_font)
+	lab.autowrap_mode = TextServer.AUTOWRAP_OFF
+	lab.clip_text = true
+	lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return lab
+
+
+func _build_stats_score_row(score: int) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 2)
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var cd: Dictionary = SaveManager.create_currency_display(16, Color(1, 1, 1, 1), Color(0, 0, 0, 0.85), 2.0)
+	var box: HBoxContainer = cd["box"]
+	box.size_flags_horizontal = Control.SIZE_SHRINK_END
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(box)
+	SaveManager.set_currency_value(cd, SaveManager.format_short(score))
+	return row
+
+
+const _MACHINE_EMOJI := {
+	"jacks_or_better": "✅",
+	"bonus_poker": "🎯",
+	"bonus_poker_deluxe": "💠",
+	"double_bonus": "🎲",
+	"double_double_bonus": "⚡",
+	"triple_double_bonus": "🔥",
+	"aces_and_faces": "👑",
+	"deuces_wild": "💎",
+	"joker_poker": "🃏",
+	"deuces_and_joker": "⭐",
+}
+
+
+func _emoji_for(p_variant_id: String) -> String:
+	return _MACHINE_EMOJI.get(p_variant_id, "♦")
+
+
+## Returns a Control rendering the per-machine title emoji. Prefers a
+## pre-rendered SVG (Twemoji-style) shipped under the active theme's
+## icons folder so web/desktop builds don't depend on a system color
+## emoji font; falls back to a plain Label glyph when the SVG is absent.
+func _make_emoji_node(p_variant_id: String) -> Control:
+	var svg_path: String = ThemeManager.ui_icon_path("title_emoji_" + p_variant_id)
+	if svg_path != "" and ResourceLoader.exists(svg_path):
+		var tr := TextureRect.new()
+		tr.texture = load(svg_path)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		tr.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.custom_minimum_size = Vector2(24, 24)
+		return tr
+	var lab := Label.new()
+	lab.text = _emoji_for(p_variant_id)
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lab.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lab.clip_text = false
+	lab.add_theme_font_size_override("font_size", 24)
+	return lab
+
+
+func _apply_emoji_size(node: Control, target_px: int) -> void:
+	if node is TextureRect:
+		node.custom_minimum_size = Vector2(target_px, target_px)
+	elif node is Label:
+		(node as Label).add_theme_font_size_override("font_size", target_px)
+
+
+## Coming-soon placeholder tile — same outline/shadow chrome as a real
+## machine card so it visually belongs to the lineup, but body is flat
+## desaturated grey (gradient-shader path reused with grey colors) and
+## the centered "COMING SOON…" label replaces all variant-specific
+## decorations.
+func _build_coming_soon_tile() -> void:
+	# Same chrome as a real machine tile — outline + shader gradient body +
+	# downward drop shadow — but everything dimmed via modulate so the slot
+	# reads as "ghost" / placeholder rather than active.
+	var outer_radius: int = int(ThemeManager.size("tile_corner_radius", 22))
+	var outline_width: float = float(ThemeManager.size("tile_outline_width", float(TILE_OUTLINE_WIDTH)))
+	var shadow_offset: int = int(ThemeManager.size("tile_shadow_offset", float(TILE_SHADOW_OFFSET)))
+	var shadow_col: Color = ThemeManager.color("tile_shadow_color", Color("0A0F20"))
+	shadow_col.a *= 0.5
+
+	var card_style := StyleBoxFlat.new()
+	card_style.bg_color = Color(0, 0, 0, 0)
+	card_style.anti_aliasing = true
+	card_style.set_corner_radius_all(outer_radius)
+	card_style.set_border_width_all(0)
+	card_style.shadow_size = 0
+	card_style.shadow_color = Color(0, 0, 0, 0)
+	card_style.content_margin_left = 0
+	card_style.content_margin_right = 0
+	card_style.content_margin_top = 0
+	card_style.content_margin_bottom = 0
+	add_theme_stylebox_override("panel", card_style)
+	_shadow_paint_offset = int(shadow_offset)
+	_shadow_paint_color = shadow_col
+	_shadow_paint_radius = int(outer_radius)
+	queue_redraw()
+
+	var top_col := Color(0.55, 0.57, 0.60)
+	var bot_col := Color(0.36, 0.38, 0.41)
+	var outline_col := Color(0.20, 0.22, 0.25)
+
+	_gradient_rect = ColorRect.new()
+	_gradient_rect.name = "GradientBg"
+	_gradient_rect.color = Color(1, 1, 1, 1)
+	_gradient_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gradient_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Half-alpha so the lobby background bleeds through and the slot reads
+	# as "placeholder" rather than another machine.
+	_gradient_rect.modulate = Color(1, 1, 1, 0.5)
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/tile_gradient.gdshader")
+	mat.set_shader_parameter("top_color", top_col)
+	mat.set_shader_parameter("bot_color", bot_col)
+	mat.set_shader_parameter("outline_color", outline_col)
+	mat.set_shader_parameter("outline_width", outline_width)
+	mat.set_shader_parameter("corner_radius", float(outer_radius))
+	mat.set_shader_parameter("highlight_color", Color(1, 1, 1, 0.18))
+	mat.set_shader_parameter("highlight_thickness", 0.0)
+	_gradient_rect.material = mat
+	add_child(_gradient_rect)
+	move_child(_gradient_rect, 0)
+	_update_gradient_rect_size()
+	resized.connect(_update_gradient_rect_size)
+
+	var lab := Label.new()
+	lab.name = "ComingSoonLabel"
+	lab.text = Translations.tr_key("lobby.more_coming")
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lab.offset_left = 16
+	lab.offset_right = -16
+	lab.add_theme_font_size_override("font_size", 24)
+	lab.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
+	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.45))
+	lab.add_theme_constant_override("outline_size", 3)
+	var theme_font: Font = ThemeManager.font()
+	if theme_font != null:
+		lab.add_theme_font_override("font", theme_font)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(lab)
 
 
 ## Builds the supercell-style "sticker" tile: thick outline + solid
@@ -389,8 +672,8 @@ func _fit_title_font_for_width(title: Label, tile_w: float) -> void:
 	var font: Font = title.get_theme_font("font")
 	if font == null:
 		return
-	var start_size := 16
-	var min_size := 10
+	var start_size := 22
+	var min_size := 12
 	# Effective tile content width: tile size minus stylebox content margins.
 	var content_w: float = maxf(tile_w - 32.0, 40.0)
 	# Fit the widest explicit line — titles are pre-wrapped with \n so
