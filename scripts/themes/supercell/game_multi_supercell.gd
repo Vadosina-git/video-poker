@@ -18,7 +18,7 @@ extends "res://scripts/multi_hand_game.gd"
 # Keep these in sync with the same constants in game_supercell.gd —
 # the three supercell modes use identical icon size + screen-edge padding.
 const SUPERCELL_TOP_ICON_SIZE := 58
-const SUPERCELL_TOP_EDGE_PAD := 32
+const SUPERCELL_TOP_EDGE_PAD := 90
 
 const MODE_TINTS := {
 	1:  Color(1, 1, 1, 0),         # single (never here; fallback no-op)
@@ -418,6 +418,14 @@ func _apply_supercell_info_row_sizes() -> void:
 	# 12,500 → "12.5K") gets applied at the new glyph height.
 	_update_balance(SaveManager.credits)
 	_update_bet_display(_manager.bet)
+	# Right-align the balance digits inside their fixed-width cell so they
+	# hug the "+" topup button instead of leaving a wide trailing gap.
+	# Cell width stays constant (cd_min_w reservation), so TopUpButton
+	# position is unchanged — only the digits visually shift right.
+	if _balance_cd is Dictionary and _balance_cd.has("box"):
+		var box := _balance_cd["box"] as BoxContainer
+		if box != null:
+			box.alignment = BoxContainer.ALIGNMENT_END
 
 
 ## Strips the classic exit-icon + 160px left padding off the back button
@@ -847,7 +855,7 @@ func _center_title_on_screen() -> void:
 	_game_title.size_flags_horizontal = Control.SIZE_FILL
 	_game_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_game_title.add_theme_font_size_override("font_size", 32)
+	_game_title.add_theme_font_size_override("font_size", 24)
 	_game_title.add_theme_color_override("font_color", Color.WHITE)
 	_game_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_game_title.add_theme_constant_override("outline_size", 5)

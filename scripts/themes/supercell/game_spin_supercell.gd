@@ -9,7 +9,7 @@ const SPIN_TINT := Color(0.9, 0.5, 1.0, 0.18)
 # Keep these in sync with game_supercell.gd / game_multi_supercell.gd —
 # all three supercell modes use identical icon size + edge padding.
 const SUPERCELL_TOP_ICON_SIZE := 58
-const SUPERCELL_TOP_EDGE_PAD := 32
+const SUPERCELL_TOP_EDGE_PAD := 90
 
 
 func _ready() -> void:
@@ -221,7 +221,7 @@ func _apply_supercell_title() -> void:
 	_game_title.size_flags_horizontal = Control.SIZE_FILL
 	_game_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_game_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_game_title.add_theme_font_size_override("font_size", 32)
+	_game_title.add_theme_font_size_override("font_size", 24)
 	_game_title.add_theme_color_override("font_color", Color.WHITE)
 	_game_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_game_title.add_theme_constant_override("outline_size", 5)
