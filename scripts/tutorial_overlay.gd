@@ -276,8 +276,8 @@ func _build_slide_three(folder: String) -> Control:
 	grid.columns = 2
 	grid.anchor_left = 0.36
 	grid.anchor_right = 0.97
-	grid.anchor_top = 0.18
-	grid.anchor_bottom = 0.78
+	grid.anchor_top = 0.14
+	grid.anchor_bottom = 0.70
 	grid.add_theme_constant_override("h_separation", 24)
 	grid.add_theme_constant_override("v_separation", 2)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -285,7 +285,7 @@ func _build_slide_three(folder: String) -> Control:
 
 	# Row 0: text 1 (teal→green) + hand 1
 	var t1 := _make_grad_label(
-		Translations.tr_key("tutor.slide3_l1"), 44, C_TEAL, C_GREEN)
+		Translations.tr_key("tutor.slide3_l1"), 38, C_TEAL, C_GREEN)
 	t1.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_child(t1)
 	grid.add_child(_make_illustration(folder + "tutor_hand.png"))
@@ -296,7 +296,7 @@ func _build_slide_three(folder: String) -> Control:
 
 	# Row 2: text 2 (green→olive) + hand 2
 	var t2 := _make_grad_label(
-		Translations.tr_key("tutor.slide3_l2"), 44, C_GREEN, C_OLIVE)
+		Translations.tr_key("tutor.slide3_l2"), 38, C_GREEN, C_OLIVE)
 	t2.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_child(t2)
 	grid.add_child(_make_illustration(folder + "tutor_hand2.png"))
@@ -307,7 +307,7 @@ func _build_slide_three(folder: String) -> Control:
 
 	# Row 4: text 3 (cream→lime) + hand 3
 	var t3 := _make_grad_label(
-		Translations.tr_key("tutor.slide3_l3"), 44, C_CREAM, C_LIME)
+		Translations.tr_key("tutor.slide3_l3"), 38, C_CREAM, C_LIME)
 	t3.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	grid.add_child(t3)
 	grid.add_child(_make_illustration(folder + "tutor_hand3.png"))
@@ -351,16 +351,16 @@ func _build_slide_four(folder: String) -> Control:
 	var header := VBoxContainer.new()
 	header.anchor_left = 0.42
 	header.anchor_right = 0.97
-	header.anchor_top = 0.10
-	header.anchor_bottom = 0.40
-	header.add_theme_constant_override("separation", 14)
+	header.anchor_top = 0.08
+	header.anchor_bottom = 0.30
+	header.add_theme_constant_override("separation", 8)
 	header.alignment = BoxContainer.ALIGNMENT_BEGIN
 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	slide.add_child(header)
 	header.add_child(_make_grad_label(
-		Translations.tr_key("tutor.slide4_title"), 60, C_GREEN, C_GREEN))
+		Translations.tr_key("tutor.slide4_title"), 46, C_GREEN, C_GREEN))
 	header.add_child(_make_grad_label(
-		Translations.tr_key("tutor.slide4_subtitle"), 40, C_TEAL, C_GREEN))
+		Translations.tr_key("tutor.slide4_subtitle"), 30, C_TEAL, C_GREEN))
 
 	# 5×2 mini-tile grid — raised closer to the subtitle so it doesn't
 	# pool at the bottom of the screen with empty space above.
@@ -368,10 +368,10 @@ func _build_slide_four(folder: String) -> Control:
 	grid.columns = 5
 	grid.anchor_left = 0.42
 	grid.anchor_right = 0.97
-	grid.anchor_top = 0.34
-	grid.anchor_bottom = 0.74
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
+	grid.anchor_top = 0.32
+	grid.anchor_bottom = 0.78
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	slide.add_child(grid)
 	for tile_def in _SLIDE4_TILES:
@@ -388,7 +388,7 @@ func _make_machine_tile(key: String, fill: Color) -> Control:
 	var panel := PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.custom_minimum_size = Vector2(0, 130)
+	panel.custom_minimum_size = Vector2(0, 92)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = fill
@@ -401,10 +401,10 @@ func _make_machine_tile(key: String, fill: Color) -> Control:
 	sb.border_width_top = 3
 	sb.border_width_bottom = 3
 	sb.border_color = Color(1, 1, 1, 0.85)
-	sb.content_margin_left = 8
-	sb.content_margin_right = 8
-	sb.content_margin_top = 10
-	sb.content_margin_bottom = 10
+	sb.content_margin_left = 6
+	sb.content_margin_right = 6
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
 	panel.add_theme_stylebox_override("panel", sb)
 
 	var vb := VBoxContainer.new()
@@ -418,7 +418,7 @@ func _make_machine_tile(key: String, fill: Color) -> Control:
 	var f: Font = ThemeManager.font()
 	if f != null:
 		title.add_theme_font_override("font", f)
-	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_font_size_override("font_size", 15)
 	title.add_theme_color_override("font_color", Color.WHITE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -429,7 +429,7 @@ func _make_machine_tile(key: String, fill: Color) -> Control:
 	tagline.text = Translations.tr_key("tutor.tile.%s.tagline" % key)
 	if f != null:
 		tagline.add_theme_font_override("font", f)
-	tagline.add_theme_font_size_override("font_size", 14)
+	tagline.add_theme_font_size_override("font_size", 12)
 	tagline.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
 	tagline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tagline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -461,7 +461,7 @@ func _make_illustration(path: String) -> TextureRect:
 	# canvas filter sometimes lands on NEAREST which makes the hand
 	# illustrations read as fuzzy. Force linear+mipmaps for crispness.
 	tr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	tr.custom_minimum_size = Vector2(0, 150)
+	tr.custom_minimum_size = Vector2(0, 110)
 	tr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -478,7 +478,7 @@ func _make_arrow(path: String) -> TextureRect:
 	# Source PNGs are 47×62. SHRINK_CENTER so the arrow doesn't stretch
 	# vertically to fill the grid row's height (otherwise it visually
 	# dominates the column when neighbouring hand rows expand).
-	tr.custom_minimum_size = Vector2(0, 32)
+	tr.custom_minimum_size = Vector2(0, 22)
 	tr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE

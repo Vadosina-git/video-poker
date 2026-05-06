@@ -15,6 +15,8 @@ var mode_id: String = "single_play"  # Last selected lobby mode
 var mode_hand_counts: Dictionary = {}  # Per-mode saved hand count
 var depth_hint_shown: bool = false  # True once the game depth tooltip has been shown
 var tutor_shown: bool = false  # True once the first-launch tutorial has been completed
+var show_machine_stats: bool = false  # Lobby tile stats panel toggle (Best Combo + Score)
+signal show_machine_stats_changed(state: bool)
 var last_gift_time: int = 0         # Unix timestamp of last gift claim
 var pack_claim_times: Dictionary = {}  # product_id → unix ts of last free-timed pack claim
 var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
@@ -306,6 +308,7 @@ func save_game() -> void:
 		"mode_hand_counts": mode_hand_counts,
 		"depth_hint_shown": depth_hint_shown,
 		"tutor_shown": tutor_shown,
+		"show_machine_stats": show_machine_stats,
 		"last_gift_time": last_gift_time,
 		"pack_claim_times": pack_claim_times,
 		"ultra_multipliers": ultra_multipliers,
@@ -381,6 +384,7 @@ func load_game() -> void:
 		mode_hand_counts[str(key)] = int(saved_mode_hands[key])
 	depth_hint_shown = bool(data.get("depth_hint_shown", false))
 	tutor_shown = bool(data.get("tutor_shown", false))
+	show_machine_stats = bool(data.get("show_machine_stats", false))
 	last_gift_time = int(data.get("last_gift_time", 0))
 	var saved_claims: Dictionary = data.get("pack_claim_times", {})
 	pack_claim_times.clear()
@@ -504,6 +508,14 @@ func mark_tutor_shown() -> void:
 		return
 	tutor_shown = true
 	save_game()
+
+
+func set_show_machine_stats(state: bool) -> void:
+	if show_machine_stats == state:
+		return
+	show_machine_stats = state
+	save_game()
+	show_machine_stats_changed.emit(state)
 
 
 func add_credits(amount: int) -> void:

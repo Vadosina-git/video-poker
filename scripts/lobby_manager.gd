@@ -134,6 +134,9 @@ func _ready() -> void:
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
 	_build_carousel()
 	_add_tutor_debug_cheat()
+	_build_stats_toggle()
+	if not SaveManager.show_machine_stats_changed.is_connected(_on_stats_toggle_changed):
+		SaveManager.show_machine_stats_changed.connect(_on_stats_toggle_changed)
 
 
 ## Debug-only: tiny button in the top-left corner that re-presents the
@@ -142,6 +145,162 @@ func _ready() -> void:
 ## Shift+T on desktop. Force-presents regardless of `tutor_shown`,
 ## `tutorial_enabled`, or theme — intentional, since the cheat exists
 ## solely to inspect the overlay.
+## STATS overlay toggle — supercell-styled rounded pill anchored right edge,
+## vertical center. Click flips SaveManager.show_machine_stats and triggers
+## a tile rebuild so each tile shows / hides the stats panel. Lives on the
+## lobby root (not VBoxContainer) so it never affects layout flow.
+var _stats_toggle_root: Control = null
+var _stats_toggle_indicator: PanelContainer = null
+var _stats_toggle_label: Label = null
+
+
+func _build_stats_toggle() -> void:
+	if _stats_toggle_root != null and is_instance_valid(_stats_toggle_root):
+		_stats_toggle_root.queue_free()
+
+	var root := Control.new()
+	root.name = "StatsToggleOverlay"
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Right edge, vertical center. Uses fixed pill size — does not stretch.
+	root.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	root.z_index = 50
+	add_child(root)
+	_stats_toggle_root = root
+
+	var pill := PanelContainer.new()
+	pill.mouse_filter = Control.MOUSE_FILTER_STOP
+	pill.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	# Vertical pill: STATS label on top, ON/OFF dot below. Width 64, height 96.
+	# Anchored center-right of the lobby root, then nudged left so the rounded
+	# right edge breathes off the screen edge.
+	pill.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	pill.offset_left = -76
+	pill.offset_top = -48
+	pill.offset_right = -12
+	pill.offset_bottom = 48
+	root.add_child(pill)
+
+	var sb := StyleBoxFlat.new()
+	# Dark-blue pill body — slight translucency so the gradient still reads
+	# through. The mode-tinted dot inside is the part that "follows" the
+	# active mode color.
+	sb.bg_color = Color(0.05, 0.09, 0.20, 0.85)
+	sb.border_color = Color(0, 0, 0, 0.65)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(20)
+	sb.shadow_color = Color(0, 0, 0, 0.55)
+	sb.shadow_size = 0
+	sb.shadow_offset = Vector2(0, 4)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	pill.add_theme_stylebox_override("panel", sb)
+
+	var vb := VBoxContainer.new()
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_theme_constant_override("separation", 6)
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pill.add_child(vb)
+
+	var lab := Label.new()
+	lab.text = Translations.tr_key("lobby.stats_toggle")
+	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lab.add_theme_font_size_override("font_size", 16)
+	lab.add_theme_color_override("font_color", Color.WHITE)
+	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+	lab.add_theme_constant_override("outline_size", 3)
+	var f: Font = ThemeManager.font()
+	if f != null:
+		lab.add_theme_font_override("font", f)
+	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(lab)
+	_stats_toggle_label = lab
+
+	# Indicator: rounded "switch track" with a dot. Track shifts color +
+	# the dot's container alignment flips when toggled.
+	var track := PanelContainer.new()
+	track.custom_minimum_size = Vector2(48, 22)
+	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var track_sb := StyleBoxFlat.new()
+	track_sb.set_corner_radius_all(11)
+	track_sb.set_border_width_all(2)
+	track_sb.border_color = Color(0, 0, 0, 0.85)
+	track_sb.bg_color = Color(0.18, 0.20, 0.26, 1)
+	track_sb.content_margin_left = 3
+	track_sb.content_margin_right = 3
+	track_sb.content_margin_top = 3
+	track_sb.content_margin_bottom = 3
+	track.add_theme_stylebox_override("panel", track_sb)
+	vb.add_child(track)
+
+	var track_box := HBoxContainer.new()
+	track_box.alignment = BoxContainer.ALIGNMENT_BEGIN
+	track_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	track.add_child(track_box)
+
+	# Round dot — PanelContainer with corner_radius = half the dot side so
+	# the rectangle reads as a circle. Fill color tracks the active mode bg.
+	var dot := PanelContainer.new()
+	dot.name = "Dot"
+	dot.custom_minimum_size = Vector2(16, 16)
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dot_sb := StyleBoxFlat.new()
+	dot_sb.bg_color = Color.WHITE  # placeholder; refreshed by _refresh_stats_toggle_visual
+	dot_sb.set_corner_radius_all(8)
+	dot_sb.set_border_width_all(1)
+	dot_sb.border_color = Color(0, 0, 0, 0.55)
+	dot.add_theme_stylebox_override("panel", dot_sb)
+	track_box.add_child(dot)
+	_stats_toggle_indicator = dot
+
+	_refresh_stats_toggle_visual()
+	pill.gui_input.connect(_on_stats_toggle_input)
+
+
+func _refresh_stats_toggle_visual() -> void:
+	if _stats_toggle_indicator == null or not is_instance_valid(_stats_toggle_indicator):
+		return
+	var on: bool = SaveManager.show_machine_stats
+	# Re-align dot via parent HBox alignment.
+	var box: HBoxContainer = _stats_toggle_indicator.get_parent() as HBoxContainer
+	if box != null:
+		box.alignment = BoxContainer.ALIGNMENT_END if on else BoxContainer.ALIGNMENT_BEGIN
+	# Track tint: green when on, neutral when off.
+	var track: PanelContainer = box.get_parent() as PanelContainer if box != null else null
+	if track != null:
+		var sb: StyleBoxFlat = track.get_theme_stylebox("panel") as StyleBoxFlat
+		if sb != null:
+			sb.bg_color = Color("3FA84A") if on else Color(0.18, 0.20, 0.26, 1)
+	# Dot fill — inherit current mode bg (uses bottom gradient stop, the
+	# more saturated of the two, so it reads against both light and dark
+	# track tints).
+	var dot_sb: StyleBoxFlat = _stats_toggle_indicator.get_theme_stylebox("panel") as StyleBoxFlat
+	if dot_sb != null:
+		var c: Color = _active_bg_bot
+		c.a = 1.0
+		dot_sb.bg_color = c
+
+
+func _on_stats_toggle_input(event: InputEvent) -> void:
+	# Project has emulate_mouse_from_touch=true (Godot default) so both desktop
+	# clicks and mobile taps land here as InputEventMouseButton — handle only
+	# that to avoid double-toggle on mobile.
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		SoundManager.play("button_press")
+		SaveManager.set_show_machine_stats(not SaveManager.show_machine_stats)
+
+
+func _on_stats_toggle_changed(state: bool) -> void:
+	_refresh_stats_toggle_visual()
+	# In-place visibility flip on each card — no carousel rebuild, no
+	# stagger fade-in replay, no shader/shimmer reattach.
+	for card in _machine_cards:
+		if is_instance_valid(card) and card.has_method("set_stats_visible"):
+			card.set_stats_visible(state)
+
+
 func _add_tutor_debug_cheat() -> void:
 	var btn := Button.new()
 	btn.text = "T"
@@ -338,7 +497,7 @@ func _update_tile_sizes() -> void:
 	# Reserve space under each row for the sticker drop shadow. Without
 	# this padding the last row's shadow would be clipped by the scroll
 	# rect (and the row would appear to "hang" over the footer).
-	const SHADOW_PAD := 12.0
+	const SHADOW_PAD := 8.0
 	var tile_h: float = (avail_h - v_sep * float(rows - 1) - SHADOW_PAD * float(rows)) / float(rows)
 	# tile_h above is the exact height that fills the available area minus
 	# row separators and shadow reserve — letting the bottom row sit flush
@@ -679,7 +838,7 @@ func _style_footer() -> void:
 	var st := StyleBoxEmpty.new()
 	st.content_margin_left = SAFE_AREA_H
 	st.content_margin_right = SAFE_AREA_H
-	st.content_margin_top = 8
+	st.content_margin_top = 4
 	st.content_margin_bottom = 8
 	footer.add_theme_stylebox_override("panel", st)
 
@@ -798,6 +957,9 @@ func _apply_mode_bg() -> void:
 			_bg_gradient_node.texture = _build_classic_radial(_active_bg_top, _active_bg_bot)
 	if _bg_node != null and is_instance_valid(_bg_node):
 		_bg_node.queue_redraw()
+	# STATS toggle dot inherits the active mode color — repaint it on every
+	# mode switch.
+	_refresh_stats_toggle_visual()
 
 
 ## Builds a radial GradientTexture2D matching the classic.json structure

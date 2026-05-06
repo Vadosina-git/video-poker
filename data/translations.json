@@ -253,7 +253,8 @@
 			"tutor.tile.wild_twos.tagline": "Twos are boss",
 			"tutor.tile.five_wilds.title": "FIVE WILDS",
 			"tutor.tile.five_wilds.tagline": "Five wildcards",
-			"tutor.disclaimer": "This is not a gambling game.\nIt's a video poker trainer."
+			"tutor.disclaimer": "This is not a gambling game.\nIt's a video poker trainer.",
+			"lobby.stats_toggle": "STATS"
 		},
 		"ru": {
 			"common.got_it": "GOT IT",
@@ -507,7 +508,8 @@
 			"tutor.tile.wild_twos.tagline": "Двойки правят",
 			"tutor.tile.five_wilds.title": "FIVE WILDS",
 			"tutor.tile.five_wilds.tagline": "Пять wild-карт",
-			"tutor.disclaimer": "Это не азартная игра.\nЭто тренажёр видеопокера."
+			"tutor.disclaimer": "Это не азартная игра.\nЭто тренажёр видеопокера.",
+			"lobby.stats_toggle": "СТАТЫ"
 		},
 		"es": {
 			"common.got_it": "GOT IT",
@@ -761,7 +763,8 @@
 			"tutor.tile.wild_twos.tagline": "Mandan los doses",
 			"tutor.tile.five_wilds.title": "FIVE WILDS",
 			"tutor.tile.five_wilds.tagline": "Cinco comodines",
-			"tutor.disclaimer": "Esto no es un juego de azar.\nEs un entrenador de video póker."
+			"tutor.disclaimer": "Esto no es un juego de azar.\nEs un entrenador de video póker.",
+			"lobby.stats_toggle": "ESTAD."
 		}
 	}
 }

@@ -120,7 +120,7 @@ text = "DEAL"
 
 [node name="BottomPad" type="Control" parent="BottomSection"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 16)
+custom_minimum_size = Vector2(0, 0)
 
 [node name="MiddleSection" type="VBoxContainer" parent="."]
 unique_name_in_owner = true

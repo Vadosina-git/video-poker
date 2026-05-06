@@ -163,9 +163,12 @@ func _build_text_label() -> void:
 	title_row.add_child(emoji_left)
 	title_row.add_child(title)
 	title_row.add_child(emoji_right)
+	_title_label = title
+	_title_row = title_row
+	_title_emojis = [emoji_left, emoji_right]
 	var resize_emoji := func() -> void:
 		var h: float = max(title_row.size.y, 16.0)
-		var target: int = int(clamp(h * 0.55, 12.0, 40.0))
+		var target: int = int(clamp(h * 0.55, 12.0, 36.0))
 		_apply_emoji_size(emoji_left, target)
 		_apply_emoji_size(emoji_right, target)
 	title_row.resized.connect(resize_emoji)
@@ -184,6 +187,7 @@ func _build_text_label() -> void:
 		sub.add_theme_color_override("font_color", Color(1, 1, 1, 0.78))
 		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		title_wrap.add_child(sub)
+		_sub_label = sub
 
 	# ── Suits pattern (anchored above the RTP pill) ──
 	# Theme-scoped SVG textures in assets/themes/<id>/icons/. If any
@@ -284,8 +288,12 @@ func _build_text_label() -> void:
 		rtp_lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rtp_panel.add_child(rtp_lab)
 
+	# Stats panel built unconditionally on supercell so the STATS toggle can
+	# flip visibility without rebuilding the carousel. Visibility / subtitle
+	# inversion is applied at the end via _apply_stats_visibility().
 	if ThemeManager.current_id == "supercell":
 		_build_stats_panel(layout, theme_font)
+	_apply_stats_visibility(SaveManager.show_machine_stats)
 
 
 ## Renders the per-machine stats card (Best Combo + Score) used by the
@@ -313,13 +321,20 @@ func _build_stats_panel(layout: Control, theme_font: Font) -> void:
 	bg_col.a = 0.9 if is_big_combo else 0.85
 
 	var panel := PanelContainer.new()
+	_stats_panel = panel
 	panel.name = "StatsPanel"
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	panel.offset_top = -132
-	panel.offset_bottom = -52
-	panel.offset_left = 12
-	panel.offset_right = -12
+	# Proportional anchors so the panel scales with the tile and never crosses
+	# into the title band (title sits at 0–0.42). User explicitly accepted that
+	# the panel covers the suits row underneath when STATS toggle is ON.
+	panel.anchor_left = 0.0
+	panel.anchor_right = 1.0
+	panel.anchor_top = 0.44
+	panel.anchor_bottom = 0.96
+	panel.offset_left = 10
+	panel.offset_right = -10
+	panel.offset_top = 0
+	panel.offset_bottom = 0
 
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg_col
@@ -698,15 +713,44 @@ func _fit_title_font_for_width(title: Label, tile_w: float) -> void:
 ## footer. Also re-fits the title font to the new width.
 func apply_tile_size(w: float, h: float) -> void:
 	custom_minimum_size = Vector2(w, h)
-	var layout := get_node_or_null("TextLayout")
-	if layout != null:
-		for c in layout.get_children():
-			if c is Label:
-				_fit_title_font_for_width(c as Label, w)
-				break
+	if _title_label != null and is_instance_valid(_title_label):
+		# Font sizing must account for the two emoji slots flanking the title —
+		# their width eats into the row, so the title can't use the full tile.
+		var emoji_w: float = 0.0
+		for em in _title_emojis:
+			if em != null and is_instance_valid(em):
+				emoji_w += em.custom_minimum_size.x
+		# 6px separation × 2 gaps + emoji nodes
+		var reserved: float = emoji_w + 12.0
+		_fit_title_font_for_width(_title_label, maxf(w - reserved, 40.0))
+	if _title_row != null and is_instance_valid(_title_row):
+		var rh: float = max(_title_row.size.y, 16.0)
+		var target: int = int(clamp(rh * 0.55, 12.0, 36.0))
+		for em in _title_emojis:
+			if em != null and is_instance_valid(em):
+				_apply_emoji_size(em, target)
 	# PNG's visible rect scales with card size — tell the lobby to
 	# refresh the shimmer overlay's bounds.
 	visual_ready.emit()
+
+
+## Lobby STATS toggle entry point — show/hide stats panel without rebuilding
+## the tile. Subtitle gets inverse visibility (hidden when stats shown) so
+## the two never compete for the title band's vertical space.
+func set_stats_visible(state: bool) -> void:
+	_apply_stats_visibility(state)
+
+
+func _apply_stats_visibility(state: bool) -> void:
+	if _stats_panel != null and is_instance_valid(_stats_panel):
+		_stats_panel.visible = state
+	# Subtitle is hidden via alpha — NOT visible=false — so the title_wrap
+	# container keeps reserving the same vertical slot in both modes. Without
+	# this, hiding the subtitle would expand title_row height, which the emoji
+	# resize callback reads → emojis grow + title font potentially re-fits.
+	# Goal: title block looks identical regardless of stats state.
+	if _sub_label != null and is_instance_valid(_sub_label):
+		_sub_label.modulate.a = 0.0 if state else 1.0
 
 
 ## True when the tile is rendering a PNG (icon layout) vs the
@@ -753,6 +797,11 @@ func _has_point(point: Vector2) -> bool:
 
 var _press_pos := Vector2.ZERO
 var _is_pressed := false
+var _title_label: Label = null
+var _title_row: HBoxContainer = null
+var _title_emojis: Array[Control] = []
+var _stats_panel: PanelContainer = null
+var _sub_label: Label = null
 var _shimmer_mat: ShaderMaterial = null
 var _shimmer_t: float = 0.0
 

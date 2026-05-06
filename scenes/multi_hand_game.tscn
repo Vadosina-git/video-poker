@@ -125,4 +125,4 @@ text = "DEAL"
 
 [node name="BottomPad" type="Control" parent="VBoxContainer"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 4)
+custom_minimum_size = Vector2(0, 0)
