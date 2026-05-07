@@ -49,6 +49,12 @@ jobs:
             sed -i 's|<head>|<head><script src="coi-serviceworker.min.js"></script>|' index.html
           fi
 
+      - name: Fetch privacy policy from main branch
+        run: |
+          curl -sfLo builds/web/privacy-policy.html \
+            https://raw.githubusercontent.com/Vadosina-git/video-poker/main/privacy-policy.html
+          test -s builds/web/privacy-policy.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
