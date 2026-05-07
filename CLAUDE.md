@@ -52,6 +52,14 @@
   «где issuer ID / какой ключ / как подписывать» — ответы там.
   НЕ спрашивай пользователя — читай файл и делай.
 
+- **`docs/RELEASE_GUIDE.md`** — единый справочник по релизам (iOS + Android +
+  privacy policy hosting). Содержит: identity и аккаунты (Team ID, issuer ID,
+  package name, service account email), карту секретов (где что лежит,
+  что gitignored), pre-release checklist, backup-стратегию для keystore,
+  историю предыдущих релизов с уроками, TODO. Подгрузи при ЛЮБОМ обсуждении
+  релиза, перед сборкой/аплоадом, перед изменением version/code или
+  CURRENT_PROJECT_VERSION.
+
 - **`docs/ANDROID_UPLOAD.md`** — ОБЯЗАТЕЛЬНО прочитай при ЛЮБОЙ задаче
   «собери / подпиши / залей Android-билд / upload в Google Play Console».
   Содержит: расположение creds (`.keystore.env`, `.googleplay.env`,

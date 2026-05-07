@@ -27,7 +27,19 @@ source .keystore.env
 OUTPUT="${1:-build/video_poker_release.aab}"
 mkdir -p "$(dirname "$OUTPUT")"
 
-# Backup clean preset
+# Auto-bump version/code (Play Console rejects duplicates with 400). Mirrors
+# the iOS pipeline (CURRENT_PROJECT_VERSION bump in build/ios). Override by
+# setting BUMP_VERSION=0 in the environment if you need to rebuild the same
+# version code (e.g. test build that won't be uploaded).
+if [ "${BUMP_VERSION:-1}" = "1" ]; then
+    CURRENT_CODE=$(grep -m1 "^version/code=" export_presets.cfg | cut -d= -f2)
+    NEXT_CODE=$((CURRENT_CODE + 1))
+    sed -i '' "s|^version/code=.*|version/code=$NEXT_CODE|" export_presets.cfg
+    echo "version/code: $CURRENT_CODE → $NEXT_CODE"
+fi
+
+# Backup AFTER bump so revert preserves the new version/code while wiping
+# only the secrets we injected next.
 cp export_presets.cfg export_presets.cfg.bak
 trap 'mv -f export_presets.cfg.bak export_presets.cfg' EXIT
 
