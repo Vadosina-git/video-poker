@@ -1145,8 +1145,9 @@ func _switch_hand_count(new_count: int) -> void:
 	# The cross-mode rebuild (acc-stack ↔ static columns) happens after
 	# the entry animation finishes, below.
 	_update_paytable_badges()
-	_current_denomination = _recommend_denomination()
-	SaveManager.denomination = _current_denomination
+	# NOTE: recommended denomination is computed only once per machine seat
+	# (in _ready). Switching hand count mid-session keeps the player's
+	# current denom — they're past the onboarding nudge.
 	_update_bet_amount_btn()
 	_update_bet_display(_manager.bet)
 	_update_balance(SaveManager.credits)

@@ -88,6 +88,13 @@ var _bottom_bar_root: Control = null
 
 func setup(variant: BaseVariant) -> void:
 	_variant = variant
+	# Recommend a session-opening denom BEFORE _build_ui() — the COINS
+	# button label is computed during build from SaveManager.denomination.
+	# Supercell single-hand locks bet level to 1, so cost per round equals
+	# the denomination; the recommendation guarantees min_rounds_to_play
+	# rounds at that locked bet. Player can change denom afterwards via
+	# the COINS picker.
+	SaveManager.denomination = _recommend_denomination()
 	_build_ui()
 	_setup_manager()
 	# Catch-all: ensures every Label / RichTextLabel / Button created by
@@ -1669,6 +1676,28 @@ func _setup_manager() -> void:
 	# Kick the visual handler once manually so the "START A ROUND" hint
 	# appears before the player touches DEAL.
 	_on_state_changed(GameManager.State.IDLE)
+
+
+## Recommend the largest denom that lets the player play at least
+## min_rounds_to_play rounds at the supercell-locked bet level (=1).
+## Called once on machine entry from setup(). Player can change denom
+## afterwards via the COINS picker — recommendation is a session seed,
+## not a runtime guard-rail.
+func _recommend_denomination() -> int:
+	var balance: int = SaveManager.credits
+	var denoms: Array = ConfigManager.get_denominations("single_play")
+	if denoms.is_empty():
+		return 1
+	var best: int = int(denoms[0])
+	var min_depth: int = ConfigManager.get_min_game_depth()
+	# Supercell single-hand: bet locked to 1, cost/round = denom.
+	for amount in denoms:
+		var d: int = int(amount)
+		if d > 0 and balance / d >= min_depth:
+			best = d
+		else:
+			break
+	return best
 
 
 func _get_deal_ms() -> int:

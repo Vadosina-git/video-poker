@@ -204,6 +204,32 @@ func _lock_supercell_bet_to_one() -> void:
 	call_deferred("_apply_supercell_font_recursive", self)
 
 
+## Override classic's recommendation: supercell multi locks bet=1
+## (non-Ultra) or 5/10 (Ultra), so the worst-case cost per round is
+## denom × locked_bet × num_hands, not denom × MAX_BET × num_hands.
+## Called once from parent _ready on machine entry.
+func _recommend_denomination() -> int:
+	var balance: int = SaveManager.credits
+	if BET_AMOUNTS.is_empty():
+		return 1
+	var best: int = int(BET_AMOUNTS[0])
+	var min_depth: int = ConfigManager.get_min_game_depth()
+	var locked_bet: int = 1
+	if _ultra_vp:
+		var saved: int = SaveManager.get_bet_level(_manager.mode_id) if _manager else 5
+		locked_bet = 10 if saved >= 10 else 5
+	var divisor: int = locked_bet * _num_hands
+	if divisor <= 0:
+		return best
+	for amount in BET_AMOUNTS:
+		var d: int = int(amount)
+		if d > 0 and balance / (d * divisor) >= min_depth:
+			best = d
+		else:
+			break
+	return best
+
+
 var _ultra_x2_badge: Panel = null
 
 ## Compact "×2" sticker glued to the COINS button's top-right corner.

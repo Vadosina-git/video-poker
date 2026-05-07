@@ -136,6 +136,26 @@ func _lock_supercell_bet_to_one() -> void:
 		_bet_max_btn.disabled = true
 
 
+## Override classic's recommendation: supercell spin locks bet=1, so
+## worst-case cost per round = NUM_LINES × denom (not NUM_LINES × MAX_BET ×
+## denom). Called once from parent _ready on machine entry.
+func _recommend_denomination() -> int:
+	var balance: int = SaveManager.credits
+	if BET_AMOUNTS.is_empty():
+		return 1
+	var best: int = int(BET_AMOUNTS[0])
+	var min_depth: int = ConfigManager.get_min_game_depth()
+	# Supercell spin: bet locked to 1 → cost/round = NUM_LINES × denom.
+	for amount in BET_AMOUNTS:
+		var d: int = int(amount)
+		var worst_total: int = SpinPokerManager.NUM_LINES * d
+		if worst_total > 0 and balance / worst_total >= min_depth:
+			best = d
+		else:
+			break
+	return best
+
+
 ## Recursively pushes ThemeManager.font() onto every Label / RichTextLabel
 ## / Button classic built — without this the classic-built UI keeps the
 ## engine's default font even with the supercell theme active.

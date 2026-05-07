@@ -1609,10 +1609,13 @@ func _on_credits_changed(new_credits: int) -> void:
 # ─── UI UPDATES ───────────────────────────────────────────────────────
 
 func _recommend_denomination() -> int:
+	var balance := SaveManager.credits
 	var best: int = BET_AMOUNTS[0]
+	var min_depth: int = ConfigManager.get_min_game_depth()
 	for amount in BET_AMOUNTS:
-		var worst_cost: int = SpinPokerManager.NUM_LINES * SpinPokerManager.MAX_BET * amount
-		if worst_cost <= SaveManager.credits:
+		# worst case total_bet = NUM_LINES * MAX_BET * denom
+		var worst_total: int = SpinPokerManager.NUM_LINES * SpinPokerManager.MAX_BET * amount
+		if balance / worst_total >= min_depth:
 			best = amount
 		else:
 			break
