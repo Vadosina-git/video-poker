@@ -19,7 +19,7 @@ extends CanvasLayer
 
 signal banner_tapped()
 
-const BANNER_HEIGHT := 100
+const BANNER_HEIGHT := 72
 const VISIBLE_SEC := 5.25
 const SLIDE_SEC := 0.28
 const PROG_ANIM_SEC := 1.65
@@ -142,9 +142,9 @@ func _flash_delta(delta: int) -> void:
 	_delta_label.text = "+%d" % delta
 	_delta_label.modulate = Color(1, 1, 1, 0.0)
 	_delta_label.scale = Vector2(0.65, 0.65)
-	# Pivot stays at the geometric center of the 120×44 offset rect so the
+	# Pivot stays at the geometric center of the 84×32 offset rect so the
 	# pop scales from the middle.
-	_delta_label.pivot_offset = Vector2(60, 22)
+	_delta_label.pivot_offset = Vector2(42, 16)
 	var tw := _delta_label.create_tween().set_parallel(true)
 	tw.tween_property(_delta_label, "modulate:a", 1.0, 0.16)
 	tw.tween_property(_delta_label, "scale", Vector2.ONE, 0.20) \
@@ -184,12 +184,14 @@ func _start_hide() -> void:
 func _build(q: Dictionary, prev_progress: int, target: int) -> Control:
 	var theme_font: Font = ThemeManager.font()
 
-	# Banner spans the middle third of the screen, anchored to the top edge.
-	# anchor_left/right at 1/3 and 2/3 → 33% width on any aspect ratio.
+	# Banner spans the middle quarter of the screen, anchored to the top
+	# edge. anchor_left/right at 0.375/0.625 → 25% width on any aspect
+	# ratio (narrower than the multi-hand outer extra-card columns so the
+	# strip never overlaps them).
 	# offset_top starts negative (off-screen) and animates to 0 in _show.
 	var root := Control.new()
-	root.anchor_left = 1.0 / 3.0
-	root.anchor_right = 2.0 / 3.0
+	root.anchor_left = 0.375
+	root.anchor_right = 0.625
 	root.anchor_top = 0.0
 	root.anchor_bottom = 0.0
 	root.offset_left = 0
@@ -210,24 +212,24 @@ func _build(q: Dictionary, prev_progress: int, target: int) -> Control:
 	s.bg_color = ThemeManager.color("panel_bg", Color(0.10, 0.13, 0.27, 0.97))
 	s.border_color = ThemeManager.color("panel_border", Color("FFEC00"))
 	s.set_border_width_all(2)
-	s.border_width_bottom = 5
+	s.border_width_bottom = 3
 	# Banner sits flush against the screen top — square the top corners
 	# and round only the bottom so it reads as a tab-like strip dropping
 	# down. Also add a strong drop shadow for separation from gameplay.
-	s.corner_radius_bottom_left = 14
-	s.corner_radius_bottom_right = 14
+	s.corner_radius_bottom_left = 10
+	s.corner_radius_bottom_right = 10
 	s.shadow_color = Color(0, 0, 0, 0.55)
-	s.shadow_size = 10
-	s.shadow_offset = Vector2(0, 5)
-	s.content_margin_left = 16
-	s.content_margin_right = 16
-	s.content_margin_top = 10
-	s.content_margin_bottom = 10
+	s.shadow_size = 6
+	s.shadow_offset = Vector2(0, 3)
+	s.content_margin_left = 10
+	s.content_margin_right = 10
+	s.content_margin_top = 6
+	s.content_margin_bottom = 6
 	panel.add_theme_stylebox_override("panel", s)
 	root.add_child(panel)
 
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 16)
+	hb.add_theme_constant_override("separation", 10)
 	panel.add_child(hb)
 
 	# Icon (clipboard, theme-resolved). Smaller than the popup-card icon
@@ -238,20 +240,20 @@ func _build(q: Dictionary, prev_progress: int, target: int) -> Control:
 		ico.texture = load(icon_path)
 		ico.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ico.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ico.custom_minimum_size = Vector2(44, 44)
+		ico.custom_minimum_size = Vector2(32, 32)
 		ico.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		hb.add_child(ico)
 
 	# Title + progress column.
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
+	vb.add_theme_constant_override("separation", 3)
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	hb.add_child(vb)
 
 	var tag := Label.new()
 	tag.text = Translations.tr_key("quest.banner.label")
-	tag.add_theme_font_size_override("font_size", 13)
+	tag.add_theme_font_size_override("font_size", 10)
 	tag.add_theme_color_override("font_color",
 		ThemeManager.color("sidebar_active_text", Color("FFEC00")))
 	if theme_font != null:
@@ -260,18 +262,21 @@ func _build(q: Dictionary, prev_progress: int, target: int) -> Control:
 
 	var title := Label.new()
 	title.text = _format_quest_title(q)
-	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_font_size_override("font_size", 13)
 	title.add_theme_color_override("font_color",
 		ThemeManager.color("body_text", Color.WHITE))
 	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	title.add_theme_constant_override("outline_size", 3)
+	title.add_theme_constant_override("outline_size", 2)
+	title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	title.clip_text = true
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if theme_font != null:
 		title.add_theme_font_override("font", theme_font)
 	vb.add_child(title)
 
 	var prow := HBoxContainer.new()
-	prow.add_theme_constant_override("separation", 10)
+	prow.add_theme_constant_override("separation", 6)
 	vb.add_child(prow)
 
 	_bar = ProgressBar.new()
@@ -279,24 +284,24 @@ func _build(q: Dictionary, prev_progress: int, target: int) -> Control:
 	_bar.max_value = target
 	_bar.value = prev_progress
 	_bar.show_percentage = false
-	_bar.custom_minimum_size = Vector2(0, 14)
+	_bar.custom_minimum_size = Vector2(0, 10)
 	_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var fill := StyleBoxFlat.new()
 	fill.bg_color = ThemeManager.color("panel_border", Color("FFEC00"))
-	fill.set_corner_radius_all(7)
+	fill.set_corner_radius_all(5)
 	_bar.add_theme_stylebox_override("fill", fill)
 	var bgst := StyleBoxFlat.new()
 	bgst.bg_color = Color(0, 0, 0, 0.6)
-	bgst.set_corner_radius_all(7)
+	bgst.set_corner_radius_all(5)
 	_bar.add_theme_stylebox_override("background", bgst)
 	prow.add_child(_bar)
 
 	_count_label = Label.new()
 	_count_label.text = "%d / %d" % [prev_progress, target]
-	_count_label.custom_minimum_size = Vector2(80, 0)
+	_count_label.custom_minimum_size = Vector2(56, 0)
 	_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_count_label.add_theme_font_size_override("font_size", 14)
+	_count_label.add_theme_font_size_override("font_size", 11)
 	_count_label.add_theme_color_override("font_color", Color.WHITE)
 	if theme_font != null:
 		_count_label.add_theme_font_override("font", theme_font)
@@ -308,10 +313,10 @@ func _build(q: Dictionary, prev_progress: int, target: int) -> Control:
 	# offset rectangle (120×44) extends above/below the 14px bar — that's
 	# fine, the label is non-blocking and renders unclipped.
 	_delta_label = Label.new()
-	_delta_label.add_theme_font_size_override("font_size", 24)
+	_delta_label.add_theme_font_size_override("font_size", 17)
 	_delta_label.add_theme_color_override("font_color", Color("3DD158"))
 	_delta_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_delta_label.add_theme_constant_override("outline_size", 4)
+	_delta_label.add_theme_constant_override("outline_size", 3)
 	if theme_font != null:
 		_delta_label.add_theme_font_override("font", theme_font)
 	_delta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -320,11 +325,11 @@ func _build(q: Dictionary, prev_progress: int, target: int) -> Control:
 	_delta_label.anchor_right = 0.5
 	_delta_label.anchor_top = 0.5
 	_delta_label.anchor_bottom = 0.5
-	_delta_label.offset_left = -60
-	_delta_label.offset_right = 60
-	_delta_label.offset_top = -22
-	_delta_label.offset_bottom = 22
-	_delta_label.pivot_offset = Vector2(60, 22)
+	_delta_label.offset_left = -42
+	_delta_label.offset_right = 42
+	_delta_label.offset_top = -16
+	_delta_label.offset_bottom = 16
+	_delta_label.pivot_offset = Vector2(42, 16)
 	_delta_label.modulate = Color(1, 1, 1, 0.0)
 	_delta_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar.add_child(_delta_label)
