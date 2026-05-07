@@ -84,6 +84,12 @@ func _build_popup() -> void:
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.custom_minimum_size = Vector2(680, 820)
 	panel.pivot_offset = panel.custom_minimum_size * 0.5
+	# Landscape viewport (~680 tall) is shorter than the popup's tall portrait
+	# layout. Cap height to viewport so title + close stay visible; the inner
+	# ScrollContainer absorbs any overflow.
+	var _vp_h := get_viewport().get_visible_rect().size.y
+	if _vp_h > 0:
+		panel.custom_minimum_size.y = min(panel.custom_minimum_size.y, _vp_h - 40.0)
 	var pstyle := StyleBoxFlat.new()
 	pstyle.bg_color = ThemeManager.color("panel_bg", Color(0.05, 0.05, 0.18, 0.98))
 	pstyle.set_border_width_all(int(ThemeManager.size("border_width", 3)))

@@ -47,6 +47,10 @@ func _notification(what: int) -> void:
 ##                  to clear the notch — they handle it with their own
 ##                  internal horizontal padding (TOP_BAR_SIDE_PAD).
 ##   "horizontal" — left/right only.
+##   "top"        — top only; bottom edge stays flush to the viewport.
+##                  Lets a bottom-anchored UI strip "dip" into the home-
+##                  indicator pocket (lobby footer: icons stay above the
+##                  pocket, labels dip into it for tighter vertical layout).
 func apply_offsets(ctrl: Control, axes: String = "all") -> void:
 	if ctrl == null:
 		return
@@ -135,19 +139,21 @@ func _apply_to(ctrl: Control) -> void:
 	# sliding clear of the home-indicator pocket. Same idea horizontally
 	# for right-anchored containers.
 	var axes: String = ctrl.get_meta("_safe_area_axes", "all")
-	var apply_h: bool = axes != "vertical"
-	var apply_v: bool = axes != "horizontal"
-	if apply_h and ctrl.anchor_left == 0.0:
+	var apply_left: bool = axes == "all" or axes == "horizontal"
+	var apply_right: bool = axes == "all" or axes == "horizontal"
+	var apply_top: bool = axes == "all" or axes == "vertical" or axes == "top"
+	var apply_bottom: bool = axes == "all" or axes == "vertical"
+	if apply_left and ctrl.anchor_left == 0.0:
 		ctrl.offset_left += dl
-	if apply_h and ctrl.anchor_left == 1.0:
+	if apply_left and ctrl.anchor_left == 1.0:
 		ctrl.offset_left -= dr
-	if apply_v and ctrl.anchor_top == 0.0:
+	if apply_top and ctrl.anchor_top == 0.0:
 		ctrl.offset_top += dt
-	if apply_v and ctrl.anchor_top == 1.0:
+	if apply_bottom and ctrl.anchor_top == 1.0:
 		ctrl.offset_top -= db
-	if apply_h and ctrl.anchor_right == 1.0:
+	if apply_right and ctrl.anchor_right == 1.0:
 		ctrl.offset_right -= dr
-	if apply_v and ctrl.anchor_bottom == 1.0:
+	if apply_bottom and ctrl.anchor_bottom == 1.0:
 		ctrl.offset_bottom -= db
 	ctrl.set_meta("_safe_area_applied", margins.duplicate())
 

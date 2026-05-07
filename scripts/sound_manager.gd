@@ -164,9 +164,18 @@ func play_sfx_loop(event_name: String, volume_db: float = 0.0) -> void:
 
 
 func stop_sfx_loop() -> void:
-	if _sfx_loop_player and _sfx_loop_player.playing:
-		_sfx_loop_current = ""
-		_sfx_loop_player.stop()
+	# Idempotent: clear `_sfx_loop_current` and `stream` even if `.playing`
+	# is false at the moment of the call. The looped player relies on a
+	# manual `finished` → `play()` chain (set up in `play_sfx_loop`); if we
+	# only stop while `.playing` is true, a stop call that races with the
+	# natural end of a WAV cycle leaves `stream` non-null, the queued
+	# `finished` handler then re-plays the loop and the SFX runs forever.
+	# Clearing `stream` here makes the `finished` handler's guard fail.
+	_sfx_loop_current = ""
+	if _sfx_loop_player:
+		if _sfx_loop_player.playing:
+			_sfx_loop_player.stop()
+		_sfx_loop_player.stream = null
 
 
 func stop_sfx_loop_if(expected: String) -> void:

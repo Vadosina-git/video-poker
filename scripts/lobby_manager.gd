@@ -880,7 +880,7 @@ func _style_footer() -> void:
 	var footer := %Footer as HBoxContainer
 	# Tall enough for the 136-tall mode buttons (icon 92 + label 40 + top
 	# breathing room). Shrunk after the 1.5× icon size reduction.
-	footer.custom_minimum_size = Vector2(0, 160)
+	footer.custom_minimum_size = Vector2(0, 170)
 	# Minimum gap between buttons — they keep a tight spacing by default.
 	# Buttons keep their own custom_minimum_size and group-center so the
 	# strip grows when more modes are added but never spreads out to fill
@@ -1114,7 +1114,7 @@ func _make_footer_mode_btn(mode_id: String, label_text: String, active: bool) ->
 	var lab := Label.new()
 	lab.text = label_text
 	lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lab.add_theme_font_size_override("font_size", 28)
+	lab.add_theme_font_size_override("font_size", 22)
 	lab.add_theme_color_override("font_color", col)
 	lab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	lab.add_theme_constant_override("outline_size", 6 if active else 4)
@@ -1916,10 +1916,23 @@ func _show_settings() -> void:
 	panel.add_theme_stylebox_override("panel", pstyle)
 	_settings_overlay.add_child(panel)
 	_settings_panel = panel
+	# Cap panel size and wrap content in ScrollContainer — Settings has many
+	# rows (lang/music/sfx/vibration/notif/speed/privacy/terms/disclaimer/close/
+	# delete) and would otherwise overflow the landscape viewport (~680 tall).
+	var _set_vp_h := get_viewport_rect().size.y
+	if _set_vp_h > 0:
+		panel.custom_minimum_size = Vector2(360, min(680.0, _set_vp_h - 40.0))
+
+	var _scroll := ScrollContainer.new()
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(_scroll)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 16)
-	panel.add_child(vbox)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(vbox)
 
 	var title := Label.new()
 	title.text = Translations.tr_key("settings.title")
@@ -2418,6 +2431,10 @@ func _show_support() -> void:
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.custom_minimum_size = Vector2(640, 720)
 	panel.pivot_offset = panel.custom_minimum_size * 0.5
+	# Cap to viewport so popup never overflows in landscape (~680 tall).
+	var _sup_vp_h := get_viewport_rect().size.y
+	if _sup_vp_h > 0:
+		panel.custom_minimum_size.y = min(panel.custom_minimum_size.y, _sup_vp_h - 40.0)
 	var pstyle := StyleBoxFlat.new()
 	pstyle.bg_color = ThemeManager.color("panel_bg", Color(0.05, 0.05, 0.18, 0.98))
 	pstyle.set_border_width_all(int(ThemeManager.size("border_width", 3)))

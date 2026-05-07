@@ -14,9 +14,8 @@ config/name="Video Poker Trainer"
 run/main_scene="res://scenes/splash.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 boot_splash/bg_color=Color(0.04, 0.04, 0.1, 1)
-boot_splash/stretch_mode=0
 boot_splash/show_image=false
-boot_splash/image=""
+boot_splash/stretch_mode=0
 config/icon="res://assets/icons/icon_1024.png"
 
 [autoload]
