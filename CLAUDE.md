@@ -52,6 +52,16 @@
   «где issuer ID / какой ключ / как подписывать» — ответы там.
   НЕ спрашивай пользователя — читай файл и делай.
 
+- **`docs/ANDROID_UPLOAD.md`** — ОБЯЗАТЕЛЬНО прочитай при ЛЮБОЙ задаче
+  «собери / подпиши / залей Android-билд / upload в Google Play Console».
+  Содержит: расположение creds (`.keystore.env`, `.googleplay.env`,
+  `keystore/upload-keystore.jks`), готовый пайплайн (bump version/code →
+  build_android_release.sh → upload_googleplay.sh через fastlane supply),
+  setup service account для API, troubleshooting (Java SDK path в Godot,
+  duplicate version code, потеря пароля keystore через Play App Signing
+  reset). Все вопросы «где keystore / какой alias / какой package» —
+  ответы там. НЕ спрашивай пользователя — читай файл и делай.
+
 - **`docs/ROADMAP.md`** — подгрузи при обсуждении приоритетов,
   будущих фич, плана работ по фазам.
 

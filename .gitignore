@@ -55,3 +55,6 @@ Thumbs.db
 
 # Web export output
 builds/
+
+# Google Play upload creds
+.googleplay.env

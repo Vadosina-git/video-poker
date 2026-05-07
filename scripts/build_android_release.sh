@@ -24,7 +24,7 @@ source .keystore.env
 : "${ANDROID_KEYSTORE_USER:?ANDROID_KEYSTORE_USER required}"
 : "${ANDROID_KEYSTORE_PASSWORD:?ANDROID_KEYSTORE_PASSWORD required}"
 
-OUTPUT="${1:-build/video_poker_release.apk}"
+OUTPUT="${1:-build/video_poker_release.aab}"
 mkdir -p "$(dirname "$OUTPUT")"
 
 # Backup clean preset
@@ -42,4 +42,4 @@ GODOT="${GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}"
 "$GODOT" --headless --path . --export-release "Android" "$OUTPUT"
 
 echo ""
-echo "✓ Release APK built: $OUTPUT"
+echo "✓ Release AAB built: $OUTPUT"
