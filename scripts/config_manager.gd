@@ -17,6 +17,7 @@ var animations: Dictionary = {}
 var features: Dictionary = {}
 var vibration: Dictionary = {}
 var economy: Dictionary = {}
+var daily_quests: Dictionary = {}
 # Theme overrides — remote-only, no local file. Populated by Firebase Remote Config.
 var classic: Dictionary = {}
 var supercell: Dictionary = {}
@@ -25,7 +26,7 @@ var supercell: Dictionary = {}
 const _REMOTE_OVERRIDABLE := [
 	"animations", "balance", "economy", "features", "gift",
 	"init_config", "lobby_order", "machines", "shop", "sounds",
-	"vibration", "classic", "supercell",
+	"vibration", "daily_quests", "classic", "supercell",
 ]
 
 
@@ -41,6 +42,7 @@ func _ready() -> void:
 	features = _load_json("features.json", _default_features())
 	vibration = _load_json("vibration.json", _default_vibration())
 	economy = _load_json("economy.json", _default_economy())
+	daily_quests = _load_json("daily_quests.json", _default_daily_quests())
 	RemoteConfigManager.fetch_completed.connect(_on_remote_fetch_completed)
 
 
@@ -392,6 +394,34 @@ func _default_vibration() -> Dictionary:
 		"heavy_events": ["win_royal_flush", "win_jackpot"],
 		"heavy_pulse_count": 3,
 		"heavy_inter_pulse_gap_ms": 50,
+	}
+
+
+# ─── DAILY QUESTS (configs/daily_quests.json) ─────────────────────────
+
+## Returns the full quest pool (array of dicts). Disabled entries are NOT
+## filtered here — DailyQuestManager handles enabled flag during the daily roll.
+func get_daily_quest_pool() -> Array:
+	return daily_quests.get("pool", [])
+
+
+func get_daily_quest_picks_per_day() -> int:
+	return int(daily_quests.get("picks_per_day", 4))
+
+
+func _default_daily_quests() -> Dictionary:
+	return {
+		"picks_per_day": 4,
+		"pool": [
+			{"id": "play_10_hands", "type": "play_hands", "target": 10, "reward": 800,
+			 "machines": [], "modes": [], "enabled": true},
+			{"id": "win_5_hands", "type": "win_hands", "target": 5, "reward": 1500,
+			 "machines": [], "modes": [], "enabled": true},
+			{"id": "accumulate_5k_winnings", "type": "accumulate_winnings", "target": 5000,
+			 "reward": 1500, "machines": [], "modes": [], "enabled": true},
+			{"id": "total_bet_3k", "type": "total_bet", "target": 3000, "reward": 1200,
+			 "machines": [], "modes": [], "enabled": true},
+		],
 	}
 
 

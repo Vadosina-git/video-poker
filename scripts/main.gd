@@ -20,12 +20,59 @@ func _ready() -> void:
 	LobbyScene = load("res://scenes/lobby/lobby.tscn")
 	GameScene = load("res://scenes/game.tscn")
 	_paytables = Paytable.load_all()
+	QuestBannerOverlay.banner_tapped.connect(_on_quest_banner_tapped)
+	QuestPopupOverlay.go_requested.connect(_on_quest_go_requested)
 	_show_lobby()
+
+
+## Banner-tap routes straight to the quests popup overlay, which renders on
+## its own CanvasLayer above whatever scene is active — lobby or a game.
+## No scene transition; player stays at the table.
+func _on_quest_banner_tapped() -> void:
+	QuestPopupOverlay.show_popup()
+
+
+## Quest popup "GO" handler — sole subscriber. Translates the (variant, mode)
+## intent into the existing machine-load pipeline, applying the mode change
+## to SaveManager directly so it works whether the player is currently in
+## lobby or in a game scene.
+func _on_quest_go_requested(variant_id: String, mode: String) -> void:
+	if mode != "":
+		SaveManager.mode_id = mode
+		match mode:
+			"single_play":
+				SaveManager.hand_count = 1
+				SaveManager.ultra_vp = false
+				SaveManager.spin_poker = false
+			"triple_play":
+				SaveManager.hand_count = 3
+				SaveManager.ultra_vp = false
+				SaveManager.spin_poker = false
+			"five_play":
+				SaveManager.hand_count = 5
+				SaveManager.ultra_vp = false
+				SaveManager.spin_poker = false
+			"ten_play":
+				SaveManager.hand_count = 10
+				SaveManager.ultra_vp = false
+				SaveManager.spin_poker = false
+			"ultra_vp":
+				SaveManager.hand_count = 5
+				SaveManager.ultra_vp = true
+				SaveManager.spin_poker = false
+			"spin_poker":
+				SaveManager.hand_count = 1
+				SaveManager.ultra_vp = false
+				SaveManager.spin_poker = true
+	SaveManager.last_variant = variant_id
+	SaveManager.save_game()
+	_on_machine_selected(variant_id)
 
 
 func _show_lobby() -> void:
 	SoundManager.stop_ambient()
 	SoundManager.play_lobby_ambient()
+	DailyQuestManager.detach_from_game()
 	_clear_current()
 	var lobby: Control = LobbyScene.instantiate()
 	add_child(lobby)
@@ -89,6 +136,7 @@ func _load_game_scene(variant_id: String) -> void:
 			_make_full_rect(spin_game)
 			_current_scene = spin_game
 			spin_game.back_to_lobby.connect(_show_lobby)
+			DailyQuestManager.attach_to_game(spin_game, variant_id, SaveManager.mode_id)
 			SoundManager.play_ambient()
 			return
 
@@ -104,6 +152,7 @@ func _load_game_scene(variant_id: String) -> void:
 			_make_full_rect(multi_game)
 			_current_scene = multi_game
 			multi_game.back_to_lobby.connect(_show_lobby)
+			DailyQuestManager.attach_to_game(multi_game, variant_id, SaveManager.mode_id)
 			_fade_in_scene(multi_game)
 			SoundManager.play_ambient()
 			return
@@ -119,6 +168,7 @@ func _load_game_scene(variant_id: String) -> void:
 	_make_full_rect(game)
 	_current_scene = game
 	game.back_to_lobby.connect(_show_lobby)
+	DailyQuestManager.attach_to_game(game, variant_id, SaveManager.mode_id)
 	_fade_in_scene(game)
 	SoundManager.play_ambient()
 

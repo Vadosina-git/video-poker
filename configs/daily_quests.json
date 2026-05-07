@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "_doc": "Daily quest pool. DailyQuestManager picks `picks_per_day` random enabled quests every local-midnight. Each quest description is rendered from translation key `quest.desc.{type}` with positional substitutions (target, hand_name, machine/mode label). Filters: machines[] limits to specific variant ids; modes[] limits to specific lobby modes. Empty arrays = no filter (counts everywhere). hand_rank is one of NOTHING/JACKS_OR_BETTER/TWO_PAIR/THREE_OF_A_KIND/STRAIGHT/FLUSH/FULL_HOUSE/FOUR_OF_A_KIND/STRAIGHT_FLUSH/ROYAL_FLUSH. Disable via enabled=false without deleting (preserves analytics history).",
+
+  "picks_per_day": 4,
+
+  "pool": [
+    {
+      "id": "play_10_hands",
+      "type": "play_hands",
+      "target": 10,
+      "reward": 800,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "play_20_hands",
+      "type": "play_hands",
+      "target": 20,
+      "reward": 1500,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "win_5_hands",
+      "type": "win_hands",
+      "target": 5,
+      "reward": 1500,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "win_3_jacks_or_better",
+      "type": "win_hands",
+      "target": 3,
+      "reward": 1200,
+      "machines": ["jacks_or_better"],
+      "modes": ["single_play"],
+      "enabled": true
+    },
+    {
+      "id": "collect_3oak_x3",
+      "type": "collect_combo",
+      "hand_rank": "THREE_OF_A_KIND",
+      "target": 3,
+      "reward": 2000,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "collect_flush_x2",
+      "type": "collect_combo",
+      "hand_rank": "FLUSH",
+      "target": 2,
+      "reward": 2500,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "collect_fullhouse_x1",
+      "type": "collect_combo",
+      "hand_rank": "FULL_HOUSE",
+      "target": 1,
+      "reward": 2000,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "accumulate_5k_winnings",
+      "type": "accumulate_winnings",
+      "target": 5000,
+      "reward": 1500,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "accumulate_15k_winnings",
+      "type": "accumulate_winnings",
+      "target": 15000,
+      "reward": 3000,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "score_royal_flush",
+      "type": "score_specific_hand",
+      "hand_rank": "ROYAL_FLUSH",
+      "target": 1,
+      "reward": 10000,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "score_4oak",
+      "type": "score_specific_hand",
+      "hand_rank": "FOUR_OF_A_KIND",
+      "target": 1,
+      "reward": 3500,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "total_bet_3k",
+      "type": "total_bet",
+      "target": 3000,
+      "reward": 1200,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "total_bet_10k",
+      "type": "total_bet",
+      "target": 10000,
+      "reward": 2500,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "play_3_machines",
+      "type": "play_different_machines",
+      "target": 3,
+      "reward": 1500,
+      "machines": [],
+      "modes": [],
+      "enabled": true
+    },
+    {
+      "id": "play_5_hands_multi",
+      "type": "play_hands",
+      "target": 5,
+      "reward": 1500,
+      "machines": [],
+      "modes": ["triple_play", "five_play", "ten_play"],
+      "enabled": true
+    },
+    {
+      "id": "win_3_hands_deuces",
+      "type": "win_hands",
+      "target": 3,
+      "reward": 1500,
+      "machines": ["deuces_wild", "deuces_and_joker"],
+      "modes": [],
+      "enabled": true
+    }
+  ]
+}

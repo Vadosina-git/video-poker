@@ -585,6 +585,10 @@ func _style_top_bar() -> void:
 		)
 		left.add_child(_store_btn)
 
+	left.add_child(_make_top_icon_btn("quests",
+		Translations.tr_key("lobby.quests"),
+		_show_quests))
+
 	# ---------- expanding spacer ----------
 	var sp1 := Control.new()
 	sp1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1788,6 +1792,11 @@ func _icon_path_for(variant_id: String) -> String:
 
 func _on_play_pressed(variant_id: String) -> void:
 	SaveManager.last_variant = variant_id
+	# Persist immediately (not just in-memory) so subsequent reads — chiefly
+	# the daily-quest GO fallback that targets last_variant when the quest
+	# has no explicit machine — see the actual seat the player just took,
+	# not the previously-saved value from earlier in the session.
+	SaveManager.save_game()
 	# Zoom-in on the tapped card (anim 6.2) before the transition
 	for card in _machine_cards:
 		if is_instance_valid(card) and card.variant_id == variant_id:
@@ -2302,6 +2311,15 @@ func _hide_support() -> void:
 	if _support_overlay:
 		_support_overlay.queue_free()
 		_support_overlay = null
+
+
+# --- Daily Quests popup ---
+# Popup logic lives in QuestPopupOverlay autoload so it can be opened over
+# any scene (lobby top-bar icon → here; in-game banner tap → main.gd). This
+# wrapper exists so the existing button binding keeps working.
+
+func _show_quests() -> void:
+	QuestPopupOverlay.show_popup()
 
 
 # --- Language picker (sub-popup of settings) ---

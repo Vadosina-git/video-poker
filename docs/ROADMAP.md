@@ -70,6 +70,7 @@
 - Аккаунты / авторизация
 - Leaderboards
 - Daily bonuses
+- ✅ Daily Quests (4 случайных задания / день, 7 типов условий, popup в лобби)
 - IAP (покупка кредитов)
 - Achievements
 - Push notifications

@@ -139,6 +139,7 @@ res://
 │   ├── animations.json, balance.json, gift.json, init_config.json
 │   ├── lobby_order.json, machines.json, shop.json, sounds.json
 │   ├── ui_config.json, economy.json, features.json, vibration.json
+│   ├── daily_quests.json
 │   └── themes/
 ├── data/
 │   ├── paytables.json               # все 10 таблиц выплат
@@ -247,7 +248,8 @@ SaveManager стоит до RemoteConfigManager намеренно — RemoteCon
 | Autoload | Назначение |
 |---|---|
 | **ConfigManager** | Первый. `configs/*.json` → fallback defaults. После старта подписан на `RemoteConfigManager.fetch_completed` — на успехе делает deep-merge remote-оверрайдов поверх локалки в полях `_REMOTE_OVERRIDABLE`. |
-| **SaveManager** | `credits`, `denomination`, `last_variant`, `hand_count`, `speed_level`, `bet_level`, `ultra_vp`, `spin_poker`, `language`, `app_instance_id` (стабильный Firebase client id), `settings: Dictionary`. Файл `user://save.json`. Поле `ultra_vp` (ранее `ultimate_x`) — при загрузке принимает оба ключа. Утилиты: `format_money`, `format_short`, `add_credits`, `deduct_credits`. |
+| **SaveManager** | `credits`, `denomination`, `last_variant`, `hand_count`, `speed_level`, `bet_level`, `ultra_vp`, `spin_poker`, `language`, `app_instance_id` (стабильный Firebase client id), `daily_quest_state: Dictionary` (см. DailyQuestManager), `settings: Dictionary`. Файл `user://save.json`. Поле `ultra_vp` (ранее `ultimate_x`) — при загрузке принимает оба ключа. Утилиты: `format_money`, `format_short`, `add_credits`, `deduct_credits`. |
+| **DailyQuestManager** | После SaveManager. Владеет жизненным циклом ежедневных заданий: на старте сравнивает локальную дату с `daily_quest_state.date_iso`, при смене дня роллит `picks_per_day` (4 по умолчанию) случайных квестов из `configs/daily_quests.json`. `attach_to_game(scene, variant_id, mode)` вызывается из `main.gd` после загрузки игровой сцены — подключается к сигналу game-менеджера и трекает прогресс. API: `get_active_quests()`, `time_to_reset_seconds()`, `claim_reward(id)`, `get_button_state(id)`, `get_navigation_target(id)`. Сигналы `quest_progress_updated/completed/claimed/quests_rolled`. Подробно — [`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md) §12. |
 | **SafeAreaManager** | Между SaveManager и RemoteConfigManager. Читает `DisplayServer.get_display_safe_area()`, конвертирует в координаты вьюпорта, эмитит `safe_area_changed`. `apply_offsets(control)` — навешивает inset на full-rect Control и пересчитывает на `size_changed` / `NOTIFICATION_APPLICATION_FOCUS_IN`. Используется из `main.gd._make_full_rect`. |
 | **RemoteConfigManager** | Firebase Remote Config через REST. На старте делает один POST на endpoint, парсит entries, проверяет kill-switch `remote_config_enabled` (точное `"true"`), эмитит `fetch_completed(success)`. Платформенные ключи через `OS.get_name()` (iOS/Android/Web, остальное → iOS fallback). Подробно — [`docs/REMOTE_CONFIG.md`](docs/REMOTE_CONFIG.md). |
 | **SoundManager** | Маппинг событий → файлов из `configs/sounds.json`. 22 placeholder MP3. |

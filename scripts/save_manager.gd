@@ -23,6 +23,10 @@ var ultra_multipliers: Dictionary = {}  # Per-machine per-combo multiplier state
 # Per-mode per-machine lobby stats:
 #   mode_id → variant_id → {best_rank:int, best_key:String, score:int}
 var machine_stats: Dictionary = {}
+# Daily quest state: { date_iso: "YYYY-MM-DD",
+#                      active: [{quest_id, progress, claimed, machines_seen?}, ...] }
+# Empty until DailyQuestManager performs its first roll.
+var daily_quest_state: Dictionary = {}
 var language: String = "system"  # "system" | "en" | "ru" | "es"
 var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (classic-only, see age_gate.gd)
 var theme_name: String = "supercell"  # Active visual theme id (ThemeManager reads on _ready)
@@ -313,6 +317,7 @@ func save_game() -> void:
 		"pack_claim_times": pack_claim_times,
 		"ultra_multipliers": ultra_multipliers,
 		"machine_stats": machine_stats,
+		"daily_quest_state": daily_quest_state,
 		"language": language,
 		"age_gate_confirmed": age_gate_confirmed,
 		"theme_name": theme_name,
@@ -416,6 +421,8 @@ func load_game() -> void:
 				"score": int(entry.get("score", 0)),
 			}
 		machine_stats[str(mk)] = inner
+	var saved_dq: Variant = data.get("daily_quest_state", {})
+	daily_quest_state = saved_dq if saved_dq is Dictionary else {}
 	language = String(data.get("language", "system"))
 	age_gate_confirmed = bool(data.get("age_gate_confirmed", false))
 	theme_name = String(data.get("theme_name", "supercell"))
@@ -564,6 +571,14 @@ func get_machine_stats(p_mode_id: String, variant_id: String) -> Dictionary:
 	return bucket.get(variant_id, {
 		"best_rank": 0, "best_key": "", "score": 0,
 	})
+
+
+## Replace the entire daily quest state and persist immediately.
+## DailyQuestManager calls this after every progress increment / claim
+## so unexpected app kills don't lose progress.
+func set_daily_quest_state(state: Dictionary) -> void:
+	daily_quest_state = state
+	save_game()
 
 
 func deduct_credits(amount: int) -> bool:
