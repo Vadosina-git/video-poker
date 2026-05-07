@@ -28,9 +28,15 @@ var machine_stats: Dictionary = {}
 # Empty until DailyQuestManager performs its first roll.
 var daily_quest_state: Dictionary = {}
 var language: String = "system"  # "system" | "en" | "ru" | "es"
-var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18 (classic-only, see age_gate.gd)
+var age_gate_confirmed: bool = false  # True once user confirmed age ≥ 18. Gate shown for both themes when configs/features.json -> feature_flags.age_gate_enabled is true (see age_gate.gd).
 var theme_name: String = "supercell"  # Active visual theme id (ThemeManager reads on _ready)
 var app_instance_id: String = ""  # Stable Firebase Remote Config client id; generated once on first launch
+# Local notifications opt-in. notifications_enabled = single master switch shown
+# in settings. notifications_permission_asked flips to true the first time we
+# request the OS-level permission (so we never re-prompt — user must change it
+# in system settings if they decline). NotificationManager reads both.
+var notifications_enabled: bool = true
+var notifications_permission_asked: bool = false
 ## Player-toggleable settings persisted in save file. Currently only sound_fx
 ## and vibration have UI controls / runtime consumers — music / casino_ambient /
 ## game_speed / auto_hold were declared for a never-built settings menu and
@@ -322,6 +328,8 @@ func save_game() -> void:
 		"age_gate_confirmed": age_gate_confirmed,
 		"theme_name": theme_name,
 		"app_instance_id": app_instance_id,
+		"notifications_enabled": notifications_enabled,
+		"notifications_permission_asked": notifications_permission_asked,
 		"settings": settings,
 	}
 	var json_text := JSON.stringify(data, "\t")
@@ -431,6 +439,8 @@ func load_game() -> void:
 	if theme_name != "supercell":
 		theme_name = "supercell"
 	app_instance_id = String(data.get("app_instance_id", ""))
+	notifications_enabled = bool(data.get("notifications_enabled", true))
+	notifications_permission_asked = bool(data.get("notifications_permission_asked", false))
 	var saved_settings: Dictionary = data.get("settings", {})
 	for key in saved_settings:
 		if key in settings:

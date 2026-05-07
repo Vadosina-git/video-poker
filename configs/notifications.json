@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "_doc": "Local push notifications for cooldown reminders + retention pings. Wraps the godot-mobile-plugins/godot-notification-scheduler plugin (iOS+Android). NotificationManager autoload reads this file. feature_enabled is the master kill-switch — when false, no permission prompt is shown, no notifications scheduled, settings switch is hidden. Override via Firebase Remote Config to disable the feature in prod without a release. Texts come from data/translations.json (notification.* keys) — DO NOT hardcode strings here.",
+
+  "feature_enabled": true,
+
+  "android_channel": {
+    "_doc": "One channel for all reminders. Player sees a single switch in our UI; Android requires a channel under the hood since 8.0.",
+    "id": "game_reminders",
+    "name_key": "notification.channel.name",
+    "description_key": "notification.channel.description",
+    "importance": "default"
+  },
+
+  "android_small_icon": "ic_notification_default",
+
+  "quiet_hours": {
+    "_doc": "If a notification's local fire time falls inside [start, end), it is shifted forward to end. 24h format. Reduces unsubscribe rate. Set both to 0 to disable.",
+    "start_hour": 22,
+    "end_hour": 9
+  },
+
+  "events": {
+    "_doc": "Per-event toggles + content keys. id_offset is the integer ID base used by the plugin (must be unique across events; shop packs add product index on top).",
+    "gift_ready": {
+      "enabled": true,
+      "id": 1001,
+      "title_key": "notification.gift_ready.title",
+      "body_key":  "notification.gift_ready.body"
+    },
+    "shop_pack_ready": {
+      "_doc": "Per-pack notification — actual id is id_offset + pack_index (pack_01=0, pack_02=1, ...).",
+      "enabled": true,
+      "id_offset": 1100,
+      "title_key": "notification.shop_pack_ready.title",
+      "body_key":  "notification.shop_pack_ready.body"
+    },
+    "daily_quests_reset": {
+      "enabled": true,
+      "id": 1200,
+      "title_key": "notification.daily_quests_reset.title",
+      "body_key":  "notification.daily_quests_reset.body"
+    },
+    "retention_day_2": {
+      "enabled": true,
+      "id": 1300,
+      "delay_hours": 48,
+      "fire_at_local_hour": 19,
+      "title_key": "notification.retention_day_2.title",
+      "body_key":  "notification.retention_day_2.body"
+    },
+    "retention_day_7": {
+      "enabled": true,
+      "id": 1301,
+      "delay_hours": 168,
+      "fire_at_local_hour": 19,
+      "title_key": "notification.retention_day_7.title",
+      "body_key":  "notification.retention_day_7.body"
+    }
+  }
+}

@@ -37,6 +37,17 @@ func _on_quest_banner_tapped() -> void:
 ## to SaveManager directly so it works whether the player is currently in
 ## lobby or in a game scene.
 func _on_quest_go_requested(variant_id: String, mode: String) -> void:
+	# Same-machine short-circuit: if the player is already at the target
+	# table, GO just closes the popup (popup already hid itself before
+	# emitting). No loader, no scene rebuild.
+	var in_game: bool = _current_scene != null and not (_current_scene is Control and _current_scene.name == "Lobby")
+	# Robust check for "is currently in a game scene": lobby has the
+	# `machine_selected` signal — game scenes don't.
+	if _current_scene != null and _current_scene.has_signal("machine_selected"):
+		in_game = false
+	var mode_matches: bool = mode == "" or mode == SaveManager.mode_id
+	if in_game and variant_id == SaveManager.last_variant and mode_matches:
+		return
 	if mode != "":
 		SaveManager.mode_id = mode
 		match mode:

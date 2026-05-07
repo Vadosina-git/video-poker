@@ -229,7 +229,52 @@ func _build_slide_simple(folder: String, index: int) -> Control:
 	return slide
 
 
-func _make_disclaimer_label() -> Label:
+func _make_disclaimer_label() -> Control:
+	# RichTextLabel so the Privacy / Terms tokens render as clickable links.
+	# meta_clicked fires with the [url=...] payload — we open the matching
+	# URL via OS.shell_open (works on iOS/Android/desktop). Falls back to
+	# the legacy plain Label when both URLs are blank (config not yet set).
+	var privacy_url: String = ConfigManager.get_privacy_url()
+	var terms_url: String = ConfigManager.get_terms_url()
+	if privacy_url == "" and terms_url == "":
+		return _make_legacy_disclaimer_label()
+
+	var rich := RichTextLabel.new()
+	rich.bbcode_enabled = true
+	rich.fit_content = true
+	rich.scroll_active = false
+	rich.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rich.mouse_filter = Control.MOUSE_FILTER_STOP
+	var f: Font = ThemeManager.font()
+	if f != null:
+		rich.add_theme_font_override("normal_font", f)
+		rich.add_theme_font_override("bold_font", f)
+	# Subdued styling — small font, low alpha. Below-the-character footer:
+	# trainer-framing line first (existing tutor.disclaimer), then legal
+	# notice with clickable Privacy / Terms links. Single block so the
+	# whole thing reads as one quiet legal/framing footer.
+	rich.add_theme_font_size_override("normal_font_size", 18)
+	rich.add_theme_color_override("default_color", Color(1, 1, 1, 0.45))
+	var trainer_text: String = Translations.tr_key("tutor.disclaimer")
+	var footer_text: String = Translations.tr_key("legal.footer")
+	rich.text = "[center]%s\n\n%s[/center]" % [trainer_text, footer_text]
+	rich.meta_clicked.connect(func(meta: Variant) -> void:
+		_open_legal_link(str(meta))
+	)
+	rich.anchor_left = GIRL_ANCHOR_LEFT
+	rich.anchor_right = GIRL_ANCHOR_RIGHT
+	rich.anchor_top = GIRL_ANCHOR_BOTTOM
+	rich.anchor_bottom = GIRL_ANCHOR_BOTTOM
+	rich.offset_left = 0
+	rich.offset_right = 0
+	rich.offset_top = 16
+	rich.offset_bottom = 200
+	return rich
+
+
+## Legacy plain-text disclaimer (no clickable links). Used when legal URLs
+## are not yet configured — keeps the slide visually intact during dev.
+func _make_legacy_disclaimer_label() -> Label:
 	var lab := Label.new()
 	lab.text = Translations.tr_key("tutor.disclaimer")
 	var f: Font = ThemeManager.font()
@@ -241,9 +286,6 @@ func _make_disclaimer_label() -> Label:
 	lab.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Anchor horizontally under the girl rect (uses GIRL_ANCHOR_*).
-	# Vertically: just below the girl, leaving a small gap above the
-	# bottom-edge icons of the lobby behind the dim.
 	lab.anchor_left = GIRL_ANCHOR_LEFT
 	lab.anchor_right = GIRL_ANCHOR_RIGHT
 	lab.anchor_top = GIRL_ANCHOR_BOTTOM
@@ -253,6 +295,22 @@ func _make_disclaimer_label() -> Label:
 	lab.offset_top = 16
 	lab.offset_bottom = 120
 	return lab
+
+
+func _open_legal_link(meta: String) -> void:
+	var url := ""
+	match meta:
+		"privacy":
+			url = ConfigManager.get_privacy_url()
+		"terms":
+			url = ConfigManager.get_terms_url()
+		_:
+			# Direct URL passed (future-proof in case footer text inlines one).
+			if meta.begins_with("http"):
+				url = meta
+	if url == "":
+		return
+	OS.shell_open(url)
 
 
 func _build_slide_three(folder: String) -> Control:

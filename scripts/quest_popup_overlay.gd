@@ -33,8 +33,6 @@ var _overlay: Control = null
 var _list_box: VBoxContainer = null
 var _countdown_label: Label = null
 var _countdown_timer: Timer = null
-var _show_all_pool: bool = false
-var _cheat_btn: Button = null
 
 
 func _ready() -> void:
@@ -61,8 +59,6 @@ func hide_popup() -> void:
 		_overlay = null
 	_list_box = null
 	_countdown_label = null
-	_cheat_btn = null
-	_show_all_pool = false
 
 
 # ─── BUILD ────────────────────────────────────────────────────────────
@@ -159,30 +155,18 @@ func _build_popup() -> void:
 	close.add_theme_stylebox_override("hover", cs)
 	close.add_theme_stylebox_override("pressed", cs)
 	close.add_theme_stylebox_override("focus", cs)
-	close.add_theme_color_override("font_color",
-		ThemeManager.color("button_primary_text", Color.BLACK))
+	close.add_theme_color_override("font_color", Color.WHITE)
+	close.add_theme_color_override("font_color_hover", Color.WHITE)
+	close.add_theme_color_override("font_color_pressed", Color.WHITE)
+	close.add_theme_color_override("font_color_focus", Color.WHITE)
+	close.add_theme_color_override("font_color_disabled", Color.WHITE)
+	close.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	close.add_theme_constant_override("outline_size", 3)
 	close.add_theme_font_size_override("font_size", 18)
 	if theme_font != null:
 		close.add_theme_font_override("font", theme_font)
 	close.pressed.connect(hide_popup)
 	vb.add_child(close)
-
-	# Designer cheats — pool browser + progress reset.
-	var cheat_row := HBoxContainer.new()
-	cheat_row.add_theme_constant_override("separation", 8)
-	vb.add_child(cheat_row)
-
-	_cheat_btn = _make_cheat_button(
-		Translations.tr_key("quest.cheat.show_all"),
-		_toggle_cheat,
-		theme_font)
-	cheat_row.add_child(_cheat_btn)
-
-	var reset_btn: Button = _make_cheat_button(
-		Translations.tr_key("quest.cheat.reset"),
-		_on_cheat_reset_pressed,
-		theme_font)
-	cheat_row.add_child(reset_btn)
 
 	panel.scale = Vector2(0.9, 0.9)
 	panel.modulate.a = 0.0
@@ -254,19 +238,7 @@ func _rebuild_list() -> void:
 	for child in _list_box.get_children():
 		_list_box.remove_child(child)
 		child.queue_free()
-	var quests: Array
-	if _show_all_pool:
-		quests = []
-		for cfg in ConfigManager.get_daily_quest_pool():
-			if not (cfg is Dictionary):
-				continue
-			var merged: Dictionary = (cfg as Dictionary).duplicate(true)
-			merged["progress"] = 0
-			merged["claimed"] = false
-			merged["target"] = int(cfg.get("target", 1))
-			quests.append(merged)
-	else:
-		quests = DailyQuestManager.get_active_quests()
+	var quests: Array = DailyQuestManager.get_active_quests()
 	if quests.is_empty():
 		var empty := Label.new()
 		empty.text = Translations.tr_key("quests.empty")
@@ -362,18 +334,28 @@ func _build_card(q: Dictionary) -> Control:
 	title_row.add_theme_constant_override("separation", 10)
 	body.add_child(title_row)
 
-	var title := Label.new()
-	title.text = _format_desc(q)
+	# RichTextLabel so machine / mode segments inside the description can
+	# be highlighted (BBCode [color]) without pulling in a custom shader.
+	# `fit_content` + `scroll_active=false` make it lay out like a plain
+	# Label while still parsing inline tags.
+	var title := RichTextLabel.new()
+	title.bbcode_enabled = true
+	title.fit_content = true
+	title.scroll_active = false
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	title.add_theme_font_size_override("font_size", 19)
-	title.add_theme_color_override("font_color",
+	title.add_theme_font_size_override("normal_font_size", 19)
+	title.add_theme_font_size_override("bold_font_size", 19)
+	title.add_theme_color_override("default_color",
 		ThemeManager.color("body_text", Color.WHITE))
 	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	title.add_theme_constant_override("outline_size", 3)
 	if theme_font != null:
-		title.add_theme_font_override("font", theme_font)
+		title.add_theme_font_override("normal_font", theme_font)
+		title.add_theme_font_override("bold_font", theme_font)
+	title.text = _format_desc(q)
 	title_row.add_child(title)
 
 	var reward_pill: Control = _make_reward_pill(int(q.get("reward", 0)), is_claimed)
@@ -478,19 +460,16 @@ func _make_reward_pill(amount: int, dimmed: bool) -> Control:
 
 func _style_button(btn: Button, state: String) -> void:
 	var bg: Color
-	var fg: Color
-	var fg_hover: Color = Color(0, 0, 0, 0)
+	# Unified white text across all states / all quest buttons. Outline
+	# (added on the Button below) preserves contrast on yellow/green/grey.
+	var fg: Color = Color.WHITE
 	match state:
 		"claim":
 			bg = ThemeManager.color("button_primary_bg", Color("FFEC00"))
-			fg = ThemeManager.color("button_primary_text", Color.BLACK)
 		"go":
 			bg = Color("3DD158")
-			fg = Color.WHITE
-			fg_hover = ThemeManager.color("button_primary_bg", Color("FFEC00"))
 		_:
 			bg = Color(0.32, 0.32, 0.36, 1)
-			fg = Color(0.78, 0.78, 0.78, 1)
 
 	var corner: int = 16
 	var lip: Color = bg.darkened(0.40)
@@ -524,14 +503,17 @@ func _style_button(btn: Button, state: String) -> void:
 	btn.add_theme_stylebox_override("pressed", sp)
 
 	btn.add_theme_color_override("font_color", fg)
+	btn.add_theme_color_override("font_color_hover", fg)
+	btn.add_theme_color_override("font_color_pressed", fg)
+	btn.add_theme_color_override("font_color_focus", fg)
 	btn.add_theme_color_override("font_color_disabled", fg)
-	if fg_hover.a > 0.0:
-		btn.add_theme_color_override("font_color_hover", fg_hover)
-		btn.add_theme_color_override("font_color_pressed", fg_hover)
 
 
 # ─── DESCRIPTION FORMATTING ───────────────────────────────────────────
 
+## Description with BBCode highlighting on machine / mode segments. Always
+## surfaces both restrictions when present (any list size), so the player
+## sees exactly where the quest counts. Multi-value lists are joined with "/".
 func _format_desc(q: Dictionary) -> String:
 	var qtype: String = String(q.get("type", ""))
 	var target: int = int(q.get("target", 1))
@@ -552,10 +534,19 @@ func _format_desc(q: Dictionary) -> String:
 	var machines: Array = q.get("machines", [])
 	var modes: Array = q.get("modes", [])
 	var parts: Array = []
-	if machines.size() == 1:
-		parts.append(_machine_display_name(String(machines[0])))
-	if modes.size() == 1:
-		parts.append(Translations.tr_key("lobby.mode_" + String(modes[0])))
+	# Tutorial green-end of the teal→green gradient; bright enough to read
+	# against the dark card without competing with the yellow reward pill.
+	var highlight_hex := "#46D100"
+	if machines.size() >= 1:
+		var names: Array = []
+		for m in machines:
+			names.append(_machine_display_name(String(m)))
+		parts.append("[color=%s][b]%s[/b][/color]" % [highlight_hex, "/".join(names)])
+	if modes.size() >= 1:
+		var mode_names: Array = []
+		for m in modes:
+			mode_names.append(Translations.tr_key("lobby.mode_" + String(m)))
+		parts.append("[color=%s][b]%s[/b][/color]" % [highlight_hex, "/".join(mode_names)])
 	if not parts.is_empty():
 		var joiner := " — "
 		base += " " + Translations.tr_key("quest.suffix_fmt", [joiner.join(parts)])
@@ -607,20 +598,97 @@ func _on_go_pressed(quest_id: String) -> void:
 
 func _on_claim_pressed(quest_id: String, source: Control) -> void:
 	var old_credits: int = SaveManager.credits
+	var from_pos: Vector2 = Vector2.ZERO
+	if is_instance_valid(source):
+		from_pos = source.global_position + source.size * 0.5
 	var reward: int = DailyQuestManager.claim_reward(quest_id)
 	if reward <= 0:
 		return
 	SoundManager.play("gift_claim")
-	# Visual chip cascade — only meaningful when the lobby balance pill is
-	# visible (i.e. popup opened over lobby). In game scenes the cascade
-	# helpers don't exist, so we silently bump credits instead.
+	if from_pos == Vector2.ZERO:
+		return
+	# Two paths:
+	#   • Lobby — has a full cascade helper (`_spawn_chip_cascade`) that
+	#     animates the cash pill counter for free. Pass `self` as parent so
+	#     chips render above the popup panel.
+	#   • Game scene — no helper, no balance increment. Run a self-contained
+	#     cascade parented to this CanvasLayer and tell the game manager to
+	#     re-emit credits_changed so its balance label updates.
 	var current_scene: Node = _active_scene()
-	if current_scene and current_scene.has_method("_spawn_chip_cascade") \
-			and is_instance_valid(source):
-		var from_pos: Vector2 = source.global_position + source.size * 0.5
+	if current_scene and current_scene.has_method("_spawn_chip_cascade"):
 		if current_scene.has_method("_spawn_confetti_burst"):
 			current_scene._spawn_confetti_burst(from_pos)
-		current_scene._spawn_chip_cascade(from_pos, old_credits, SaveManager.credits)
+		current_scene._spawn_chip_cascade(from_pos, old_credits, SaveManager.credits, self)
+	else:
+		_spawn_quest_cascade_self(from_pos)
+		DailyQuestManager.notify_credits_changed()
+
+
+## Self-contained chip cascade for game-scene claims (lobby has its own).
+## Targets the active scene's `_balance_label` global position, falls back
+## to the bottom-right region of the viewport when the property is absent.
+func _spawn_quest_cascade_self(from_pos: Vector2) -> void:
+	var target_pos: Vector2 = _resolve_balance_anchor()
+	if target_pos == Vector2.ZERO:
+		return
+	var chip_tex: Texture2D = SaveManager.get_chip_texture()
+	if chip_tex == null:
+		return
+	var anim: Dictionary = ConfigManager.get_claim_animation()
+	var chip_count: int = int(anim.get("chip_count", 10))
+	var stagger_step: float = float(anim.get("stagger_step_sec", 0.05))
+	var travel_time: float = float(anim.get("travel_time_sec", 0.55))
+	var chip_size: Vector2 = Vector2(52, 52)
+	var chip_color: Color = Color("FFEC00")
+	for i in chip_count:
+		var chip := TextureRect.new()
+		chip.texture = chip_tex
+		chip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		chip.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		chip.custom_minimum_size = chip_size
+		chip.size = chip_size
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.pivot_offset = chip_size * 0.5
+		chip.z_index = 500
+		var jitter := Vector2(randf_range(-28.0, 28.0), randf_range(-28.0, 28.0))
+		chip.global_position = from_pos + jitter - chip_size * 0.5
+		chip.modulate = Color(chip_color.r, chip_color.g, chip_color.b, 0.0)
+		add_child(chip)
+		var stagger: float = float(i) * stagger_step
+		var tw := chip.create_tween()
+		tw.tween_interval(stagger)
+		tw.tween_property(chip, "modulate:a", 1.0, 0.08)
+		tw.parallel().tween_property(chip, "global_position",
+			target_pos - chip_size * 0.5, travel_time
+		).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		tw.parallel().tween_property(chip, "scale", Vector2(0.6, 0.6), travel_time) \
+			.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(chip, "modulate:a", 0.0, 0.1)
+		tw.tween_callback(chip.queue_free)
+
+
+func _resolve_balance_anchor() -> Vector2:
+	var scene: Node = _active_scene()
+	if scene == null:
+		return Vector2.ZERO
+	# Multi-hand / spin scenes use a currency-display dict whose `box` is
+	# the actual on-screen digits. Single-hand uses a plain Label as the
+	# digit display. Check the dict first (more specific).
+	if "_balance_cd" in scene:
+		var cd: Variant = scene.get("_balance_cd")
+		if cd is Dictionary:
+			var box: Variant = (cd as Dictionary).get("box", null)
+			if box is Control and is_instance_valid(box):
+				var c: Control = box as Control
+				return c.global_position + c.size * 0.5
+	if "_balance_label" in scene:
+		var lbl: Variant = scene.get("_balance_label")
+		if lbl is Label and is_instance_valid(lbl):
+			return (lbl as Label).global_position + (lbl as Label).size * 0.5
+	# Fallback — bottom-right region of the viewport (where most game UIs
+	# render the balance display).
+	var vp: Vector2 = get_viewport().get_visible_rect().size
+	return Vector2(vp.x * 0.85, vp.y * 0.92)
 
 
 func _active_scene() -> Node:
@@ -630,36 +698,3 @@ func _active_scene() -> Node:
 	return null
 
 
-# ─── CHEATS ───────────────────────────────────────────────────────────
-
-func _toggle_cheat() -> void:
-	_show_all_pool = not _show_all_pool
-	if _cheat_btn:
-		var key := "quest.cheat.show_active" if _show_all_pool else "quest.cheat.show_all"
-		_cheat_btn.text = Translations.tr_key(key)
-	_rebuild_list()
-
-
-func _on_cheat_reset_pressed() -> void:
-	DailyQuestManager.cheat_reset_progress()
-	_rebuild_list()
-
-
-func _make_cheat_button(text: String, on_press: Callable, theme_font: Font) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.custom_minimum_size = Vector2(0, 32)
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.20, 0.22, 0.30, 0.85)
-	s.set_corner_radius_all(8)
-	btn.add_theme_stylebox_override("normal", s)
-	btn.add_theme_stylebox_override("hover", s)
-	btn.add_theme_stylebox_override("pressed", s)
-	btn.add_theme_stylebox_override("focus", s)
-	btn.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
-	btn.add_theme_font_size_override("font_size", 12)
-	if theme_font != null:
-		btn.add_theme_font_override("font", theme_font)
-	btn.pressed.connect(on_press)
-	return btn

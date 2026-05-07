@@ -93,6 +93,7 @@ func _roll_new_quests() -> void:
 		"active": active,
 	})
 	quests_rolled.emit()
+	NotificationManager.on_daily_quests_rolled()
 
 
 # ─── PUBLIC API ───────────────────────────────────────────────────────
@@ -360,23 +361,27 @@ func _resolve_rank(cfg: Dictionary) -> int:
 	return int(_HAND_RANK_BY_NAME.get(String(cfg.get("hand_rank", "")), -1))
 
 
-## Debug cheat — zero progress + unset claimed on every active quest. Used
-## from the lobby popup's "RESET PROGRESS" button to re-test claim / banner
-## flow without waiting for tomorrow's roll. Emits `quests_rolled` so the
-## banner overlay clears its `_last_known` cache and the popup rebuilds.
-func cheat_reset_progress() -> void:
-	var state: Dictionary = SaveManager.daily_quest_state
-	var active: Array = state.get("active", [])
-	for i in active.size():
-		var entry: Dictionary = active[i]
-		entry["progress"] = 0
-		entry["claimed"] = false
-		if entry.has("machines_seen"):
-			entry["machines_seen"] = []
-		active[i] = entry
-	state["active"] = active
-	SaveManager.set_daily_quest_state(state)
-	quests_rolled.emit()
+## True when at least one active quest is completed but not yet claimed —
+## used by the lobby top-bar badge ("red dot" indicator on the quests icon)
+## to mirror the existing shop badge pattern.
+func has_claimable() -> bool:
+	for q in get_active_quests():
+		if bool(q.get("claimed", false)):
+			continue
+		if int(q.get("progress", 0)) >= int(q.get("target", 1)):
+			return true
+	return false
+
+
+## Re-fires the currently-attached game manager's `credits_changed` signal
+## with the post-claim balance. Game scenes update their balance label by
+## listening to this — without an explicit notify they stay stale because
+## DailyQuestManager.claim_reward calls SaveManager.add_credits silently.
+func notify_credits_changed() -> void:
+	if _attached_manager == null or not is_instance_valid(_attached_manager):
+		return
+	if _attached_manager.has_signal("credits_changed"):
+		_attached_manager.credits_changed.emit(SaveManager.credits)
 
 
 func _pool_index() -> Dictionary:

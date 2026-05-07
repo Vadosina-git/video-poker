@@ -113,6 +113,9 @@ var _gift_footer_ready_path: String = ""
 var _gift_footer_waiting_path: String = ""
 var _store_btn: Control = null
 var _shop_badge_visible: bool = false
+var _quests_btn: Control = null
+var _quests_badge_node: Control = null
+var _quests_badge_visible: bool = false
 
 
 func _ready() -> void:
@@ -137,6 +140,16 @@ func _ready() -> void:
 	_build_stats_toggle()
 	if not SaveManager.show_machine_stats_changed.is_connected(_on_stats_toggle_changed):
 		SaveManager.show_machine_stats_changed.connect(_on_stats_toggle_changed)
+	# Quest badge refresh hooks — fire whenever the claimable set may change.
+	if not DailyQuestManager.quest_completed.is_connected(_on_quest_badge_signal_no_args):
+		DailyQuestManager.quest_completed.connect(_on_quest_badge_signal_no_args)
+	if not DailyQuestManager.quest_claimed.is_connected(_on_quest_badge_signal_claimed):
+		DailyQuestManager.quest_claimed.connect(_on_quest_badge_signal_claimed)
+	if not DailyQuestManager.quests_rolled.is_connected(_refresh_quests_badge):
+		DailyQuestManager.quests_rolled.connect(_refresh_quests_badge)
+	# Initial badge state — checks for already-completed-but-unclaimed quests
+	# carried over within the same session.
+	_refresh_quests_badge()
 
 
 ## Debug-only: tiny button in the top-left corner that re-presents the
@@ -585,9 +598,24 @@ func _style_top_bar() -> void:
 		)
 		left.add_child(_store_btn)
 
-	left.add_child(_make_top_icon_btn("quests",
+	_quests_btn = _make_top_icon_btn("quests",
 		Translations.tr_key("lobby.quests"),
-		_show_quests))
+		_show_quests)
+	# Badge as a separate child Control added AFTER the icon TextureRect so
+	# it renders on TOP of the icon. Drawing on the Button itself paints
+	# under its children (`Button.draw` runs before child render), which is
+	# why the clipboard quest icon — whose alpha extends into the corner —
+	# was eating the dot. Store icon has transparent corner pixels so its
+	# self-draw badge happens to show through anyway.
+	_quests_badge_node = Control.new()
+	_quests_badge_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_quests_badge_node.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_quests_badge_node.draw.connect(func() -> void:
+		if _quests_badge_visible and is_instance_valid(_quests_badge_node):
+			_draw_badge(_quests_badge_node)
+	)
+	_quests_btn.add_child(_quests_badge_node)
+	left.add_child(_quests_btn)
 
 	# ---------- expanding spacer ----------
 	var sp1 := Control.new()
@@ -791,6 +819,27 @@ func _has_free_shop_reward() -> bool:
 
 ## Toggles the Store button's notification dot to match the current
 ## shop state, triggering a redraw only on transitions.
+## Mirrors `_refresh_shop_badge` for the daily-quest icon. Visible whenever
+## any active quest is completed but unclaimed.
+func _refresh_quests_badge() -> void:
+	if _quests_badge_node == null or not is_instance_valid(_quests_badge_node):
+		return
+	var visible_now: bool = DailyQuestManager.has_claimable()
+	if visible_now != _quests_badge_visible:
+		_quests_badge_visible = visible_now
+		_quests_badge_node.queue_redraw()
+
+
+# Adapter so quest_completed (1 arg) and quests_rolled (0 args) can both
+# trigger the same refresh.
+func _on_quest_badge_signal_no_args(_qid: String = "") -> void:
+	_refresh_quests_badge()
+
+
+func _on_quest_badge_signal_claimed(_qid: String, _reward: int) -> void:
+	_refresh_quests_badge()
+
+
 func _refresh_shop_badge() -> void:
 	if _store_btn == null or not is_instance_valid(_store_btn):
 		return
@@ -1219,6 +1268,20 @@ func _refresh_gift_icon() -> void:
 	var current := _gift_footer_tex.texture
 	if current == null or (current.resource_path if current is Resource else "") != path:
 		_gift_footer_tex.texture = load(path)
+
+
+## Resolves the shop/widget gift box icon: theme override first
+## (themes/<id>/icons/gift_box_{ready,idle}.png|svg), falls back to
+## the shared asset under res://assets/shop/. Keeps the shop gift
+## visual in sync with the theme without forcing every theme to ship
+## its own copy.
+func _shop_gift_icon_path(ready: bool) -> String:
+	var theme_name := "gift_box_ready" if ready else "gift_box_idle"
+	var p: String = ThemeManager.ui_icon_path(theme_name)
+	if p != "":
+		return p
+	return "res://assets/shop/gift_box_ready_icon.png" if ready \
+		else "res://assets/shop/gift_box_icon.png"
 
 
 func _gift_footer_label_text() -> String:
@@ -1941,6 +2004,35 @@ func _show_settings() -> void:
 	)
 	vbox.add_child(vib_btn)
 
+	# Notifications toggle — only shown on supported mobile platforms with the
+	# feature flag on. Hidden on desktop/web and when the master config flag
+	# is off (kill-switch via Remote Config).
+	if NotificationManager.is_available():
+		var notif_on: bool = SaveManager.notifications_enabled
+		var notif_btn := Button.new()
+		notif_btn.text = "%s: %s" % [
+			Translations.tr_key("settings.notifications"),
+			Translations.tr_key("common.on") if notif_on else Translations.tr_key("common.off"),
+		]
+		notif_btn.custom_minimum_size = Vector2(280, 56)
+		_style_lang_btn(notif_btn, notif_on)
+		notif_btn.pressed.connect(func() -> void:
+			var new_val: bool = not SaveManager.notifications_enabled
+			# Turning ON for the first time: ask permission via in-house
+			# pre-prompt before the OS prompt (Apple/Google best practice —
+			# pre-prompt avoids burning the one-shot OS dialog).
+			if new_val and not SaveManager.notifications_permission_asked:
+				_show_notifications_pre_prompt(notif_btn)
+				return
+			NotificationManager.set_player_enabled(new_val)
+			notif_btn.text = "%s: %s" % [
+				Translations.tr_key("settings.notifications"),
+				Translations.tr_key("common.on") if new_val else Translations.tr_key("common.off"),
+			]
+			_style_lang_btn(notif_btn, new_val)
+		)
+		vbox.add_child(notif_btn)
+
 	# Animation speed toggle — cycles 1..4 (internal 0..3). Preserves choice
 	# in SaveManager.speed_level so game + multi_hand screens pick it up.
 	var speed_btn := Button.new()
@@ -1956,15 +2048,32 @@ func _show_settings() -> void:
 	)
 	vbox.add_child(speed_btn)
 
-	# Privacy policy — opens GitHub Pages page in system browser.
-	var privacy_btn := Button.new()
-	privacy_btn.text = Translations.tr_key("settings.privacy_policy")
-	privacy_btn.custom_minimum_size = Vector2(280, 56)
-	_style_lang_btn(privacy_btn, false)
-	privacy_btn.pressed.connect(func() -> void:
-		OS.shell_open("https://vadosina-git.github.io/privacy-policy/video-poker-privacy.html")
-	)
-	vbox.add_child(privacy_btn)
+	# Privacy policy — URL comes from configs/features.json -> legal.privacy_url.
+	# Hidden if URL is blank (config not yet set). Required by Apple 5.1.1 +
+	# Google Play before submission, so leaving the URL empty in production
+	# blocks the build review.
+	var privacy_url: String = ConfigManager.get_privacy_url()
+	if privacy_url != "":
+		var privacy_btn := Button.new()
+		privacy_btn.text = Translations.tr_key("legal.privacy")
+		privacy_btn.custom_minimum_size = Vector2(280, 56)
+		_style_lang_btn(privacy_btn, false)
+		privacy_btn.pressed.connect(func() -> void:
+			OS.shell_open(privacy_url)
+		)
+		vbox.add_child(privacy_btn)
+
+	# Terms of service — same pattern. Hidden until URL configured.
+	var terms_url: String = ConfigManager.get_terms_url()
+	if terms_url != "":
+		var terms_btn := Button.new()
+		terms_btn.text = Translations.tr_key("legal.terms")
+		terms_btn.custom_minimum_size = Vector2(280, 56)
+		_style_lang_btn(terms_btn, false)
+		terms_btn.pressed.connect(func() -> void:
+			OS.shell_open(terms_url)
+		)
+		vbox.add_child(terms_btn)
 
 	# Trainer disclaimer — supercell-only framing.
 	if ThemeManager.current_id == "supercell":
@@ -2164,6 +2273,9 @@ func _perform_account_delete() -> void:
 	SaveManager.last_gift_time = 0
 	SaveManager.pack_claim_times.clear()
 	SaveManager.save_game()
+	# Cooldowns wiped — drop any scheduled "ready" reminders so they don't
+	# fire stale; rewards are claimable in-app right now.
+	NotificationManager.cancel_all()
 	# Refresh lobby
 	SaveManager.set_currency_value(_cash_cd, SaveManager.format_money(SaveManager.credits))
 	# Force gift widget to re-evaluate readiness (shows COLLECT state immediately).
@@ -2178,6 +2290,105 @@ func _hide_settings() -> void:
 		_settings_overlay = null
 		_settings_panel = null
 		_settings_dim = null
+
+
+## Soft-prompt shown before the system permission dialog. Apple HIG and
+## Google's onboarding guidance both recommend this pattern: explain the
+## value first, ask "are you in?", and only then trigger the OS prompt.
+## If the player taps NOT NOW, we leave the switch off and don't burn the
+## one-shot OS dialog.
+func _show_notifications_pre_prompt(source_btn: Button) -> void:
+	var overlay := Control.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 200
+	add_child(overlay)
+
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.85)
+	overlay.add_child(dim)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(560, 0)
+	var pstyle := StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.05, 0.05, 0.18, 0.96)
+	pstyle.set_border_width_all(3)
+	pstyle.border_color = Color("FFEC00")
+	pstyle.set_corner_radius_all(12)
+	pstyle.content_margin_left = 32
+	pstyle.content_margin_right = 32
+	pstyle.content_margin_top = 24
+	pstyle.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", pstyle)
+	overlay.add_child(panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	panel.add_child(vbox)
+
+	var title := Label.new()
+	title.text = Translations.tr_key("notifications.prompt.title")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", Color("FFEC00"))
+	vbox.add_child(title)
+
+	var body := Label.new()
+	body.text = Translations.tr_key("notifications.prompt.body")
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.add_theme_font_size_override("font_size", 22)
+	body.add_theme_color_override("font_color", Color.WHITE)
+	body.custom_minimum_size = Vector2(500, 0)
+	vbox.add_child(body)
+
+	var hb := HBoxContainer.new()
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	hb.add_theme_constant_override("separation", 24)
+	vbox.add_child(hb)
+
+	var skip_btn := Button.new()
+	skip_btn.text = Translations.tr_key("notifications.prompt.skip")
+	skip_btn.custom_minimum_size = Vector2(220, 56)
+	_style_lang_btn(skip_btn, false)
+	hb.add_child(skip_btn)
+
+	var allow_btn := Button.new()
+	allow_btn.text = Translations.tr_key("notifications.prompt.allow")
+	allow_btn.custom_minimum_size = Vector2(220, 56)
+	_style_lang_btn(allow_btn, true)
+	hb.add_child(allow_btn)
+
+	var close := func() -> void:
+		if is_instance_valid(overlay):
+			overlay.queue_free()
+
+	skip_btn.pressed.connect(func() -> void:
+		# Player chose NOT NOW — keep switch off, don't ask OS this session.
+		# notifications_permission_asked stays false so we'll re-show the
+		# pre-prompt next time they flip the switch.
+		close.call()
+	)
+	allow_btn.pressed.connect(func() -> void:
+		# Persist the master switch and trigger OS permission dialog.
+		NotificationManager.set_player_enabled(true)
+		# Reflect new state in source button label.
+		if is_instance_valid(source_btn):
+			source_btn.text = "%s: %s" % [
+				Translations.tr_key("settings.notifications"),
+				Translations.tr_key("common.on"),
+			]
+			_style_lang_btn(source_btn, true)
+		close.call()
+	)
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			close.call()
+	)
 
 
 ## Support popup — a scrollable list of per-mode rules. Hidden modes
@@ -2531,7 +2742,7 @@ func _rebuild_gift_content(ready: bool) -> void:
 		child.queue_free()
 
 	if ready:
-		_gift_icon_rect.texture = load("res://assets/shop/gift_box_ready_icon.png")
+		_gift_icon_rect.texture = load(_shop_gift_icon_path(true))
 
 		var collect_label := Label.new()
 		collect_label.text = Translations.tr_key("gift.daily_bonus")
@@ -2566,7 +2777,7 @@ func _rebuild_gift_content(ready: bool) -> void:
 		amount_hb.add_child(amount_lab)
 		_gift_label_area.add_child(amount_hb)
 	else:
-		_gift_icon_rect.texture = load("res://assets/shop/gift_box_icon.png")
+		_gift_icon_rect.texture = load(_shop_gift_icon_path(false))
 
 		var timer_label := Label.new()
 		timer_label.name = "Timer"
@@ -2635,6 +2846,7 @@ func _claim_gift_reward(from_pos: Vector2 = Vector2.ZERO) -> void:
 	SaveManager.add_credits(chips)
 	SaveManager.last_gift_time = int(Time.get_unix_time_from_system())
 	SaveManager.save_game()
+	NotificationManager.on_gift_claimed()
 	_gift_ready = false
 	_update_gift_state()
 	SoundManager.play("gift_claim")
@@ -2681,7 +2893,11 @@ func _animate_balance_increment(from: int, to: int, duration: float) -> void:
 ## toward the currently-visible balance pill, while the balance counter +
 ## pill flash run in parallel. Falls back to a plain number tween if
 ## the pill isn't available.
-func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) -> void:
+## `chip_parent` lets callers (e.g. QuestPopupOverlay autoload) inject a
+## higher-z CanvasLayer as the chip parent so the cascade renders ABOVE
+## their own panel instead of getting buried underneath. Defaults to lobby.
+func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int, chip_parent: Node = null) -> void:
+	var fx_parent: Node = chip_parent if chip_parent != null else self
 	var target_cd: Dictionary = _active_cash_cd()
 	var pill_inner: Control = target_cd.get("box", null) as Control
 	if not is_instance_valid(pill_inner):
@@ -2714,7 +2930,7 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 		var jitter := Vector2(randf_range(-28.0, 28.0), randf_range(-28.0, 28.0))
 		chip.global_position = from_pos + jitter - chip_size * 0.5
 		chip.modulate = Color(chip_color.r, chip_color.g, chip_color.b, 0.0)
-		add_child(chip)
+		fx_parent.add_child(chip)
 
 		var stagger: float = float(i) * stagger_step
 		var tw := chip.create_tween()
@@ -2730,7 +2946,7 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 
 		# Particle trail (anim 3.4): spawn small fading ghost copies along the
 		# chip's path to create a motion smear.
-		_spawn_chip_trail(chip_tex, chip_size, chip_color, from_pos + jitter, target_pos, stagger, travel_time)
+		_spawn_chip_trail(chip_tex, chip_size, chip_color, from_pos + jitter, target_pos, stagger, travel_time, fx_parent)
 
 	var total_duration: float = travel_time + stagger_step * float(chip_count - 1)
 	_animate_balance_increment(old_credits, new_credits, total_duration)
@@ -2742,7 +2958,8 @@ func _spawn_chip_cascade(from_pos: Vector2, old_credits: int, new_credits: int) 
 
 ## Spawns ~5 shrinking ghost chips along the trajectory of a cascade chip.
 ## They stagger in time along the path and quickly fade, producing a trail.
-func _spawn_chip_trail(tex: Texture2D, size: Vector2, color: Color, start: Vector2, end: Vector2, base_stagger: float, travel: float) -> void:
+func _spawn_chip_trail(tex: Texture2D, size: Vector2, color: Color, start: Vector2, end: Vector2, base_stagger: float, travel: float, fx_parent: Node = null) -> void:
+	var p: Node = fx_parent if fx_parent != null else self
 	var trail_count: int = 5
 	for k in trail_count:
 		var ghost := TextureRect.new()
@@ -2756,7 +2973,7 @@ func _spawn_chip_trail(tex: Texture2D, size: Vector2, color: Color, start: Vecto
 		ghost.z_index = 490
 		ghost.modulate = Color(color.r, color.g, color.b, 0.0)
 		ghost.global_position = start - size * 0.5
-		add_child(ghost)
+		p.add_child(ghost)
 		var progress: float = float(k + 1) / float(trail_count + 1)
 		var ghost_pos: Vector2 = start.lerp(end, progress)
 		var ghost_delay: float = base_stagger + travel * progress * 0.7
@@ -2969,7 +3186,7 @@ func _rebuild_shop_gift_content(ready: bool) -> void:
 		child.queue_free()
 
 	if ready:
-		_shop_gift_icon.texture = load("res://assets/shop/gift_box_ready_icon.png")
+		_shop_gift_icon.texture = load(_shop_gift_icon_path(true))
 
 		var collect := Label.new()
 		collect.text = Translations.tr_key("gift.daily_bonus")
@@ -3003,7 +3220,7 @@ func _rebuild_shop_gift_content(ready: bool) -> void:
 		_set_chip_amount_text(amt, ConfigManager.get_gift_chips(), GIFT_BTN_W - 40)
 		amount_hb.add_child(amt)
 	else:
-		_shop_gift_icon.texture = load("res://assets/shop/gift_box_icon.png")
+		_shop_gift_icon.texture = load(_shop_gift_icon_path(false))
 
 		var timer_label := Label.new()
 		timer_label.name = "Timer"

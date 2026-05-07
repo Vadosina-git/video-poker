@@ -18,6 +18,7 @@ var features: Dictionary = {}
 var vibration: Dictionary = {}
 var economy: Dictionary = {}
 var daily_quests: Dictionary = {}
+var notifications: Dictionary = {}
 # Theme overrides — remote-only, no local file. Populated by Firebase Remote Config.
 var classic: Dictionary = {}
 var supercell: Dictionary = {}
@@ -26,7 +27,7 @@ var supercell: Dictionary = {}
 const _REMOTE_OVERRIDABLE := [
 	"animations", "balance", "economy", "features", "gift",
 	"init_config", "lobby_order", "machines", "shop", "sounds",
-	"vibration", "daily_quests", "classic", "supercell",
+	"vibration", "daily_quests", "notifications", "classic", "supercell",
 ]
 
 
@@ -43,6 +44,7 @@ func _ready() -> void:
 	vibration = _load_json("vibration.json", _default_vibration())
 	economy = _load_json("economy.json", _default_economy())
 	daily_quests = _load_json("daily_quests.json", _default_daily_quests())
+	notifications = _load_json("notifications.json", _default_notifications())
 	RemoteConfigManager.fetch_completed.connect(_on_remote_fetch_completed)
 
 
@@ -184,6 +186,19 @@ func is_visible(key: String, default_val: bool = true) -> bool:
 func get_default_theme() -> String:
 	var t: Dictionary = features.get("theme", {})
 	return str(t.get("default_theme", "classic"))
+
+
+## Legal URLs from configs/features.json -> legal.{privacy,terms}_url.
+## Required by App Store / Google Play. Empty string = not configured —
+## callers should hide the link rather than open about:blank.
+func get_privacy_url() -> String:
+	var l: Dictionary = features.get("legal", {})
+	return str(l.get("privacy_url", ""))
+
+
+func get_terms_url() -> String:
+	var l: Dictionary = features.get("legal", {})
+	return str(l.get("terms_url", ""))
 
 
 # ─── VIBRATION (configs/vibration.json) ──────────────────────────────
@@ -376,6 +391,7 @@ func _default_features() -> Dictionary:
 		},
 		"ui_visibility": {},
 		"theme": {"default_theme": "supercell", "allow_theme_switching": false, "available_themes": ["supercell"]},
+		"legal": {"privacy_url": "", "terms_url": ""},
 		"debug": {},
 	}
 
@@ -422,6 +438,62 @@ func _default_daily_quests() -> Dictionary:
 			{"id": "total_bet_3k", "type": "total_bet", "target": 3000, "reward": 1200,
 			 "machines": [], "modes": [], "enabled": true},
 		],
+	}
+
+
+# ─── NOTIFICATIONS (configs/notifications.json) ──────────────────────
+
+func is_notifications_feature_enabled() -> bool:
+	return bool(notifications.get("feature_enabled", true))
+
+
+func get_notifications_channel() -> Dictionary:
+	return notifications.get("android_channel", {})
+
+
+func get_notifications_small_icon() -> String:
+	return String(notifications.get("android_small_icon", "ic_notification_default"))
+
+
+func get_notifications_quiet_hours() -> Dictionary:
+	return notifications.get("quiet_hours", {"start_hour": 0, "end_hour": 0})
+
+
+func get_notification_event(event_id: String) -> Dictionary:
+	var events: Dictionary = notifications.get("events", {})
+	return events.get(event_id, {})
+
+
+func _default_notifications() -> Dictionary:
+	return {
+		"feature_enabled": true,
+		"android_channel": {
+			"id": "game_reminders",
+			"name_key": "notification.channel.name",
+			"description_key": "notification.channel.description",
+			"importance": "default",
+		},
+		"android_small_icon": "ic_notification_default",
+		"quiet_hours": {"start_hour": 22, "end_hour": 9},
+		"events": {
+			"gift_ready": {"enabled": true, "id": 1001,
+				"title_key": "notification.gift_ready.title",
+				"body_key": "notification.gift_ready.body"},
+			"shop_pack_ready": {"enabled": true, "id_offset": 1100,
+				"title_key": "notification.shop_pack_ready.title",
+				"body_key": "notification.shop_pack_ready.body"},
+			"daily_quests_reset": {"enabled": true, "id": 1200,
+				"title_key": "notification.daily_quests_reset.title",
+				"body_key": "notification.daily_quests_reset.body"},
+			"retention_day_2": {"enabled": true, "id": 1300,
+				"delay_hours": 48, "fire_at_local_hour": 19,
+				"title_key": "notification.retention_day_2.title",
+				"body_key": "notification.retention_day_2.body"},
+			"retention_day_7": {"enabled": true, "id": 1301,
+				"delay_hours": 168, "fire_at_local_hour": 19,
+				"title_key": "notification.retention_day_7.title",
+				"body_key": "notification.retention_day_7.body"},
+		},
 	}
 
 

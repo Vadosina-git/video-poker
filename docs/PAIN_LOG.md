@@ -5,6 +5,127 @@
 
 ---
 
+## 2026-05-07 — chip_parent injection для cross-CanvasLayer chip cascade
+
+**Симптом:** Анимация фишек клейма (`_spawn_chip_cascade`) вылетает
+из карточки квеста, но рендерится ПОД попапом — фишки исчезают
+у границы окна вместо полёта на пилюлю баланса.
+
+**Корневая причина:** `_spawn_chip_cascade` добавлял chip TextureRect
+как child лобби (CanvasLayer 0). Попап квестов живёт на
+QuestPopupOverlay (CanvasLayer 120). Higher CanvasLayer всегда
+рендерится над lower, независимо от z_index. Фишки на CanvasLayer 0
+скрыты под dim-rect попапа.
+
+**Правило:** Helper'ы анимаций, спавнящие визуальные элементы,
+должны принимать опциональный параметр-родитель:
+`func _spawn_X(..., parent: Node = null)`. Дефолт — `self` (текущая
+сцена). Когда вызывается из overlay-autoload (CanvasLayer высокого
+уровня), overlay передаёт себя как parent — анимация рендерится над
+своим окном. Координаты остаются глобальными — chip полёт между
+CanvasLayer'ами работает корректно, потому что `global_position`
+в одном и том же viewport-пространстве.
+
+---
+
+## 2026-05-07 — Godot UI: draw-order overlay, const-expression, скруглённые TextureRect
+
+**Симптом 1 (draw-order):** линия зачёркивания, нарисованная через
+`hbox.draw.connect()`, ушла ПОД текст Label'а. Перепробованы варианты:
+top_level Control-overlay child, изменение z_index — не помогло.
+
+**Корневая причина:** Container (HBox/VBox/Panel) выполняет свой
+`_draw` (включая stylebox) ДО рендеринга детей. Любой `draw` сигнал
+на самом контейнере → рендерится под детьми. `top_level` меняет
+координаты, но НЕ порядок отрисовки.
+
+**Правило:** Хочешь нарисовать поверх детей через draw-сигнал —
+коннекться к ПОСЛЕДНЕМУ child'у контейнера. Координаты переводи из
+ctrl-space в child-space через `child.position`. Пример:
+`scripts/shop_overlay.gd:_add_strike_line`.
+
+---
+
+**Симптом 2 (const-expression):** `Parser Error: Assigned value for
+constant "SHOP_COLOR_SCHEMES" isn't a constant expression` при
+попытке положить `PackedFloat32Array([...])` / `PackedColorArray([...])`
+внутрь `const Dictionary`.
+
+**Корневая причина:** GDScript считает constant expressions только
+литералы и базовые операции. Конструкторы `Packed*Array(...)` и
+вложенные `Color("hex")` внутри Dictionary — runtime, не const.
+
+**Правило:** Если нужны Packed-массивы или сложные структуры —
+объявляй их через `var` на уровне файла, не `const`. Можно
+ссылаться из `const Dictionary` по ключу через runtime-обращение,
+но не хранить там сами массивы.
+
+---
+
+**Симптом 3 (скруглённые углы у TextureRect):** градиентная подложка
+вылезала за скругление PanelContainer'а; `clip_contents` не помог,
+т.к. клипует к rect, не к скруглённому stylebox.
+
+**Корневая причина:** Godot 4 не имеет встроенного rounded-corner
+mask'а для CanvasItem. Stylebox даёт скругление только своему фону.
+
+**Правило:** Для нестилбоксовой подложки (TextureRect, ColorRect) —
+ShaderMaterial с фрагментом, считающим signed distance до
+скруглённого прямоугольника, и умножающим `COLOR.a` на маску.
+`radius` бери из `stylebox.corner_radius_top_left`. `rect_size`
+синкай через `resized`-сигнал. Готовый шейдер:
+`scripts/shop_overlay.gd:ROUNDED_GRADIENT_SHADER_CODE`.
+
+---
+
+## 2026-05-07 — Subagent специфичные факты могут быть выдумкой
+
+**Симптом:** Research-subagent выдал плагин Godot по адресу
+`godot-sdk-integrations/godot-notification-scheduler` с версией «v5.2,
+released Feb 2026» и подробным API. Полез ставить — owner неверный,
+такого тэга нет. Реальное место — `godot-mobile-plugins/godot-
+notification-scheduler`, без указанной версии.
+
+**Корневая причина:** Subagent'ы (особенно research-агенты на
+WebSearch+WebFetch) часто фабрикуют конкретные идентификаторы —
+URL, версии, даты, сигнатуры API — ради правдоподобия отчёта.
+Общие правила и сравнения обычно корректны, конкретика — нет.
+
+**Правило:** Когда subagent возвращает конкретный URL / релизную
+версию / дату / точную сигнатуру функции — НЕ передавать дальше
+без верификации. Минимум: `gh api repos/<owner>/<repo>` для
+GitHub-ссылок, `WebFetch` для произвольных URL, `grep` в коде
+для имён. Считать subagent-вывод про конкретику как «гипотезу,
+которую надо проверить», а не как факт.
+
+---
+
+## 2026-05-07 — Легальные документы дрейфуют от реальности кода
+
+**Симптом:** `video-poker-privacy.html` на github pages утверждал
+«No analytics or tracking SDKs are integrated» и «No data is
+currently transmitted». Реальность: проект делает REST-вызов к
+Firebase Remote Config с `app_instance_id` в заголовках. Мог
+вылезти при ревью Apple/Google или при GDPR-запросе игрока.
+
+**Корневая причина:** Privacy писалась когда проект был чисто
+локальный, без сетевых вызовов. При подключении Firebase Remote
+Config (autoload `RemoteConfigManager`) privacy не обновили — это
+бэклог-задача без owner'а, и она потерялась.
+
+**Правило:** Любой PR, который добавляет/удаляет: third-party SDK,
+сетевой вызов, новый идентификатор (UUID, advertising ID, IP-
+коллекшн), новое разрешение системы, новый channel связи с
+сервером — ОБЯЗАН в том же PR обновить:
+1. `video-poker-privacy.html` в `Vadosina-git/privacy-policy`
+2. App Store Connect → App Privacy форму
+3. Google Play Console → Data Safety форму
+
+Не переносить эти три обновления в «потом». «Потом» = расхождение
+→ reject или регуляторный риск.
+
+---
+
 ## 2026-05-05 — Прозрачный overlay: фон сквозь дим легко спутать с собственным контентом
 
 **Симптом:** На скриншоте slide 3 тутора в средней области видны

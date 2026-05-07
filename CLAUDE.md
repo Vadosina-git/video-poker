@@ -57,6 +57,14 @@
   тема похожа на одну из ранее зафиксированных. Не повторяй ошибки,
   описанные здесь.
 
+- **`docs/DAILY_QUESTS.md`** — подгрузи при работе с ежедневными
+  заданиями: добавление нового квеста, правка пула, изменение UI
+  попапа/баннера, GO/CLAIM флоу, фильтры по машине/режиму, signals
+  DailyQuestManager. Содержит карту трёх autoload'ов (DailyQuestManager
+  / QuestBannerOverlay / QuestPopupOverlay) и описание всех 7 типов
+  условий. Бизнес-логика квестов; общие UI-трюки (draw-order, cross-
+  CanvasLayer cascade) — в `docs/PAIN_LOG.md`.
+
 - **`docs/GLOSSARY.md`** — подгрузи если встретил незнакомый
   термин или нужна ссылка на внешний ресурс.
 
@@ -252,6 +260,7 @@ SaveManager стоит до RemoteConfigManager намеренно — RemoteCon
 | **DailyQuestManager** | После SaveManager. Владеет жизненным циклом ежедневных заданий: на старте сравнивает локальную дату с `daily_quest_state.date_iso`, при смене дня роллит `picks_per_day` (4 по умолчанию) случайных квестов из `configs/daily_quests.json`. `attach_to_game(scene, variant_id, mode)` вызывается из `main.gd` после загрузки игровой сцены — подключается к сигналу game-менеджера и трекает прогресс. API: `get_active_quests()`, `time_to_reset_seconds()`, `claim_reward(id)`, `get_button_state(id)`, `get_navigation_target(id)`. Сигналы `quest_progress_updated/completed/claimed/quests_rolled`. Подробно — [`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md) §12. |
 | **SafeAreaManager** | Между SaveManager и RemoteConfigManager. Читает `DisplayServer.get_display_safe_area()`, конвертирует в координаты вьюпорта, эмитит `safe_area_changed`. `apply_offsets(control)` — навешивает inset на full-rect Control и пересчитывает на `size_changed` / `NOTIFICATION_APPLICATION_FOCUS_IN`. Используется из `main.gd._make_full_rect`. |
 | **RemoteConfigManager** | Firebase Remote Config через REST. На старте делает один POST на endpoint, парсит entries, проверяет kill-switch `remote_config_enabled` (точное `"true"`), эмитит `fetch_completed(success)`. Платформенные ключи через `OS.get_name()` (iOS/Android/Web, остальное → iOS fallback). Подробно — [`docs/REMOTE_CONFIG.md`](docs/REMOTE_CONFIG.md). |
+| **NotificationManager** | После RemoteConfigManager. Обёртка над `godot-mobile-plugins/godot-notification-scheduler` (iOS+Android). На неподдерживаемых платформах (Desktop / Web) и при отсутствии плагина — все методы no-op'ят. Master-switch: `SaveManager.notifications_enabled` (UI-свич) И `ConfigManager.is_notifications_feature_enabled()` (kill-switch из `configs/notifications.json`, в `_REMOTE_OVERRIDABLE`). Hooks: `on_gift_claimed()` из `lobby_manager._claim_gift_reward`, `on_shop_pack_claimed(idx, sec)` из `shop_overlay`, `on_daily_quests_rolled()` из `DailyQuestManager._roll_new_quests`. Retention day-2/day-7 пинги планируются на `NOTIFICATION_APPLICATION_FOCUS_OUT`, отменяются на `FOCUS_IN`. Тексты — `notification.*` ключи в `data/translations.json`. Quiet hours 22:00–09:00 локального применяются ко всем уведомлениям (сдвиг вперёд). Подробно — [`docs/CONFIG_REFERENCE.md`](docs/CONFIG_REFERENCE.md) §13. |
 | **SoundManager** | Маппинг событий → файлов из `configs/sounds.json`. 22 placeholder MP3. |
 | **Translations** | i18n EN/RU/ES. См. §8 ниже. |
 | **VibrationManager** | Haptic для iOS/Android. Паттерны для deal/hold/win/jackpot. |
@@ -414,6 +423,14 @@ python3 -c "import json; d=json.load(open('data/translations.json')); print({k: 
   в `assets/themes/<id>/icons/` и рендерь через `TextureRect`.
   Текстовая Label-эмодзи допустима только как fallback при отсутствии
   файла. Пример: `machine_card.gd._make_emoji_node()`.
+- **OS permission'ы — всегда через двух-шаговый prompt.** Любая
+  системная разрешалка (notifications, ATT/IDFA, location, camera,
+  contacts) — сначала наш in-house pre-prompt с описанием выгоды
+  и кнопками ALLOW/NOT NOW; только при ALLOW → системный prompt.
+  Холодный системный диалог на старте даёт 60-70% автоотказов
+  и сжигает one-shot OS dialog. Apple HIG и Google guidance оба
+  это рекомендуют. Реализованный пример:
+  `lobby_manager.gd._show_notifications_pre_prompt`.
 - **Магические числа в layout-коде запрещены без объяснения.** Любой
   hardcoded литерал > 20 в позиционировании / margin / padding / offset
   должен либо иметь комментарий с обоснованием и тюнинг-контекстом

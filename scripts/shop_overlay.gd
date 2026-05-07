@@ -27,7 +27,37 @@ const SHOP_COLOR_SCHEMES := {
 		"image_frame": Color("5D1177"),
 		"bonus_ribbon": Color("49C8FF"),
 	},
+	"gradient_pink": {
+		"bg": Color("D655A3"),
+		"border": Color("FFEC00"),
+		"image_frame": Color("8C1FA6"),
+		"bonus_ribbon": Color("49C8FF"),
+		"is_gradient": true,
+	},
 }
+
+# Gradient data lives outside the const dict — Packed*Array constructors
+# and Color("...") aren't constant expressions in GDScript.
+var GRADIENT_PINK_OFFSETS: PackedFloat32Array = PackedFloat32Array([0.0, 0.36, 0.63, 0.83, 1.0])
+var GRADIENT_PINK_COLORS: PackedColorArray = PackedColorArray([
+	Color("82FED0"), Color("D2FFBA"), Color("FEDBD3"),
+	Color("FB97C8"), Color("D655A3"),
+])
+
+const ROUNDED_GRADIENT_SHADER_CODE := """
+shader_type canvas_item;
+uniform float radius : hint_range(0.0, 200.0) = 14.0;
+uniform vec2 rect_size = vec2(100.0, 100.0);
+
+void fragment() {
+	vec2 pos = UV * rect_size;
+	vec2 d = max(vec2(0.0), max(vec2(radius) - pos, pos - (rect_size - vec2(radius))));
+	float dist = length(d);
+	float alpha = 1.0 - smoothstep(radius - 1.0, radius, dist);
+	COLOR = texture(TEXTURE, UV);
+	COLOR.a *= alpha;
+}
+"""
 
 # --- State ------------------------------------------------------------------
 var _overlay: Control = null
@@ -450,6 +480,44 @@ func _build_pack_card(item: Dictionary) -> PanelContainer:
 		card_style.set_corner_radius_all(int(ThemeManager.size("tile_corner_radius", 18)))
 	card.add_theme_stylebox_override("panel", card_style)
 
+	# Gradient backdrop (5-stop vertical) for premium tile. Sits above the
+	# stylebox bg but below `vb`, so labels/images draw on top of it. A
+	# fragment shader masks rounded corners to match the card's stylebox
+	# corner radius — without it the gradient prints as a hard rectangle and
+	# the rounded-corner sliver shows the stylebox bg color.
+	if bool(scheme.get("is_gradient", false)):
+		var grad := Gradient.new()
+		grad.offsets = GRADIENT_PINK_OFFSETS
+		grad.colors = GRADIENT_PINK_COLORS
+		var gtex := GradientTexture2D.new()
+		gtex.gradient = grad
+		gtex.fill_from = Vector2(0, 0)
+		gtex.fill_to = Vector2(0, 1)
+		gtex.width = 16
+		gtex.height = 256
+		var bg_rect := TextureRect.new()
+		bg_rect.texture = gtex
+		bg_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		bg_rect.stretch_mode = TextureRect.STRETCH_SCALE
+		bg_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bg_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bg_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+		var sh := Shader.new()
+		sh.code = ROUNDED_GRADIENT_SHADER_CODE
+		var mat := ShaderMaterial.new()
+		mat.shader = sh
+		var radius_px: float = float(card_style.corner_radius_top_left)
+		mat.set_shader_parameter("radius", radius_px)
+		bg_rect.material = mat
+		var sync_size := func() -> void:
+			if is_instance_valid(bg_rect):
+				mat.set_shader_parameter("rect_size", bg_rect.size)
+		bg_rect.resized.connect(sync_size)
+		sync_size.call_deferred()
+
+		card.add_child(bg_rect)
+
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
 	vb.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -648,30 +716,46 @@ func _build_chips_display(amount: int, font_size: int, color: Color) -> HBoxCont
 
 
 func _add_strike_line(ctrl: Control) -> void:
-	# Compute strike y from the Label's actual font ascent — visible digit
-	# centre sits at (label_top + ascent / 2) regardless of font / theme /
-	# HBox padding. Chip glyph next to digits doesn't affect this position.
-	ctrl.draw.connect(func() -> void:
-		if ctrl.get_child_count() == 0:
-			return
-		var lab: Label = ctrl.get_child(0) as Label
+	# Strike must render ABOVE digits. Container draws BEFORE its children,
+	# so any draw signal on `ctrl` paints under the Labels. Hook the LAST
+	# child's draw signal — it fires after all earlier siblings, putting the
+	# line on top. Coordinates translated from ctrl-space → last child-space.
+	if ctrl.get_child_count() == 0:
+		return
+	var last: Control = null
+	for i in range(ctrl.get_child_count() - 1, -1, -1):
+		var c: Control = ctrl.get_child(i) as Control
+		if c != null:
+			last = c
+			break
+	if last == null:
+		return
+	last.draw.connect(func() -> void:
+		var lab: Label = null
+		for c in ctrl.get_children():
+			if c is Label:
+				lab = c
+				break
+		var y_in_ctrl: float
 		if lab == null:
-			var fallback_y: float = ctrl.size.y * 0.5
-			ctrl.draw_line(Vector2(-2, fallback_y), Vector2(ctrl.size.x + 2, fallback_y),
-				Color(1.0, 0.25, 0.25, 0.95), 3.0)
-			return
-		var f: Font = lab.get_theme_font("font")
-		var fs: int = lab.get_theme_font_size("font_size")
-		if f == null:
-			f = ThemeDB.fallback_font
-		if fs <= 0:
-			fs = ThemeDB.fallback_font_size
-		var ascent: float = f.get_ascent(fs)
-		# Digit visual centre ≈ ascent/2 below label top. position.y is the
-		# Label's offset within the HBox after vertical shrink-centering.
-		var y: float = lab.position.y + ascent * 0.5
-		ctrl.draw_line(Vector2(-2, y), Vector2(ctrl.size.x + 2, y),
+			y_in_ctrl = ctrl.size.y * 0.5
+		else:
+			var f: Font = lab.get_theme_font("font")
+			var fs: int = lab.get_theme_font_size("font_size")
+			if f == null:
+				f = ThemeDB.fallback_font
+			if fs <= 0:
+				fs = ThemeDB.fallback_font_size
+			y_in_ctrl = lab.position.y + f.get_ascent(fs) * 0.5
+		var y_local: float = y_in_ctrl - last.position.y
+		var x_start: float = -last.position.x - 2.0
+		var x_end: float = ctrl.size.x - last.position.x + 2.0
+		last.draw_line(Vector2(x_start, y_local), Vector2(x_end, y_local),
 			Color(1.0, 0.25, 0.25, 0.95), 3.0)
+	)
+	ctrl.resized.connect(func() -> void:
+		if is_instance_valid(last):
+			last.queue_redraw()
 	)
 
 

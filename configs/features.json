@@ -4,7 +4,7 @@
 
   "feature_flags": {
     "_doc": "Top-level on/off switches. Disable to hide entire features.",
-    "age_gate_enabled": false,
+    "age_gate_enabled": true,
     "big_win_overlay_enabled": true,
     "double_or_nothing_enabled": false,
     "ultra_vp_enabled": true,
@@ -30,5 +30,11 @@
   "theme": {
     "_doc": "default_theme is consumed by SaveManager._seed_first_launch_defaults — kept here as the single canonical source (init_config.default_theme mirrors it).",
     "default_theme": "supercell"
+  },
+
+  "legal": {
+    "_doc": "Privacy policy and Terms of Service URLs. REQUIRED by App Store (Guideline 5.1.1) and Google Play. Both URLs must be live and reachable BEFORE store submission — otherwise reviewer will reject. Used by tutor slide-1 footer (clickable links) and settings popup buttons. Open via OS.shell_open in NotificationManager-style hooks.",
+    "privacy_url": "https://vadosina-git.github.io/privacy-policy/video-poker-privacy.html",
+    "terms_url":   "https://vadosina-git.github.io/privacy-policy/video-poker-terms.html"
   }
 }

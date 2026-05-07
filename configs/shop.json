@@ -22,7 +22,7 @@
       "bonus_chips": 0,
       "color_scheme": "blue",
       "top_badge_key": null,
-      "image": "shop_pack_03.png"
+      "image": "shop_pack_02.png"
     },
     {
       "id": "pack_03",
@@ -42,7 +42,17 @@
       "bonus_chips": 5000,
       "color_scheme": "purple",
       "top_badge_key": "shop.badge.most_popular",
-      "image": "shop_pack_04.png"
+      "image": "shop_pack_06.png"
+    },
+    {
+      "id": "pack_05",
+      "sort_order": 5,
+      "cooldown_seconds": 86400,
+      "chips": 200000,
+      "bonus_chips": 50000,
+      "color_scheme": "gradient_pink",
+      "top_badge_key": "shop.badge.best_value",
+      "image": "shop_pack_07.png"
     }
   ]
 }
