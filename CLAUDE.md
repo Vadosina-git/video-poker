@@ -390,6 +390,15 @@ python3 -c "import json; d=json.load(open('data/translations.json')); print({k: 
 
 - **Всегда отвечать на русском языке.**
 - **Не коммитить без явного одобрения пользователя.**
+- **Сборка / архивация / upload в App Store Connect — выполняй
+  автономно, не задавая уточняющих вопросов.** Запускай
+  `xcodebuild archive` / `xcrun altool` / `notarytool` / Godot
+  export командами сам, разбирайся с подписями и сертификатами по
+  ходу. Прерывайся только если действительно нет credentials в
+  системе и их невозможно достать (`security find-identity`,
+  keychain, env vars). Промежуточные «можно я запущу archive?» —
+  не нужны: если пользователь сказал собрать/залить, он уже
+  одобрил всю цепочку команд.
 - Все стили — в GDScript, не в `.tscn` (Godot 4.6 парсер отвергает `theme_override_`).
 - Использовать `load()` вместо `preload()` для сцен (circular dependencies).
 - Корневые ноды сцен: `anchors_preset = 15` без `layout_mode`.
