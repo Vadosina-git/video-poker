@@ -42,6 +42,16 @@
 - **`docs/RELEASE.md`** — подгрузи только при подготовке к релизу
   (Store metadata, ASC, Google Play, IAP).
 
+- **`docs/IOS_UPLOAD.md`** — ОБЯЗАТЕЛЬНО прочитай при ЛЮБОЙ задаче
+  «собери / архивируй / залей iOS-билд / upload в App Store Connect /
+  TestFlight». Содержит: расположение creds (`.appstore.env`,
+  `~/.appstoreconnect/private_keys/`), готовый пайплайн (bump build →
+  archive → exportArchive → altool upload), шаблон
+  `ExportOptions.plist`, ресайз иконок, troubleshooting типичных
+  ошибок (409 duplicate version, signing fail, и т.д.). Все вопросы
+  «где issuer ID / какой ключ / как подписывать» — ответы там.
+  НЕ спрашивай пользователя — читай файл и делай.
+
 - **`docs/ROADMAP.md`** — подгрузи при обсуждении приоритетов,
   будущих фич, плана работ по фазам.
 
@@ -391,14 +401,18 @@ python3 -c "import json; d=json.load(open('data/translations.json')); print({k: 
 - **Всегда отвечать на русском языке.**
 - **Не коммитить без явного одобрения пользователя.**
 - **Сборка / архивация / upload в App Store Connect — выполняй
-  автономно, не задавая уточняющих вопросов.** Запускай
-  `xcodebuild archive` / `xcrun altool` / `notarytool` / Godot
-  export командами сам, разбирайся с подписями и сертификатами по
-  ходу. Прерывайся только если действительно нет credentials в
-  системе и их невозможно достать (`security find-identity`,
-  keychain, env vars). Промежуточные «можно я запущу archive?» —
-  не нужны: если пользователь сказал собрать/залить, он уже
-  одобрил всю цепочку команд.
+  автономно по `docs/IOS_UPLOAD.md`.** НЕ спрашивай про issuer
+  ID / API ключи / пути — всё лежит в `.appstore.env` (project root,
+  gitignored) + `~/.appstoreconnect/private_keys/`. **Перед тем как
+  спросить «где creds»** выполни в таком порядке:
+  `cat .appstore.env`, `cat docs/IOS_UPLOAD.md`,
+  `ls ~/.appstoreconnect/private_keys/`,
+  `grep -rIE "ISSUER|APP_STORE" .`. Если пользователь сказал
+  «собери/залей/архивируй» — запускай весь пайплайн §2 из
+  `docs/IOS_UPLOAD.md` без промежуточных подтверждений
+  (bump build → archive → exportArchive → altool upload).
+  **Bump `CURRENT_PROJECT_VERSION` всегда делай превентивно** —
+  не дожидаясь 409 от ASC.
 - Все стили — в GDScript, не в `.tscn` (Godot 4.6 парсер отвергает `theme_override_`).
 - Использовать `load()` вместо `preload()` для сцен (circular dependencies).
 - Корневые ноды сцен: `anchors_preset = 15` без `layout_mode`.
