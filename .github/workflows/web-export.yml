@@ -51,7 +51,7 @@ jobs:
 
       - name: Fetch privacy policy from main branch
         run: |
-          curl -sfLo builds/web/privacy-policy.html \
+          wget -qO builds/web/privacy-policy.html \
             https://raw.githubusercontent.com/Vadosina-git/video-poker/main/privacy-policy.html
           test -s builds/web/privacy-policy.html
 
