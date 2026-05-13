@@ -77,7 +77,12 @@ CLAUDE.md ссылается на оба upload playbook'а в секции «Д
 Эти ссылки спасают от разговоров «а где у нас X?»:
 
 - **Где иконки?** Источник `assets/icons/icon_.png` (1024×1024 RGB, без alpha — Apple отвергает RGBA marketing icon). Все ресайзы регенерятся из источника по §IOS_UPLOAD.md §4.
-- **Где privacy policy?** `privacy-policy.html` в корне репо (на ветке `main`). Деплоится через workflow `.github/workflows/web-export.yml` (на ветке `web-export`), который `wget`-ает файл с main и кладёт в Pages-артефакт. Чтобы обновить policy — пушь в main + триггерь workflow на web-export (manual `gh workflow run`, либо пустой коммит на web-export).
+- **Где privacy policy?** `privacy-policy.html` в корне репо (на ветке `main`). Деплоится через workflow `.github/workflows/web-export.yml` (на ветке `web-export`), который `wget`-ает файл с main и кладёт в Pages-артефакт. Чтобы обновить policy — пушь правку в main, потом триггерь Pages-деплой:
+  ```bash
+  gh workflow run web-export.yml --ref web-export
+  # либо: пустой коммит на ветке web-export
+  ```
+  Проверка после деплоя: `curl -sI https://vadosina-git.github.io/video-poker/privacy-policy.html` → ожидаем `HTTP/2 200`.
 - **Где переводы UI?** `data/translations.json` (EN/RU/ES). См. CLAUDE.md §8.
 - **Где конфиги?** `configs/*.json` + `data/paytables.json`. Source of truth — см. CLAUDE.md §5 «Config-driven».
 - **Где iOS Info.plist?** `build/ios/VideoPoker/VideoPoker-Info.plist` (gitignored, регенерится при Godot iOS export). Орientation, ATT, usage-descriptions редактируются здесь.
@@ -164,6 +169,41 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   - Препятствие 3: service account создан, но в Play Console → API access не привязан → пользователь сделал Link + Grant access (permissions: Release apps to testing tracks + View app info + Manage testing tracks).
   - Препятствие 4: `Version code 12 has already been used` → bump до 13 + rebuild → upload `Successfully finished`.
 
+### Google Play Closed testing → Production gate (2026-05-11..13)
+
+Build 13 успешно опубликован в Internal testing через fastlane supply
+(2026-05-11). Попытка promote internal → closed через API завершилась
+серией ошибок:
+- `Only releases with status draft may be created on draft app` —
+  Google форсит draft для всех releases в edit-сессии пока app в
+  «draft state». Existing internal release с status=completed
+  автоматически копируется в edit и валит commit.
+- `Your app targets Android 13... declare advertising ID` —
+  обязательная декларация в App content до того как API сможет commit.
+
+Build 14 в итоге загружен в Closed testing через UI (drag-and-drop)
+вручную. Через UI заполнены все App content декларации: privacy
+policy URL, target audience 18+, ads = No, data safety (Device ID +
+Purchase history), content rating (questionnaire IARC, simulated
+gambling + virtual currency), advertising ID = No.
+
+Также через UI заполнены:
+- Main store listing (default en-US): app name «Video Poker Trainer game»,
+  short description, full description, screenshots, иконка.
+- Store settings: app category = Card game, contact email.
+- Closed testing track: 170 countries + rest of world, email-list testers,
+  feedback channel = vakhrustalev@gmail.com.
+
+Closed testing release отправлен на Google review 2026-05-13.
+
+**Gate до Production access** (Google требование для новых аккаунтов с 2023):
+1. ✅ Closed testing release published & reviewed
+2. ⬜ Минимум 12 testers opted-in (на момент конца сессии — собирается)
+3. ⬜ 14 дней непрерывного closed теста с момента 12-го opt-in
+4. ⬜ «Apply for production» questionnaire → Google review ~1-7 дней
+
+После прохождения 1-4 — кнопка Production track станет активной.
+
 ### Privacy policy
 
 - Создан `privacy-policy.html` в корне main. Hosted via GitHub Pages (workflow на ветке `web-export` пулит файл с main через wget).
@@ -174,6 +214,7 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ## 9. Что НЕ настроено (потенциальные TODO для будущих релизов)
 
 - **iOS-скрипт-обёртка** — bump + archive + export + upload одной командой. Сейчас всё в `docs/IOS_UPLOAD.md` §2 как копипаст.
+- **Production access для нового developer аккаунта** — не путать с «нажми Production → Submit». Для аккаунтов созданных с 2023 требуется: Closed testing release published + 12+ testers opted-in + 14 дней непрерывного closed теста + Apply for production questionnaire + Google review. Полный flow зафиксирован в §8 «Google Play Closed testing → Production gate» и `docs/PAIN_LOG.md` запись 2026-05-11.
 - **Auto-trigger Pages при изменении privacy-policy.html** — сейчас pushes в main не триггерят web-export workflow. Future fix: workflow на main с `paths: ['privacy-policy.html']` который делает `repository_dispatch` на web-export.
 - **Crashlytics / Analytics** — НЕ интегрировано. Если понадобится — добавить Firebase SDK, обновить privacy policy под новые типы данных, обновить App Privacy форму в ASC.
 - **GDPR consent flow** — сейчас нет, т.к. трекинг не ведём. Если добавим analytics → нужен banner для EU users.

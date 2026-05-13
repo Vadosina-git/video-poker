@@ -5,6 +5,82 @@
 
 ---
 
+## 2026-05-11 — Google Play API: draft app не пускает API-upload release
+
+**Симптом:** AAB загружается в Play library через API успешно, но
+commit edit падает с `Only releases with status draft may be created
+on draft app`. Никакая комбинация `release_status=draft` /
+`changesNotSentForReview=true` не помогает.
+
+**Корневая причина:** App в state «draft» пока не прошёл первый
+Production review. Google API при создании edit-сессии автоматически
+**копирует все существующие tracks** в этот edit. Internal track release
+со `status=completed` (опубликован для internal testers) попадает в
+edit и валит валидацию **всего** edit'а, даже если PUT шёл только на
+другой track. Плюс с Android 13+ target SDK Google требует
+Advertising ID declaration в Play Console UI до того как API сможет
+commit любой release.
+
+**Правило:** для нового developer-аккаунта **первую** загрузку release
+в каждом новом track (Internal → Closed → Production) делать через
+Play Console UI вручную (drag-and-drop AAB). API/fastlane заработает
+полностью только после: (а) все обязательные App content декларации
+заполнены через UI; (б) app перестал быть «draft» (= после первого
+Production approval). До этого момента — UI drag-and-drop AAB в
+каждый новый track. AAB файл лежит в `build/video_poker_release.aab`
+после `./scripts/build_android_release.sh`.
+
+---
+
+## 2026-05-08 — Замена iOS-иконок: assets/icons/ ≠ build/ios/AppIcon.appiconset/
+
+**Симптом:** `git checkout assets/icons/` восстановил источники
+иконок, билд пересобран, но в IPA build 25 в App Store торчала
+**новая** иконка которую пользователь хотел откатить. Откат
+визуально не сработал, потребовалась ещё одна итерация (build 26).
+
+**Корневая причина:** `build/ios/VideoPoker/Images.xcassets/AppIcon.appiconset/`
+gitignored (вся `build/ios/` gitignored, Godot регенерирует при
+экспорте). `git checkout` его не трогает. IPA берёт иконки **именно
+оттуда**, не из `assets/icons/`. Между Godot экспортами `AppIcon.appiconset/`
+может содержать «застрявшие» иконки от предыдущего тюнинга.
+
+**Правило:** при замене иконки операции **парой** — regenerate
+`assets/icons/icon_<size>.png` AND regenerate
+`build/ios/VideoPoker/Images.xcassets/AppIcon.appiconset/Icon-<size>.png`.
+Скрипт из `docs/IOS_UPLOAD.md` §4 делает обе перегонки за один
+запуск, кусочный запуск опасен. После замены — проверить
+`Image.open('build/ios/.../Icon-1024.png').mode == 'RGB'` (см.
+следующую запись).
+
+---
+
+## 2026-05-08 — iOS marketing icon: alpha-канал валит ASC validator
+
+**Симптом:** Build 23 — archive проходит, `altool upload` →
+`Validation failed (409) Invalid large app icon... can't be
+transparent or contain an alpha channel`. Build уходит впустую,
+обходится только пересборкой с bump build number (build 24).
+
+**Корневая причина:** Apple строго валидирует **именно**
+`Icon-1024.png` в `AppIcon.appiconset/` на color mode. RGBA = отказ.
+Источник `assets/icons/icon_.png` мог быть RGBA (или 1024×1038 не
+квадрат) — все ресайзы наследуют alpha. В store_listing/icon_.png
+именно так и было.
+
+**Правило:** перед каждым `xcodebuild archive` прогонять валидацию:
+```python
+from PIL import Image
+import glob
+for p in sorted(glob.glob('build/ios/VideoPoker/Images.xcassets/AppIcon.appiconset/*.png')):
+    assert Image.open(p).mode == 'RGB', f"alpha in {p}"
+```
+Если RGBA — flatten на белый через PIL ДО archive, не дожидаясь 409
+от ASC. Дополнительно следить чтобы исходник `assets/icons/icon_.png`
+был 1024×1024 RGB (центр-кроп если приходит не квадрат).
+
+---
+
 ## 2026-05-07 — chip_parent injection для cross-CanvasLayer chip cascade
 
 **Симптом:** Анимация фишек клейма (`_spawn_chip_cascade`) вылетает

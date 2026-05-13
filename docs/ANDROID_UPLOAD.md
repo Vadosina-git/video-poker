@@ -55,6 +55,22 @@ which fastlane >/dev/null && echo "fastlane: OK" || echo "fastlane: MISSING (gem
 | Marketing icon (источник)          | `assets/icons/icon_.png` (1024×1024 RGB, без alpha)  | Тот же что для iOS. Godot ресайзит при export. |
 | Output AAB                         | `build/video_poker_release.aab`                      | По умолчанию (можно переопределить аргументом скрипта). |
 
+### Маппинг UI → API track names
+
+Названия треков в Play Console UI **не совпадают** с именами треков в
+API. `.googleplay.env` → `GOOGLE_PLAY_TRACK="<api-name>"`:
+
+| Play Console UI       | API track name |
+|-----------------------|----------------|
+| Internal testing      | `internal`     |
+| Closed testing        | `alpha`        |
+| Open testing          | `beta`         |
+| Production            | `production`   |
+
+Custom closed-test треки имеют свои имена — получить можно через
+`GET androidpublisher/v3/applications/<pkg>/edits/<id>/tracks`
+после открытия edit-сессии.
+
 ---
 
 ## 2. Полный пайплайн (копипаст в одну сессию)
@@ -189,6 +205,29 @@ touch build/.gdignore
 
 ### `400 apkUpgradeVersionConflict` / `Version code N has already been used`
 Ты не bump'нул `version/code`. См. §2 шаг 1.
+
+### `Only releases with status draft may be created on draft app`
+App в state «draft» (Production пустой / первый review не пройден).
+Google требует чтобы **все** releases в edit-сессии были `draft`.
+Existing internal release с `status=completed` (опубликованный для
+internal testers) автоматически копируется в новый edit и валит
+commit, даже если PUT шёл только на другой track.
+
+**Воркараунд:** первый release в каждом новом track (Closed/Open/Production)
+делать через Play Console UI вручную (drag-and-drop AAB).
+После того как app выйдет из draft state (= после первого
+Production approval) — API/fastlane заработают полностью.
+До этого `./scripts/upload_googleplay.sh` работает только на
+`internal` track. См. `docs/PAIN_LOG.md` запись от 2026-05-11.
+
+### `Your app targets Android 13 (API 33) or above. You must declare the use of advertising ID in Play Console.`
+Декларировать в Play Console → Policy and programs → App content →
+Advertising ID. У нас игра **не использует** Advertising ID. Проверка:
+```bash
+java -jar /tmp/bundletool.jar dump manifest --bundle build/video_poker_release.aab | grep -iE "AD_ID|advertis"
+```
+Если пусто — `permission com.google.android.gms.permission.AD_ID`
+отсутствует. Ответ в форме: **No, my app does not use advertising ID**.
 
 ### `403 The caller does not have permission`
 Service account не привязан в Play Console → Settings → API access, либо у него
