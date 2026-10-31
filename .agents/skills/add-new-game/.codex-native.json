@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "native": true,
+  "source": ".claude/commands/add-new-game.md",
+  "managed_by": "codex-fleet-migration",
+  "note": "Preserve native target during adapter sync."
+}
