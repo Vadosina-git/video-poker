@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "codex-native",
+  "scope": "Godot/video poker",
+  "source_plugin": "code-simplifier/1.0.0",
+  "adapted_at": "2026-11-01",
+  "sources": [
+    {
+      "source": "/Users/vadimprokop/.claude/plugins/cache/claude-plugins-official/code-simplifier/1.0.0/agents/code-simplifier.md",
+      "target": ".agents/skills/code-simplifier/references/code-simplifier.md",
+      "sha256": "2a51e8d210580d9f66ac2ed1226c41f9374565fc275da30d7bb95f65c2cc87bb"
+    }
+  ]
+}

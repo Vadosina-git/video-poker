@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "codex-native",
+  "scope": "Godot/video poker",
+  "source_plugin": "code-review/1.0.1",
+  "adapted_at": "2026-11-01",
+  "sources": [
+    {
+      "source": "/Users/vadimprokop/.claude/plugins/cache/claude-plugins-official/code-review/1.0.1/commands/code-review.md",
+      "target": ".agents/skills/code-review/references/code-review.md",
+      "sha256": "3f02ea6eed996590348264777b2e324859a6e2c0c5f7dd298617ea21deb3b1b2"
+    }
+  ]
+}

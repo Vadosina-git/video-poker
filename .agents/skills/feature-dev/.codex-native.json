@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "codex-native",
+  "scope": "Godot/video poker",
+  "source_plugin": "feature-dev/1.0.1",
+  "adapted_at": "2026-11-01",
+  "sources": [
+    {
+      "source": "/Users/vadimprokop/.claude/plugins/cache/claude-plugins-official/feature-dev/1.0.1/commands/feature-dev.md",
+      "target": ".agents/skills/feature-dev/references/feature-dev.md",
+      "sha256": "652e5d6264fd253fcb70c2f84de986a88d77109a02410aacd90230a6ab4bf557"
+    },
+    {
+      "source": "/Users/vadimprokop/.claude/plugins/cache/claude-plugins-official/feature-dev/1.0.1/agents/code-explorer.md",
+      "target": ".agents/skills/feature-dev/references/code-explorer.md",
+      "sha256": "3b277703de7458988ec3b8021c716f79f642e174950ed332629310f68322029a"
+    },
+    {
+      "source": "/Users/vadimprokop/.claude/plugins/cache/claude-plugins-official/feature-dev/1.0.1/agents/code-architect.md",
+      "target": ".agents/skills/feature-dev/references/code-architect.md",
+      "sha256": "c50fb08d59a4bbd19660860626a049e44cf1a2b0c1cf782e6c7a99ba7e71b0c3"
+    },
+    {
+      "source": "/Users/vadimprokop/.claude/plugins/cache/claude-plugins-official/feature-dev/1.0.1/agents/code-reviewer.md",
+      "target": ".agents/skills/feature-dev/references/code-reviewer.md",
+      "sha256": "a7df173bf77a00da5584c6401a1061524fdbe477b6fef5dd496d4c7a9113c78c"
+    }
+  ]
+}
